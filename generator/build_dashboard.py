@@ -160,7 +160,8 @@ def readout(entity, label, value, colors=None, label_color=LILAC):
     return {"type": "custom:lcards-button", "entity": entity, "preset": "text-only", "show_icon": False,
             "text": {"lbl": {"content": label, "position": "top-left", "font_size": 17, "color": label_color,
                              "text_transform": "uppercase"},
-                     "val": {"content": value, "position": "bottom-left", "font_size": 40, "font_weight": "bold",
+                     "val": {"content": value, "position": "bottom-left", "font_size": "var(--lcars-readout-size)",
+                             "font_weight": "bold",
                              "color": colors or PEACH, "text_transform": "uppercase"}},
             "tap_action": {"action": "more-info"}}
 
@@ -351,7 +352,7 @@ def frame(section, active, content, subtitle):
              "animations": [{"trigger": "on_entity_change", "entity": PUMP, "to_state": "Critical",
                              "check_on_load": True, "preset": "blink", "loop": True}],
              "tap_action": {"action": "more-info"}}
-    readouts = grid('"p c l d t"', "1fr 1fr 1fr 1fr 2.4fr", "1fr", [
+    readouts = grid('"p c l d t"', "1fr 1fr 1fr 1fr 1.7fr", "1fr", [
         *[at(card, area) for card, area in zip(section_readouts(section), ["p", "c", "l", "d"]) if card],
         at(title, "t"),
     ], gap="6px 16px")
@@ -680,10 +681,11 @@ JS_NEXT_BIN = ("[[[ const m = " + json.dumps(BIN_NAMES, ensure_ascii=False) + ";
                "const n = String(entity.state).split(' am ')[0]; return m[n] || n; ]]]")
 
 
-def js_de_date(expr):
-    """JS for a 'dd.mm.yyyy' string -> 'Fri 25/09 · tomorrow'."""
+def js_de_date(expr, weekday=True):
+    """JS for a 'dd.mm.yyyy' string -> 'Fri 25/09 · tomorrow' (weekday=False: '25/09 · tomorrow')."""
     return ("[[[ const m = String(" + expr + ").match(/(\\d\\d)\\.(\\d\\d)\\.(\\d{4})/); if (!m) return '–'; "
-            "const d = new Date(+m[3], +m[2] - 1, +m[1]); " + REL + "return wd + ' ' + dm + ' · ' + rel; ]]]")
+            "const d = new Date(+m[3], +m[2] - 1, +m[1]); " + REL + "return " + ("wd + ' ' + " if weekday else "") +
+            "dm + ' · ' + rel; ]]]")
 
 
 def js_iso_date(expr):
@@ -801,7 +803,7 @@ def section_readouts(section):
     if section == "waste":
         return [
             readout(NEXT_PICKUP, "Next pickup", JS_NEXT_BIN, ORANGE),
-            readout(NEXT_PICKUP, "Date", js_de_date("entity.state"), PEACH),
+            readout(NEXT_PICKUP, "Date", js_de_date("entity.state", weekday=False), PEACH),
             None,                               # keep the slot free: the date is wide
             readout("sensor.time", "Local time", "{entity.state}"),
         ]
@@ -825,7 +827,7 @@ def home_content():
     w = WEATHER
     atmos = column([
         ("h", header("Atmosphere", ICE)),
-        ("p", info("Condition", js_map({k: (v, "", "") for k, v in WEATHER_NAMES.items()}), w, SUNFLOWER)),
+        ("p", info("Sky", js_map({k: (v, "", "") for k, v in WEATHER_NAMES.items()}), w, SUNFLOWER)),
         ("p", info("Temperature", "[[[ return entity.attributes.temperature + ' °C'; ]]]", w, ICE)),
         ("p", info("Humidity", "[[[ return entity.attributes.humidity + ' %'; ]]]", w, PERI)),
         ("p", info("Pressure", "[[[ return Math.round(entity.attributes.pressure) + ' hPa'; ]]]", w, LILAC)),
@@ -892,15 +894,18 @@ def laundry_content():
 
 TIMELINE_DAYS = 28
 TIMELINE_LABEL_W = 150   # label column = the timeline panel's left pillar
+# Fixed row heights, so the frames hug their content instead of filling the viewport
+TL_HEAD, TL_ROW, TL_AXIS, TL_GAP = "clamp(22px, 2.8vh, 30px)", "clamp(26px, 4vh, 40px)", "clamp(24px, 3vh, 32px)", 6
+DATA_ROW, DATA_GAP = "clamp(30px, 4.4vh, 48px)", 6
 # JS: `ds` = 'yyyy-mm-dd' for today + k days
 JS_DAY = ("const t = new Date(); t.setHours(0,0,0,0); t.setDate(t.getDate() + %d); "
           "const ds = t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' "
           "+ String(t.getDate()).padStart(2, '0'); const we = t.getDay() %% 6 === 0; ")
 
 
-PANEL_T = 18        # bar thickness of a panel frame
-PANEL_PILLAR = 22   # width of its left bracket
-PANEL_CORNER = 40   # size of the shoulder (elbow card)
+PANEL_T = 26        # bar thickness of a panel frame; the title sits in it, so it must fit the font
+PANEL_PILLAR = 26   # width of its pillar
+PANEL_CORNER = 54   # size of the shoulder (elbow card)
 
 
 def panel_elbow(kind, colour, pillar=PANEL_PILLAR):
@@ -913,43 +918,48 @@ def panel_elbow(kind, colour, pillar=PANEL_PILLAR):
 def panel(title, colour, content, *, side="left", pillar=None, top=True, bottom=True, overflow="hidden"):
     """Content in its own LCARS bracket: a pillar on `side` with shoulders (elbows) at the ends that
     have a bar. The top bar is interrupted by the title; with top=False the frame is open at the top
-    and the title sits in the first row next to the pillar. bottom=False leaves the bottom open.
+    and the title moves into the bottom bar (a caption). bottom=False leaves the bottom open.
 
     pillar=<px> (left side only): the content brings its own pillar of that width as its first
     column (e.g. the timeline's label blocks); the shoulders widen to match."""
     right = side == "right"
     pw = pillar or PANEL_PILLAR
     corner = (pw + PANEL_CORNER - PANEL_T if pillar else PANEL_CORNER) + 8
-    title_w = int(len(title) * (PANEL_T + 6) * 0.4) + 18   # Antonio is narrow: ~0.4 em per character
+    title_w = int(len(title) * PANEL_T * 0.42) + 18        # Antonio is narrow: ~0.4 em per character
     pad = "right" if right else "left"
     title_card = {"type": "custom:lcards-button", "preset": "text-only", "show_icon": False, "interactive": False,
-                  "text": {"t": {"content": title, "position": f"center-{pad}", "font_size": PANEL_T + 6,
+                  "text": {"t": {"content": title, "position": f"center-{pad}", "font_size": PANEL_T,
                                  "color": colour, "text_transform": "uppercase", "padding": {pad: 10}}}}
 
     def line(edge, main):          # one row of the areas, edge column on the pillar side
         return f'"{main} {edge}"' if right else f'"{edge} {main}"'
 
+    def bar(edge, titled):
+        """Horizontal bar on the top/bottom edge of its row, optionally interrupted by the title."""
+        seg = '"b t a"' if right else '"a t b"'
+        widths = f"1fr {title_w}px 14px" if right else f"14px {title_w}px 1fr"
+        parts = [at(block(colour), "a"), at(title_card, "t"), at(block(colour), "b")]
+        if not titled:
+            seg, widths, parts = '"b"', "1fr", [at(block(colour), "b")]
+        blank = '"' + " ".join("." for _ in seg.strip('"').split()) + '"'
+        areas_ = f"{seg} {blank}" if edge == "top" else f"{blank} {seg}"
+        rows_ = f"{PANEL_T}px 1fr" if edge == "top" else f"1fr {PANEL_T}px"
+        return grid(areas_, widths, rows_, parts, gap="0 6px")
+
     areas, rows, cards = [], [], []
     body_edge = "body" if pillar else "side"
     if top:
-        bar = (grid('"b t a" ". . ."', f"1fr {title_w}px 14px", f"{PANEL_T}px 1fr",
-                    [at(block(colour), "a"), at(title_card, "t"), at(block(colour), "b")], gap="0 6px") if right else
-               grid('"a t b" ". . ."', f"14px {title_w}px 1fr", f"{PANEL_T}px 1fr",
-                    [at(block(colour), "a"), at(title_card, "t"), at(block(colour), "b")], gap="0 6px"))
         areas.append(line("tl", "top"))
         rows.append(f"{PANEL_CORNER}px")
-        cards += [at(panel_elbow("header-right" if right else "header-left", colour, pw), "tl"), at(bar, "top")]
-    else:
-        areas.append(line(body_edge if pillar else "side", "title"))
-        rows.append(f"{PANEL_T + 16}px")
-        cards.append(at(title_card, "title"))
+        cards += [at(panel_elbow("header-right" if right else "header-left", colour, pw), "tl"),
+                  at(bar("top", True), "top")]
     areas.append(line(body_edge, "body"))
     rows.append("1fr")
     if bottom:
         areas.append(line("bl", "bot"))
         rows.append(f"{PANEL_CORNER}px")
         cards += [at(panel_elbow("footer-right" if right else "footer-left", colour, pw), "bl"),
-                  at(grid('"." "b"', "1fr", f"1fr {PANEL_T}px", [at(block(colour), "b")], gap="0"), "bot")]
+                  at(bar("bottom", not top), "bot")]
     if pillar:
         cards.append(at(content, "body", overflow=overflow))
     else:
@@ -965,8 +975,9 @@ def text_row(label, value_js, entity=None, label_color=ORANGE, value_color=PERI)
     """Plain data line (label left, value right), no box: the quiet counterpart to row()."""
     card = row(entity, label, {"default": value_color}, value_js, interactive=bool(entity))
     card["style"] = {"card": {"color": {"background": "transparent"}}, "border": {"width": 0, "radius": 0}}
-    card["text"]["label"].update({"color": label_color, "padding": {"left": 0}})
-    card["text"]["value"].update({"color": value_color, "padding": {"right": 0}})
+    # Sizes relative to the row height, larger than row()'s: these rows are short and have no box
+    card["text"]["label"].update({"color": label_color, "padding": {"left": 0}, "font_size_percent": 40})
+    card["text"]["value"].update({"color": value_color, "padding": {"right": 0}, "font_size_percent": 50})
     return card
 
 
@@ -1012,25 +1023,39 @@ def collection_timeline():
     cards += [at(timeline_axis_cell(k, "t.getDate()", "top-center"), d) for k, d in enumerate(days)]
     # Tracks spelled out: LCARdS counts tracks itself, treats repeat() as one and trims the areas to match
     return grid(" ".join(areas), f"{TIMELINE_LABEL_W}px " + " ".join(["1fr"] * TIMELINE_DAYS),
-"clamp(22px, 2.8vh, 34px) " + " ".join(["1fr"] * len(rows)) + " clamp(28px, 3.6vh, 44px)", cards, gap="clamp(4px, 0.6vh, 8px) 4px")
+" ".join([TL_HEAD] + [TL_ROW] * len(rows) + [TL_AXIS]), cards, gap=f"{TL_GAP}px 4px")
+
+
+def data_stack(cards):
+    """Fixed-height rows of text_row()s (column() would stretch to fill)."""
+    names = [f"r{i}" for i in range(len(cards))]
+    return grid(" ".join(f'"{n}"' for n in names), "1fr", " ".join([DATA_ROW] * len(cards)),
+                [at(c, n) for c, n in zip(cards, names)], gap=f"{DATA_GAP}px")
+
+
+def data_panel_height(n):
+    return f"calc({n} * {DATA_ROW} + {(n - 1) * DATA_GAP + 8}px + {PANEL_CORNER}px)"
 
 
 def waste_content():
     timeline = panel(f"Collection timeline · {TIMELINE_DAYS} days", ORANGE, collection_timeline(),
                      pillar=TIMELINE_LABEL_W, bottom=False)
     # The two lower frames face each other: pillars meet in the middle, open at the top
-    schedule = panel("Next per bin", PEACH, column(
-                     [("p", text_row(label, js_de_date("entity.state"), e)) for label, e, _ in BINS]),
+    schedule = panel("Next per bin", PEACH, data_stack(
+                     [text_row(label, js_de_date("entity.state"), e) for label, e, _ in BINS]),
                      side="right", top=False)
-    hazmat = panel("Hazmat collection", RED, top=False, content=column([
-        ("p", text_row("Date", js_iso_date("entity.state"), HAZMAT["date"])),
-        ("p", text_row("Window", "[[[ return String(entity.state).replace(/\\s*Uhr$/, ''); ]]]", HAZMAT["window"])),
-        ("p", text_row("Location", "[[[ return String(entity.state).split(',')[0]; ]]]", HAZMAT["place"])),
-        ("p", {"type": "custom:lcards-button", "preset": "text-only", "interactive": False,
-               "text": {"n": {"content": "Four times a year · dates appear automatically", "position": "center-left",
-                              "font_size": 16, "color": DIM, "text_transform": "uppercase"}}}),
+    hazmat = panel("Hazmat collection", RED, top=False, content=data_stack([
+        text_row("Date", js_iso_date("entity.state"), HAZMAT["date"]),
+        text_row("Window", "[[[ return String(entity.state).replace(/\\s*Uhr$/, ''); ]]]", HAZMAT["window"]),
+        text_row("Location", "[[[ return String(entity.state).split(',')[0]; ]]]", HAZMAT["place"]),
+        {"type": "custom:lcards-button", "preset": "text-only", "interactive": False,
+         "text": {"n": {"content": "Four times a year · dates appear automatically", "position": "center-left",
+                        "font_size": 16, "color": DIM, "text_transform": "uppercase"}}},
     ]))
-    return grid('"t t" "s h"', "1fr 1fr", "2fr 1fr",
+    n_tl = len(BINS) + 1
+    timeline_h = f"calc({PANEL_CORNER}px + {TL_HEAD} + {n_tl} * {TL_ROW} + {TL_AXIS} + {(n_tl + 1) * TL_GAP}px)"
+    # Sized to content, not stretched to the viewport; what's left stays black
+    return grid('"t t" "s h" ". ."', "1fr 1fr", f"{timeline_h} {data_panel_height(4)} 1fr",
                 [at(timeline, "t"), at(schedule, "s"), at(hazmat, "h")], gap="clamp(12px, 2vh, 24px) 8px")
 
 

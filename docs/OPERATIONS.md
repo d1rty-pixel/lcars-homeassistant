@@ -42,8 +42,9 @@ Dashboard config backups are written by `tools/deploy.py` to `build/backups/`
 - Kiosk mode and the view theme apply to every user.
 - Sounds play after the first touch. If the tablet stays silent, allow media
   playback in Fully's web content settings.
-- The layout was tuned on a 2560×1271 desktop viewport. Row heights and most
-  fonts scale with viewport height. Check the tablet and fine-tune if needed.
+- Layouts are checked at 1920×1080 (desktop) and 1280×800 (Lenovo Tab M10
+  Gen 1 in landscape). Row heights and most fonts scale with viewport height,
+  header readouts with its width (theme variable `lcars-readout-size`).
 
 ## Sounds
 

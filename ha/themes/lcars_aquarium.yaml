@@ -35,6 +35,8 @@ LCARS Aquarium:
   lcars-blue: "#8899FF"
   lcars-green: "#99CC99"
   lcars-gray: "#666688"
+  # Header readout values scale with the viewport width (tablet 1280 px ... desktop 1920 px)
+  lcars-readout-size: "clamp(24px, 2.1vw, 40px)"
   primary-font-family: "Antonio, Helvetica, Arial, sans-serif"
   paper-font-common-base_-_font-family: "Antonio, Helvetica, Arial, sans-serif"
   ha-font-family-body: "Antonio, Helvetica, Arial, sans-serif"

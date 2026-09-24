@@ -102,3 +102,10 @@ page before capturing. Missing cards in a screenshot are usually not real.
 and trims `grid-template-areas` to that many rows and columns. It doesn't expand
 `repeat(n, …)`, so `repeat(28, 1fr)` counts as one track and the areas collapse.
 Spell tracks out.
+
+## Width-dependent font sizes
+
+LCARdS `font_size` takes px or `var(--…)`, and `font_size_percent` scales with
+the card *height* only. For text that must shrink with the viewport *width*
+(header readouts on the 1280 px tablet), the view theme defines
+`lcars-readout-size: clamp(…vw…)` and the cards use `var(--lcars-readout-size)`.
