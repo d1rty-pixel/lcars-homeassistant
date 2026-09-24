@@ -48,7 +48,9 @@
     right, values next to them in peri. A filler piece runs into the bottom
     shoulder without a gap.
   - Frames hug their content; the rest of the page stays black.
-  - Header: next pickup, date, then LCARS number columns in the free space.
+  - Header: next pickup, date, then LCARS number columns in the free space
+    (LCARdS canvas `cascade` preset: fills the space, digits re-roll once per
+    colour cycle, `CASCADE_MS`).
 - **Frames per group**: `panel()` draws a bracket with elbow shoulders; sides,
   open ends and a content-supplied pillar are options.
 - **Every numbered thing has its own number**: codes come from

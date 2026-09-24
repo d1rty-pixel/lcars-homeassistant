@@ -185,14 +185,18 @@ def readout(entity, label, value, colors=None, label_color=LILAC):
             "tap_action": {"action": "more-info"}}
 
 
-def number_columns(cols, rows, color=PERI, size=14):
-    """Decorative LCARS number columns: random digits, re-rolled every few seconds, with a colour cascade."""
-    return {"type": "custom:lcards-data-grid", "data_mode": "decorative", "format": "digit",
-            "refresh_interval": 4000,
-            "grid": {"grid-template-columns": f"repeat({cols}, auto)", "grid-template-rows": f"repeat({rows}, 1fr)",
-                     "gap": "0 14px", "justify-content": "start"},    # packed columns, not spread out
-            "style": {"font_size": size, "color": color},
-            "animations": [{"trigger": "on_load", "preset": "cascade-color"}]}
+CASCADE_MS = 1800   # one colour cycle of the number columns; digits re-roll at the same rate
+
+
+def number_columns(color_start=ICE, color_text="#223366", color_end="#DFE1E8"):
+    """LCARS data cascade (LCARdS canvas preset): as many digit columns as fit, each row cycling
+    through the colours; digits re-roll once per cycle (refresh_interval = cycle duration)."""
+    return {"type": "custom:lcards-button", "preset": "text-only", "show_icon": False, "interactive": False,
+            "tap_action": {"action": "none"},
+            "background_animation": [{"preset": "cascade", "config": {
+                "format": "digit", "font_size": 14, "gap": 6, "duration": CASCADE_MS,
+                "refresh_interval": CASCADE_MS,
+                "colors": {"start": color_start, "text": color_text, "end": color_end}}}]}
 
 
 def legend_readout(entity, label, colour):
@@ -839,7 +843,7 @@ def section_readouts(section):
         return [
             readout(NEXT_PICKUP, "Next pickup", JS_NEXT_BIN, ORANGE),
             readout(NEXT_PICKUP, "Date", js_de_date("entity.state", weekday=False), PEACH),
-            (number_columns(7, 4), 2),
+            (number_columns(), 2),
 
         ]
     if section == "calendar":
