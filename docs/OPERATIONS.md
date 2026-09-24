@@ -16,6 +16,7 @@
 | View theme | `/config/themes/lcars_aquarium.yaml` ("LCARS Aquarium") | delete file, reload themes |
 | Registry workaround | `/config/www/lcards-registry-fix.js` | remove resource + file |
 | Motion switch | `/config/www/lcars-motion.js`, Lovelace resource `/local/lcars-motion.js?v=2` (module) | remove resource + file |
+| Day grid card | `/config/www/lcars-day-grid.js`, Lovelace resource `/local/lcars-day-grid.js?v=1` (module) | remove resource + file |
 | Bars helper | `input_boolean.lcars_bars` ("LCARS bars", on): segment bars visible | helpers UI |
 | Sounds | `/media/lcars/thelcars_beep1..4.mp3` (thelcars.com, no licence stated, so **not** in git) | delete files |
 | Dashboards | `lcars-bridge` (live). `aquarium-lcars` hidden as "LCARS (alt)". | dashboards UI |

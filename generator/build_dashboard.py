@@ -1016,11 +1016,6 @@ TIMELINE_LABEL_W = 150   # label column = the timeline panel's left pillar
 TL_HEAD, TL_ROW, TL_AXIS, TL_GAP = "clamp(22px, 2.8vh, 30px)", "clamp(24px, 3.4vh, 40px)", "clamp(24px, 3vh, 32px)", 4
 DATA_ROW, DATA_GAP = "clamp(28px, 3.8vh, 46px)", TL_GAP
 DATA_LABEL_W = 130      # label blocks = pillar of the data panels
-# JS: `ds` = 'yyyy-mm-dd' for today + k days
-JS_DAY = ("const t = new Date(); t.setHours(0,0,0,0); t.setDate(t.getDate() + %d); "
-          "const ds = t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' "
-          "+ String(t.getDate()).padStart(2, '0'); const we = t.getDay() %% 6 === 0; ")
-
 
 PANEL_T = 26        # bar thickness of a panel frame; the title sits in it, so it must fit the font
 PANEL_PILLAR = 26   # width of its pillar
@@ -1095,49 +1090,27 @@ def panel(title, colour, content, *, side="left", pillar=None, top=True, bottom=
                 gap="0 6px")
 
 
-def timeline_cell(entity, k, colour, hit):
-    """One day of the collection timeline: filled in the bin colour on a pickup day, else a dim grid cell.
-    hit: JS condition on `entity` and `ds`. JS templates in `style` are evaluated (see docs/NOTES.md)."""
-    empty = "'" + rgba(PERI, 0.22) + "'" if k == 0 else "(we ? '" + rgba(PERI, 0.05) + "' : '" + rgba(PERI, 0.1) + "')"
-    return {"type": "custom:lcards-button", "entity": entity, "preset": "barrel", "show_icon": False,
-            "interactive": False, "tap_action": {"action": "none"}, "hold_action": {"action": "none"},
-            "triggers_update": ["sensor.time"],
-            "style": {"card": {"color": {"background": "[[[ " + JS_DAY % k + "return (" + hit + ") ? '" + colour +
-                                                       "' : " + empty + "; ]]]"}},
-                      "border": {"width": 0, "radius": 0}}}
-
-
-def timeline_axis_cell(k, value_js, position):
-    """Axis label for day k. Text colours can't be templated, so a weekday field and a weekend field
-    share the spot and only one of them has content."""
-    colour = ORANGE if k == 0 else PERI
-    text = {name: {"content": "[[[ " + JS_DAY % k + "return (" + ("" if name == "wd" else "!") + "we) ? '' : "
-                              + value_js + "; ]]]",
-                   "position": position, "font_size": 15, "color": c, "text_transform": "uppercase"}
-            for name, c in (("wd", colour), ("wkend", GRAY if k else colour))}
-    return {"type": "custom:lcards-button", "entity": "sensor.time", "preset": "text-only", "show_icon": False,
-            "interactive": False, "tap_action": {"action": "none"}, "text": text}
-
-
 def collection_timeline():
-    """Exterior-overview style grid: a label block per bin, one cell per day, day numbers underneath."""
-    rows = [(label, e, colour, "entity.attributes[ds]") for label, e, colour in BINS]
-    rows.append(("Hazmat", HAZMAT["date"], RED, "entity.state === ds"))
-    days = [f"d{k}" for k in range(TIMELINE_DAYS)]
-    areas = ['"lw ' + " ".join(f"w{k}" for k in range(TIMELINE_DAYS)) + '"']
-    cards = [at(block(ORANGE, None, lcars_code("timeline/weekdays")), "lw")]      # pillar piece between shoulder and first bin
-    cards += [at(timeline_axis_cell(k, "t.toLocaleDateString('en-GB', {weekday: 'short'})", "bottom-center"), f"w{k}")
-              for k in range(TIMELINE_DAYS)]
-    for i, (label, entity, colour, hit) in enumerate(rows):
-        areas.append('"' + " ".join([f"l{i}"] + [f"c{i}_{k}" for k in range(TIMELINE_DAYS)]) + '"')
-        cards.append(at(block(colour, label, lcars_code(f"timeline/{label}"), align="center-right", size=17), f"l{i}"))
-        cards += [at(timeline_cell(entity, k, colour, hit), f"c{i}_{k}") for k in range(TIMELINE_DAYS)]
-    areas.append('"lx ' + " ".join(days) + '"')
+    """Exterior-overview style grid: a label block per bin (LCARdS, part of the frame's pillar) and,
+    next to them, the day grid itself as one lightweight custom card (ha/www/lcars-day-grid.js) instead
+    of ~200 LCARdS buttons: weekday header, a cell per day, day numbers underneath."""
+    series = [(label, e, colour, "attribute") for label, e, colour in BINS]
+    series.append(("Hazmat", HAZMAT["date"], RED, "state"))
+    track_rows = [TL_HEAD] + [TL_ROW] * len(series) + [TL_AXIS]
+    gap = f"{TL_GAP}px 4px"
+    day_grid = {"type": "custom:lcars-day-grid", "days": TIMELINE_DAYS, "rows": track_rows, "gap": gap,
+                "series": [{"entity": e, "colour": colour, "match": match} for _, e, colour, match in series],
+                "colours": {"empty": rgba(PERI, 0.1), "weekend": rgba(PERI, 0.05), "today": rgba(PERI, 0.22),
+                            "text": PERI, "text_weekend": GRAY, "text_today": ORANGE},
+                "font": "Antonio, sans-serif", "font_size": 15}
+    areas = ['"lw days"'] + [f'"l{i} days"' for i in range(len(series))] + ['"lx days"']
+    cards = [at(block(ORANGE, None, lcars_code("timeline/weekdays")), "lw")]      # pillar piece above the bins
+    cards += [at(block(colour, label, lcars_code(f"timeline/{label}"), align="center-right", size=17), f"l{i}")
+              for i, (label, _, colour, _) in enumerate(series)]
     cards.append(at(block(ORANGE, "Day", lcars_code("timeline/day"), align="center-right", size=17), "lx"))
-    cards += [at(timeline_axis_cell(k, "t.getDate()", "top-center"), d) for k, d in enumerate(days)]
-    # Tracks spelled out: LCARdS counts tracks itself, treats repeat() as one and trims the areas to match
-    return grid(" ".join(areas), f"{TIMELINE_LABEL_W}px " + " ".join(["1fr"] * TIMELINE_DAYS),
-" ".join([TL_HEAD] + [TL_ROW] * len(rows) + [TL_AXIS]), cards, gap=f"{TL_GAP}px 4px")
+    cards.append(at(day_grid, "days"))
+    # the day grid repeats these row tracks internally, so its rows line up with the label blocks
+    return grid(" ".join(areas), f"{TIMELINE_LABEL_W}px 1fr", " ".join(track_rows), cards, gap=gap)
 
 
 def pillar_rows(items, side="left", filler=None):

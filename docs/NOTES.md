@@ -119,3 +119,11 @@ the card *height* only. For text that must shrink with the viewport *width*
 - **Per-state animations**: an animation acts on the whole card. To animate
   only a "lit" state, stack two cards in the same grid area (static base, and
   an animated top layer that is transparent unless lit).
+
+## Performance on the kiosk tablet
+
+Every LCARdS button is its own SVG-rendered element with template processing.
+Hundreds of them (the waste timeline had ~200) crash Fully Kiosk's renderer on
+the Tab M10. Dense grids of plain cells belong in a small custom card with a
+CSS grid (`ha/www/lcars-day-grid.js`); keep LCARdS for the frame and the
+things people interact with.

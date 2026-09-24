@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Copy the host-side files (view theme, LCARdS registry workaround, motion switch) to Home Assistant
+# Copy the host-side files (view theme, LCARdS registry workaround, motion switch, day grid card) to Home Assistant
 # and reload themes. The HA host has no scp/sftp, so files go through `sudo tee`.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -9,6 +9,7 @@ SSH=(ssh -o MACs=hmac-sha2-256-etm@openssh.com "$HA_SSH")
 "${SSH[@]}" 'sudo tee /config/themes/lcars_aquarium.yaml >/dev/null' < ha/themes/lcars_aquarium.yaml
 "${SSH[@]}" 'sudo tee /config/www/lcards-registry-fix.js >/dev/null' < ha/www/lcards-registry-fix.js
 "${SSH[@]}" 'sudo tee /config/www/lcars-motion.js >/dev/null' < ha/www/lcars-motion.js
+"${SSH[@]}" 'sudo tee /config/www/lcars-day-grid.js >/dev/null' < ha/www/lcars-day-grid.js
 TOKEN=$(cat ~/.config/homeassistant/token)
 curl -sf -o /dev/null -X POST -H "Authorization: Bearer $TOKEN" \
   "http://${HA_SSH#*@}:8123/api/services/frontend/reload_themes" && echo "themes reloaded"
