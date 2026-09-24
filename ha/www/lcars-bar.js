@@ -16,8 +16,8 @@
 //   colour: "#FFAA90"
 //   off: "rgba(...)"         # inactive segment
 //   blink: [ms, ms, ...]     # per segment: cycle length, random, fixed at build time
-//   off_fraction: 0.05       # share of the cycle a lit segment is briefly out
-//   min_opacity: 0.25
+//   off_fraction: 0.025      # share of the cycle a lit segment briefly flashes
+//   flash: "#FFFFFF"         # colour of that flash
 //   gap: 3
 class LcarsBar extends HTMLElement {
   setConfig(config) {
@@ -72,9 +72,9 @@ class LcarsBar extends HTMLElement {
     const segs = lit.map((on, j) => {
       if (!on) return `<div style="background:${c.off}"></div>`;
       const ms = (c.blink && c.blink[j % c.blink.length]) || 1000;
-      // mostly on, briefly out at the end of each cycle; step-end jumps at the keyframes, no fade
+      // mostly in its colour, briefly flashing at the end of each cycle; step-end jumps, no fade
       const anim = motion ? `animation:blink ${ms}ms step-end infinite` : "";
-      return `<div style="background:${c.colour};${anim}"></div>`;
+      return `<div style="--c:${c.colour};background:${c.colour};${anim}"></div>`;
     });
     if (c.side === "right") segs.reverse();
     this.shadowRoot.innerHTML = `
@@ -83,8 +83,8 @@ class LcarsBar extends HTMLElement {
         .bar { display: grid; height: 100%; gap: ${c.gap ?? 3}px;
                grid-template-columns: repeat(${c.segments}, minmax(0, 1fr)); }
         /* explicit keyframes: steps() with alternate would hold the start value in both directions */
-        @keyframes blink { 0% { opacity: 1; }
-                           ${Math.round((1 - (c.off_fraction ?? 0.05)) * 1000) / 10}%, 100% { opacity: ${c.min_opacity ?? 0.25}; } }
+        @keyframes blink { 0% { background: var(--c); }
+                           ${Math.round((1 - (c.off_fraction ?? 0.025)) * 1000) / 10}%, 100% { background: ${c.flash ?? "#FFFFFF"}; } }
       </style>
       <div class="bar">${segs.join("")}</div>`;
   }
