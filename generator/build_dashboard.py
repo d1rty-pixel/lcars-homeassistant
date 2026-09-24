@@ -1153,10 +1153,12 @@ BARS_VISIBLE = [{"condition": "state", "entity": BARS_HELPER, "state": "on"}]
 
 def data_bar(entity, colour, mode, segments, side):
     """Segmented bar as one light custom card (ha/www/lcars-bar.js): segment 0 sits next to the value
-    (towards the pillar on `side`); lit segments blink hard on/off at random rates fixed here."""
+    (towards the pillar on `side`); lit segments go briefly out at random rates fixed here."""
     bar = {"type": "custom:lcars-bar", "entity": entity, "mode": mode, "segments": segments,
            "days_per_segment": 28 // BAR_SEGMENTS, "side": side, "colour": colour, "off": BAR_OFF,
-           "blink": [_BLINK.randrange(600, 2800, 100) for _ in range(segments)], "min_opacity": 0.35, "gap": 3}
+           # cycle 4-12 s per segment, out for 5 % of it (0.2-0.6 s)
+           "blink": [_BLINK.randrange(4000, 12000, 250) for _ in range(segments)], "off_fraction": 0.05,
+           "min_opacity": 0.25, "gap": 3}
     bar["visibility"] = BARS_VISIBLE
     return bar
 

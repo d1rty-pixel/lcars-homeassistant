@@ -51,7 +51,7 @@
     frames aren't half empty): countdown bars (2 days per segment, 0-28 days,
     growing away from the pillar) for the bins and the hazmat date, a 24 h
     scale with the time window lit for the hazmat window. Lit segments blink
-    hard on/off at random rates (user request); inactive ones stay still.
+    briefly out (5 % of a random 4-12 s cycle, user request); inactive ones stay still.
   - Header on wide screens (>= 1600 px): 2x2 LCARS pills with auto numbers and
     no function right of the number columns; the column is 0 px below that
     (pure CSS clamp, LCARdS layout cards have no media queries).
