@@ -249,8 +249,8 @@ SECTIONS = [
         ("power", "Power", "05-6620", ALMOND, "aquarium-power"),
         ("osmose", "Osmose", "06-2240", ICE, "aquarium-osmose"),
     ]),
-    ("home", "Home", "11-1701", ROSE, "/lovelace/home", [
-        ("home", "Home", "21-0001", ROSE, "home"),
+    ("home", "OPS", "11-1701", ROSE, "/lovelace/home", [
+        ("home", "OPS", "21-0001", ROSE, "ops"),
     ]),
     ("waschen", "Waschen", "13-5519", LILAC, "/lovelace/waschen", [
         ("waschen", "Waschen", "41-0001", LILAC, "waschen"),
@@ -861,7 +861,7 @@ VIEWS = [
     view("aquarium", "light", "LCARS Light", "aquarium-light", light_content(), "Illumination control · 03-2256"),
     view("aquarium", "dosing", "LCARS Dosing", "aquarium-dosing", dosing_content(), "Nutrient dosing · 04-9031"),
     view("aquarium", "power", "LCARS Power", "aquarium-power", power_content(), "Power distribution · 05-6620"),
-    view("home", "home", "LCARS Home", "home", home_content(), "Habitat overview · 21-0001"),
+    view("home", "home", "LCARS OPS", "ops", home_content(), "Operations · habitat overview · 21-0001"),
     view("aquarium", "osmose", "LCARS Osmose", "aquarium-osmose", osmose_content(), "Water reclamation · 06-2240"),
     view("waschen", "waschen", "LCARS Waschen", "waschen", waschen_content(), "Laundry · 41-0001"),
     view("muell", "muell", "LCARS Müll", "muell", muell_content(), "Waste disposal · 51-0001"),
