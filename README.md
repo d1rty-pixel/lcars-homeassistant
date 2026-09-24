@@ -26,7 +26,7 @@ generator/build_dashboard.py   the whole dashboard as code -> build/lcars_dashbo
 generator/ha_ws.py             stdlib-only HA WebSocket client
 tools/validate.py              LCARdS schema + strict unknown-key check
 tools/deploy.py                build -> validate -> back up live config -> save
-tools/deploy_ha_files.sh       copy ha/ files to the HA host, reload themes
+tools/deploy_ha_files.sh       copy ha/ files to the HA host, reload themes, ?v=<timestamp> on the scripts
 tools/gen_registry_fix.py      regenerate the registry workaround after an LCARdS update
 ha/themes/lcars_aquarium.yaml  view theme "LCARS Aquarium"
 ha/www/lcards-registry-fix.js  workaround for the LCARdS/HA load-order race
@@ -71,10 +71,10 @@ build time.
 - **Lovelace resources**:
   - Antonio font (Google Fonts, css)
   - `https://cdn.jsdelivr.net/gh/th3jesta/ha-lcars@js-main/lcars.js` (js)
-  - `/local/lcards-registry-fix.js?v=2` (module)
-  - `/local/lcars-motion.js?v=2` (module)
-  - `/local/lcars-day-grid.js?v=1` (module)
-  - `/local/lcars-bar.js?v=1` (module)
+  - `/local/lcards-registry-fix.js?v=<timestamp>` (module)
+  - `/local/lcars-motion.js?v=<timestamp>` (module)
+  - `/local/lcars-day-grid.js?v=<timestamp>` (module)
+  - `/local/lcars-bar.js?v=<timestamp>` (module)
 - **kiosk-mode** hides the HA header and sidebar on this dashboard. Append
   `?disable_km` to the URL to reach edit mode.
 - The view theme `LCARS Aquarium` (from `ha/themes/`) must be installed.

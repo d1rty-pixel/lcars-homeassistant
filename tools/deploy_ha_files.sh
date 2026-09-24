@@ -14,4 +14,4 @@ SSH=(ssh -o MACs=hmac-sha2-256-etm@openssh.com "$HA_SSH")
 TOKEN=$(cat ~/.config/homeassistant/token)
 curl -sf -o /dev/null -X POST -H "Authorization: Bearer $TOKEN" \
   "http://${HA_SSH#*@}:8123/api/services/frontend/reload_themes" && echo "themes reloaded"
-echo "If a www/ file changed: bump its ?v= in the Lovelace resource so browsers refetch it."
+python3 tools/bump_resources.py   # ?v=<timestamp> on our /local/ scripts, so browsers refetch them

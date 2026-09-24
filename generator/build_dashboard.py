@@ -1144,24 +1144,11 @@ BAR_SEGMENTS = 14                        # countdown bars: one segment per 2 day
 
 _BLINK = random.Random(1701)
 BAR_OFF = rgba(PERI, 0.18)   # inactive bar segment
-# Segment bars (ha/www/lcars-bar.js). They used to be two LCARdS cards per segment and are still kept
-# off the kiosk tablet. HA's hui-card, which LCARdS layout cards wrap every child in, doesn't render a
-# card whose visibility conditions fail, so:
-#  - they are never shown to the kiosk user (the Fully tablet's renderer can't cope);
-#  - input_boolean.lcars_bars switches them off for everyone (?lcars_bars=off|on|toggle, see
-#    ha/www/lcars-motion.js).
-# The user condition lists the users allowed to see them, read at build time: rebuild after adding users.
-KIOSK_USERS = {"kiosk"}
+# Segment bars (ha/www/lcars-bar.js): input_boolean.lcars_bars switches them off for everyone
+# (?lcars_bars=off|on|toggle, see ha/www/lcars-motion.js). HA's hui-card, which LCARdS layout cards
+# wrap every child in, doesn't render a card whose visibility conditions fail.
 BARS_HELPER = "input_boolean.lcars_bars"
-
-
-def bar_users():
-    users = ha_ws.Client().call({"type": "config/auth/list"})["result"]
-    return sorted(u["id"] for u in users if not u["system_generated"] and u["name"] not in KIOSK_USERS)
-
-
-BARS_VISIBLE = [{"condition": "state", "entity": BARS_HELPER, "state": "on"},
-                {"condition": "user", "users": bar_users()}]
+BARS_VISIBLE = [{"condition": "state", "entity": BARS_HELPER, "state": "on"}]
 
 
 def data_bar(entity, colour, mode, segments, side):
