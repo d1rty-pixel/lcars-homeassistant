@@ -100,14 +100,15 @@ Check both target sizes after every layout change; for seams, clip a region at
   image were dropped. The RO card's `binary_sensor.osmose_*` entities no longer
   exist.
 - **Hold-to-act** on purpose:
-  - dosing "refilled" (sets fill level to bottle size)
+  - dosing "refilled": hold a channel's block or value in "Fill level" (sets the
+    fill level to the bottle size; tap opens more-info)
   - washing-machine supply switch (Supply block or value on the laundry page; tap opens more-info)
-- **Toggle on a single tap**, as on the original dashboards:
-  - aquarium auto/maintenance/feeding/water-change modes
-  - CO² coupling
-  - light automation
-  - the four dosing schedules
-  - the RO unit (`switch.osmoseanlage`)
+- **Toggle on a single tap**, as on the original dashboards (hold opens more-info):
+  - aquarium modes: the four LCARS buttons in "Modes" (Status page)
+  - CO² coupling and light automation: block or value of their row
+  - the four dosing schedules: a channel's block in "Schedule"
+  - the RO unit (`switch.osmoseanlage`): block or value of its row
+  - light profiles Fire / Chill / Resume: their block (applies once, no toggle)
 - **Calendar card text is German.** `/local/global-calendar-card.js` (not in
   this repo, shared with the classic dashboards) hardcodes its UI text
   ("Heute", "Keine Termine …"). Only its calendar labels are translated.
