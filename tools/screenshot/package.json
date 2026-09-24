@@ -1,0 +1,6 @@
+{
+  "name": "lcars-screenshot",
+  "private": true,
+  "description": "Headless screenshots of the LCARS dashboard at the target screen sizes",
+  "dependencies": {"puppeteer-core": "^23"}
+}

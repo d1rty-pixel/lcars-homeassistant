@@ -14,13 +14,8 @@
 | card-mod | **Removed** (HACS). Required by UIX and broken by HA 2026.x. The Müll dashboard's `card_mod:` keys still work through UIX (checked before and after). | reinstall via HACS |
 | Old theme copies | Stale 2024 manual copy moved to `/config/themes_backup/lcars-2024-manual-copy.yaml`; 4.0.2 version with appended profiles in `/config/themes_backup/lcars-4.0.2-with-lcards-profiles.yaml`; plus `/config/themes/lcars.yaml.bak-20260924` (ignored by HA, not `.yaml`) | copy back |
 | View theme | `/config/themes/lcars_aquarium.yaml` ("LCARS Aquarium") | delete file, reload themes |
-| Registry workaround | `/config/www/lcards-registry-fix.js` | remove resource + file |
-| Resource versions | `tools/deploy_ha_files.sh` sets `?v=<unix timestamp>` on our `/local/` scripts (`tools/bump_resources.py`) | – |
-| Motion switch | `/config/www/lcars-motion.js`, Lovelace resource `/local/lcars-motion.js?v=<timestamp>` (module) | remove resource + file |
-| Day grid card | `/config/www/lcars-day-grid.js`, Lovelace resource `/local/lcars-day-grid.js?v=<timestamp>` (module) | remove resource + file |
-| Forecast / week cards | `/config/www/lcars-forecast.js`, `/config/www/lcars-week.js` + resources | remove resources + files |
-| Bar card | `/config/www/lcars-bar.js`, Lovelace resource `/local/lcars-bar.js?v=<timestamp>` (module) | remove resource + file |
-| Bars helper | `input_boolean.lcars_bars` ("LCARS bars", on): segment bars visible | helpers UI |
+| Our scripts | every `ha/www/*.js` in `/config/www/`, each a Lovelace module resource `/local/<file>?v=<unix timestamp>`: registry workaround, motion switch, day grid, bar, week, forecast and radar cards. `tools/deploy_ha_files.sh` copies them and creates/updates the resources (`tools/bump_resources.py`). | remove resources + files |
+| Bars helper | `input_boolean.lcars_bars` ("LCARS bars", on): segment bars visible (global emergency switch) | helpers UI |
 | Sounds | `/media/lcars/thelcars_beep1..4.mp3` (thelcars.com, no licence stated, so **not** in git) | delete files |
 | Dashboards | `lcars-bridge` (live). `aquarium-lcars` hidden as "LCARS (alt)". | dashboards UI |
 | Profile theme | Admin user's profile theme was set to "LCARS Default", **reset to default** the same day: profile themes are stored per user (synced to all devices) and restyled every classic dashboard. The LCARS dashboard doesn't need it (view theme + kiosk mode). | profile |
@@ -30,21 +25,22 @@ Dashboard config backups are written by `tools/deploy.py` to `build/backups/`
 
 ## Users and devices
 
-- Personal users (`admin`, `phone-user`) keep the default HA look. LCARS
-  is opened from the HA sidebar ("LCARS") on any device.
+- The personal user (`admin`) keeps the default HA look. LCARS is opened from
+  the HA sidebar ("LCARS") on any device.
 - `kiosk` (non-admin): meant for LCARS screens. Nothing per-user is
   needed for LCARdS to work; the dashboard isn't admin-only and every view
   carries its own theme. Pick the start page per device: the profile's
   default dashboard (set while logged in as that user) or the kiosk browser's
   Start URL, e.g. `https://ha.example.org/lcars-bridge/aquarium-status`.
 - Do **not** set an LCARS profile theme for a user who also uses classic dashboards.
-- The old `aquarium` user and a short-lived `lcars` user were deleted.
+- The old `aquarium`, a short-lived `lcars` and `phone-user` users were deleted.
 
 ## Kiosk tablets (Fully Kiosk Browser)
 
 - There is **no Fully Kiosk integration** in HA. What a tablet shows is Fully's
-  on-device **Start URL** (Settings → Web Content Settings → Start URL), on the
-  LAN also `http://homeassistant.local:8123/lcars-bridge/aquarium-status`.
+  on-device **Start URL** (Settings → Web Content Settings → Start URL).
+  Recommended: `https://ha.example.org/lcars-bridge/aquarium-status?lcars_motion=off`
+  (on the LAN also `http://homeassistant.local:8123/…`).
 - **Animations off on the tablet**: Fully's renderer crashed with all LCARdS
   animations running. Append `?lcars_motion=off` to the start URL, e.g.
   `…/lcars-bridge/aquarium-status?lcars_motion=off`. The choice is stored per
@@ -59,6 +55,27 @@ Dashboard config backups are written by `tools/deploy.py` to `build/backups/`
 - Layouts are checked at 1920×1080 (desktop) and 1280×800 (Lenovo Tab M10
   Gen 1 in landscape). Row heights and most fonts scale with viewport height,
   header readouts with its width (theme variable `lcars-readout-size`).
+- The waste page used to crash Fully with ~450 LCARdS buttons; dense graphics
+  are now light custom cards (≈60 LCARdS buttons left on that page).
+
+## Checking layouts
+
+`tools/screenshot/shot.js` renders a view in headless Chrome, logged in with the
+token. From WSL, run it with Windows' `node.exe` from a Windows folder (install
+once with `npm install` there), because puppeteer can't drive Windows Chrome
+across the WSL boundary:
+
+```bash
+W=$(wslpath "$(cmd.exe /c echo %TEMP% | tr -d '\r')")/lcars-shot
+mkdir -p "$W" && cp tools/screenshot/{shot.js,package.json} "$W/" && (cd "$W" && "/mnt/c/Program Files/nodejs/npm.cmd" install)
+cd "$W" && export HA_TOKEN=$(cat ~/.config/homeassistant/token) WSLENV=HA_TOKEN:DSF
+"/mnt/c/Program Files/nodejs/node.exe" shot.js waste 1280 800 "$(wslpath -w "$W")\\waste-1280.png"
+"/mnt/c/Program Files/nodejs/node.exe" shot.js waste 1920 1080 "$(wslpath -w "$W")\\waste-1920.png"
+DSF=1.1 "/mnt/c/Program Files/nodejs/node.exe" shot.js ops 1745 982 out.png 900 600 300 200   # 110 %, clipped
+```
+
+Check both target sizes after every layout change; for seams, clip a region at
+`DSF=1` and `DSF=1.1` (110 % zoom).
 
 ## Sounds
 
@@ -99,7 +116,13 @@ Dashboard config backups are written by `tools/deploy.py` to `build/backups/`
   `kalender-agenda` → `calendar-agenda`, `aquarium-osmose` → `aquarium-osmosis`.
   Old bookmarks break; the tablet start URL `aquarium-status` is unchanged.
 - **Rebuild needed** when the source dashboards' calendar cards change. They are
-  copied from `dashboard-muell` / `dashboard-termine` at build time.
+  copied from `dashboard-muell` / `dashboard-termine` at build time. (Adding HA
+  users needs no rebuild: the segment bars are shown to everyone.)
+- **New calendar events** show up in "Next 7 days" within 10 minutes (or on
+  reload): the card asks HA to refresh the calendars before each fetch, because
+  HA's Google calendar sync alone lagged behind.
+- **Radar** covers Germany (DWD composite); abroad the map stays empty. Borders
+  are fetched from the DWD WFS at build time.
 - **LCARdS updates**: run `tools/gen_registry_fix.py`, then
   `tools/deploy_ha_files.sh` (it sets a fresh `?v=` on the resources). Otherwise
   new LCARdS elements hit the load race again.

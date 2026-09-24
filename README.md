@@ -28,6 +28,8 @@ tools/validate.py              LCARdS schema + strict unknown-key check
 tools/deploy.py                build -> validate -> back up live config -> save
 tools/deploy_ha_files.sh       copy ha/ files to the HA host, reload themes, ?v=<timestamp> on the scripts
 tools/gen_registry_fix.py      regenerate the registry workaround after an LCARdS update
+tools/bump_resources.py        create/update the Lovelace resources of ha/www/*.js with ?v=<timestamp>
+tools/screenshot/              headless screenshots at the target sizes (see docs/OPERATIONS.md)
 ha/themes/lcars_aquarium.yaml  view theme "LCARS Aquarium"
 ha/www/lcards-registry-fix.js  workaround for the LCARdS/HA load-order race
 ha/www/lcars-motion.js         per-device animation switch (?lcars_motion=off, sidebar "Motion"),
@@ -43,7 +45,8 @@ docs/NOTES.md                  root causes and LCARdS gotchas
 ```
 
 **Read `docs/DESIGN.md` before changing the look.** It records decisions the
-user already made (no scrolling, no decorative animation, menus in the frame, …).
+user already made and the reference style of the waste and OPS pages (frames,
+pillars, graphics next to values, restrained animation, both target screens).
 
 ## Usage
 
