@@ -1180,11 +1180,23 @@ JS_IN_WINDOW = ("const m = String(entity.state).match(/(\\d+):(\\d+)\\s*-\\s*(\\
 
 _BLINK = random.Random(1701)
 BAR_OFF = rgba(PERI, 0.18)   # inactive bar segment
-# All segment bars can be switched off globally (lighter pages for weak kiosk browsers):
-# input_boolean.lcars_bars, set via ?lcars_bars=off|on|toggle (ha/www/lcars-motion.js). HA's hui-card,
-# which LCARdS layout cards wrap every child in, doesn't render a card whose conditions fail.
+# Segment bars are heavy (two cards per segment). HA's hui-card, which LCARdS layout cards wrap every
+# child in, doesn't render a card whose visibility conditions fail, so:
+#  - they are never shown to the kiosk user (the Fully tablet's renderer can't cope);
+#  - input_boolean.lcars_bars switches them off for everyone (?lcars_bars=off|on|toggle, see
+#    ha/www/lcars-motion.js).
+# The user condition lists the users allowed to see them, read at build time: rebuild after adding users.
+KIOSK_USERS = {"kiosk"}
 BARS_HELPER = "input_boolean.lcars_bars"
-BARS_VISIBLE = [{"condition": "state", "entity": BARS_HELPER, "state": "on"}]
+
+
+def bar_users():
+    users = ha_ws.Client().call({"type": "config/auth/list"})["result"]
+    return sorted(u["id"] for u in users if not u["system_generated"] and u["name"] not in KIOSK_USERS)
+
+
+BARS_VISIBLE = [{"condition": "state", "entity": BARS_HELPER, "state": "on"},
+                {"condition": "user", "users": bar_users()}]
 
 
 def bar_segment(entity, colour, lit_js):

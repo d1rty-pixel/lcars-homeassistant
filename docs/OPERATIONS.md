@@ -46,10 +46,12 @@ Dashboard config backups are written by `tools/deploy.py` to `build/backups/`
   `…/lcars-bridge/aquarium-status?lcars_motion=off`. The choice is stored per
   browser (localStorage) and pauses anime.js' global engine. The "Motion" block
   at the bottom of every sidebar toggles it on any device.
-- **Segment bars off (global)**: `?lcars_bars=off` (or `on` / `toggle`) on any
-  LCARS URL sets `input_boolean.lcars_bars` for everyone. The bars' visibility
-  condition checks it, and hidden cards aren't rendered at all (waste page:
-  444 → 256 LCARdS buttons).
+- **Segment bars**: never shown to the `kiosk` user (visibility condition with
+  the allowed user ids, read at build time: **rebuild after adding a user**).
+  Hidden cards aren't rendered at all (waste page: 444 → 256 LCARdS buttons).
+- **Segment bars off for everyone** (emergency switch): `input_boolean.lcars_bars`,
+  also via `?lcars_bars=off|on|toggle`. It is *stored* in HA, so don't put the
+  parameter in a start URL: Fully reloads it and switches the bars off for all.
 - Kiosk mode and the view theme apply to every user.
 - Sounds play after the first touch. If the tablet stays silent, allow media
   playback in Fully's web content settings.
