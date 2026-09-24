@@ -4,7 +4,7 @@ A full-screen LCARS dashboard (Voyager palette, Titan.DS-style layout) built fro
 [LCARdS](https://lcards.unimatrix01.ca) cards. It lives in the HA dashboard
 `lcars-bridge` (sidebar title **LCARS**), e.g. `/lcars-bridge/aquarium-power`.
 
-- **Header row** switches sections: OPS, Aquarium, Waschen, Müll, Kalender.
+- The **header frame bar is the section menu**: OPS, Aquarium, Waschen, Müll, Kalender.
 - **Sidebar** lists the active section's sub-views plus **Classic**, a link to the original dashboard.
 
 | Section  | Sub-views |
@@ -30,8 +30,13 @@ tools/deploy_ha_files.sh       copy ha/ files to the HA host, reload themes
 tools/gen_registry_fix.py      regenerate the registry workaround after an LCARdS update
 ha/themes/lcars_aquarium.yaml  view theme "LCARS Aquarium"
 ha/www/lcards-registry-fix.js  workaround for the LCARdS/HA load-order race
-docs/NOTES.md                  why things are the way they are (gotchas, root causes)
+docs/DESIGN.md                 design rules (user decisions), generator structure, how to extend, URL rules
+docs/OPERATIONS.md             changes made on the HA host, backups, tablet, sounds, known limitations
+docs/NOTES.md                  root causes and LCARdS gotchas
 ```
+
+**Read `docs/DESIGN.md` before changing the look.** It records decisions the
+user already made (no scrolling, no decorative animation, menus in the frame, …).
 
 ## Usage
 
