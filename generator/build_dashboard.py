@@ -1041,8 +1041,10 @@ def panel(title, colour, content, *, side="left", pillar=None, top=True, bottom=
                   at(bar("bottom", not top), "bot")]
     if pillar:
         # the pillar's blocks keep the same small gap to the top shoulder as between each other; at the
-        # bottom the pillar's filler piece (pillar_rows(filler=...)) runs into the shoulder without a gap
-        cards.append(at(content, "body", overflow=overflow, margin=f"{PANEL_GAP}px 0 0 0"))
+        # bottom the pillar's filler piece (pillar_rows(filler=...)) runs into the shoulder: it overlaps
+        # it by 2 px, otherwise fractional zoom levels (110 %) leave a hairline seam
+        cards.append(at(content, "body", overflow=overflow,
+                        margin=f"{PANEL_GAP}px 0 {-2 if bottom else 0}px 0"))
     else:
         pillar_card = (grid('". p"', f"1fr {PANEL_PILLAR}px", "1fr", [at(block(colour), "p")], gap="0") if right else
                        grid('"p ."', f"{PANEL_PILLAR}px 1fr", "1fr", [at(block(colour), "p")], gap="0"))
