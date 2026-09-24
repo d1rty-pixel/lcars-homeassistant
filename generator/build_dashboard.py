@@ -157,6 +157,10 @@ def readout(entity, label, value, colors=None, label_color=LILAC):
             "tap_action": {"action": "more-info"}}
 
 
+# ── Content primitives ──────────────────────────────────────────────────────────
+DIM = "#B4B4CC"      # row label colour (dimmed lavender)
+
+
 def tint(color, alpha=0.16):
     return f"alpha({color}, {alpha})"
 
