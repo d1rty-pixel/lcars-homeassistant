@@ -24,14 +24,15 @@ Dashboard config backups are written by `tools/deploy.py` to `build/backups/`
 
 ## Users and devices
 
-- `admin` (admin): default HA look on classic dashboards, LCARS via the sidebar.
-- `kiosk`, `lcars` (non-admin): meant for LCARS screens. Nothing per-user is
+- Personal users (`admin`, `phone-user`) keep the default HA look. LCARS
+  is opened from the HA sidebar ("LCARS") on any device.
+- `kiosk` (non-admin): meant for LCARS screens. Nothing per-user is
   needed for LCARdS to work; the dashboard isn't admin-only and every view
   carries its own theme. Pick the start page per device: the profile's
   default dashboard (set while logged in as that user) or the kiosk browser's
   Start URL, e.g. `https://ha.example.org/lcars-bridge/aquarium-status`.
 - Do **not** set an LCARS profile theme for a user who also uses classic dashboards.
-- The old `aquarium` user was deleted.
+- The old `aquarium` user and a short-lived `lcars` user were deleted.
 
 ## Kiosk tablets (Fully Kiosk Browser)
 
