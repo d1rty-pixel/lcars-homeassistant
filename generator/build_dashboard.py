@@ -980,7 +980,8 @@ def home_content():
          "blink": [8000, 24000], "off_fraction": 0.025},
         "ops/forecast", [BONE, PERI, ICE], side="left", filler=LILAC))
     # the lower frames face each other: their shoulders meet in the middle
-    week = panel("Next 7 days", SUNFLOWER, side="right", pillar=ATMOS_LABEL_W, content=week_calendar())
+    week = panel("Next 7 days", SUNFLOWER, side="right", pillar=ATMOS_LABEL_W, content=week_calendar(),
+                 join_top=True)
     # sized like the waste page: fits the 1280x800 tablet, the rest of the page stays black
     top_h = f"calc({data_panel_height(5)} - {PANEL_CORNER}px)"
     bottom_h = data_panel_height(5)
@@ -1131,13 +1132,15 @@ def panel_elbow(kind, colour, pillar=PANEL_PILLAR):
                                   "inner_curve": PANEL_CORNER - PANEL_T, "color": {"default": colour}}}}
 
 
-def panel(title, colour, content, *, side="left", pillar=None, top=True, bottom=True, overflow="hidden"):
+def panel(title, colour, content, *, side="left", pillar=None, top=True, bottom=True, overflow="hidden",
+          join_top=False):
     """Content in its own LCARS bracket: a pillar on `side` with shoulders (elbows) at the ends that
     have a bar. The top bar is interrupted by the title; with top=False the frame is open at the top
     and the title moves into the bottom bar (a caption). bottom=False leaves the bottom open.
 
     pillar=<px>: the content brings its own pillar of that width as its column on `side` (e.g. the
-    timeline's label blocks, see pillar_rows()); the shoulders widen to match."""
+    timeline's label blocks, see pillar_rows()); the shoulders widen to match. join_top: its first piece is
+    in the frame colour and runs into the top shoulder without a gap (overlapping by 2 px, like fillers)."""
     right = side == "right"
     pw = pillar or PANEL_PILLAR
     corner = (pw + PANEL_CORNER - PANEL_T if pillar else PANEL_CORNER) + 8
@@ -1181,7 +1184,7 @@ def panel(title, colour, content, *, side="left", pillar=None, top=True, bottom=
         # bottom the pillar's filler piece (pillar_rows(filler=...)) runs into the shoulder: it overlaps
         # it by 2 px, otherwise fractional zoom levels (110 %) leave a hairline seam
         cards.append(at(content, "body", overflow=overflow,
-                        margin=f"{PANEL_GAP}px 0 {-2 if bottom else 0}px 0"))
+                        margin=f"{-2 if join_top else PANEL_GAP}px 0 {-2 if bottom else 0}px 0"))
     else:
         pillar_card = (grid('". p"', f"1fr {PANEL_PILLAR}px", "1fr", [at(block(colour), "p")], gap="0") if right else
                        grid('"p ."', f"{PANEL_PILLAR}px 1fr", "1fr", [at(block(colour), "p")], gap="0"))
@@ -1205,7 +1208,7 @@ def collection_timeline():
                             "text": PERI, "text_weekend": GRAY, "text_today": ORANGE},
                 "font": "Antonio, sans-serif", "font_size": 15}
     areas = ['"lw days"'] + [f'"l{i} days"' for i in range(len(series))] + ['"lx days"']
-    cards = [at(block(ORANGE, None, lcars_code("timeline/weekdays")), "lw")]      # pillar piece above the bins
+    cards = [at(block(ORANGE), "lw")]      # pillar piece above the bins, part of the shoulder: no number
     cards += [at(block(colour, label, lcars_code(f"timeline/{label}"), align="center-right", size=17), f"l{i}")
               for i, (label, _, colour, _) in enumerate(series)]
     cards.append(at(block(ORANGE, "Day", lcars_code("timeline/day"), align="center-right", size=17), "lx"))
@@ -1301,7 +1304,7 @@ def data_panel_height(n):
 
 def waste_content():
     timeline = panel(f"Collection timeline · {TIMELINE_DAYS} days", ORANGE, collection_timeline(),
-                     pillar=TIMELINE_LABEL_W, bottom=False)
+                     pillar=TIMELINE_LABEL_W, bottom=False, join_top=True)
     # The two lower frames face each other: pillars meet in the middle, labels next to them
     schedule = panel("Next per bin", PEACH, side="right", pillar=DATA_LABEL_W, content=pillar_rows(
         [(label, colour, lcars_code(f"next-per-bin/{label}"),
