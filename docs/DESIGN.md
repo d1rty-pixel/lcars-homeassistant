@@ -36,9 +36,19 @@
 - **All UI text is English.** Sensor states and calendar event titles arrive in
   German; bin names are mapped (`BIN_NAMES`, `CAL_LABELS`), other event titles
   are shown as they are. Dates use `en-GB` ("Fri 25/09 · tomorrow").
-- **Waste page rows** use the bin colour for stripe and background tint, value
-  text in peach. Upcoming and next pickup pick the colour at runtime (JS style
-  templates, see `docs/NOTES.md`).
+- **Waste page** (inspired by LCARS "exterior overview" / "database" screens):
+  - A 28-day **collection timeline**: one row per bin, a cell per day, filled
+    in the bin colour on pickup days (from the bin sensors' date attributes).
+    Weekday header and day numbers; weekends are dimmer, today is lighter.
+    The bin label blocks form the frame's left pillar; the frame is open at the
+    bottom.
+  - Below, two text-only tables (label orange, value peri, no boxes) in frames
+    that face each other: pillars meet in the middle, open at the top.
+  - Bin colours appear only in the label blocks and filled cells.
+- **Frames per group**: `panel()` draws a bracket with elbow shoulders; sides,
+  open ends and a content-supplied pillar are options.
+- **Frame corners**: the mid and foot elbows share one outer radius (the frame
+  row height) and all corners around the content share one inner radius.
 - **Aquarium power chart is mirrored**: zero axis in the middle, total above,
   consumers (pump, CO²) below, log scale, filled areas with smooth curves (no
   steps, no bars). Its header has the cap on the right, facing "Power grid".

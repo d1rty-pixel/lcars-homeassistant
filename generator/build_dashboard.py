@@ -140,10 +140,17 @@ def segments(colors_fr, position):
     return grid(areas, cols, rows, [at(block(c), n) for (c, _), n in zip(colors_fr, names)], gap="0 6px")
 
 
-def elbow(kind, color, text=None, bar_height=BAR):
+FRAME_H = 34        # height of the frame rows above and below the sidebar/content
+INNER_CURVE = FRAME_H - BAR   # one inner radius for every corner around the content
+
+
+def elbow(kind, color, text=None, bar_height=BAR, outer_curve=FRAME_H):
+    """outer_curve defaults to the frame-row height: LCARdS would clamp 'auto' (PILLAR/2) to the card
+    height anyway, and explicit values keep the mid and foot elbows identical."""
     card = {"type": "custom:lcards-elbow", "interactive": False, "tap_action": {"action": "none"},
             "elbow": {"type": kind, "style": "simple",
-                      "segment": {"bar_width": PILLAR, "bar_height": bar_height, "color": {"default": color}}}}
+                      "segment": {"bar_width": PILLAR, "bar_height": bar_height, "outer_curve": outer_curve,
+                                  "inner_curve": INNER_CURVE, "color": {"default": color}}}}
     if text:
         card["text"] = text
     return card
@@ -351,7 +358,7 @@ def frame(section, active, content, subtitle):
     top = grid('"elbow data" "elbow nav"', f"{ELBOW_W}px 1fr", f"1fr {NAV_H}px", [
         at(elbow("footer-left", LILAC, {"code": {"content": "LCARS 47174", "position": "top-left", "font_size": 14,
                                                  "color": INK, "padding": {"left": 8, "top": 6}}},
-                 bar_height=NAV_H), "elbow"),
+                 bar_height=NAV_H, outer_curve=PILLAR // 2), "elbow"),
         at(readouts, "data", margin="0 0 10px 0"),
         at(dashboard_nav(section), "nav"),
     ], gap="0 6px")
@@ -371,7 +378,7 @@ def frame(section, active, content, subtitle):
 def view(section, key, title, path, content, subtitle):
     return {"title": title, "path": path, "type": "custom:lcards-layout-view", "theme": THEME,
             "layout": {"grid-template-columns": f"{PILLAR}px 1fr",
-                       "grid-template-rows": "clamp(140px, 17vh, 176px) 34px 1fr 30px",
+                       "grid-template-rows": f"clamp(140px, 17vh, 176px) {FRAME_H}px 1fr {FRAME_H}px",
                        "grid-template-areas": '"top top" "mid mid" "side main" "foot foot"',
                        "grid-gap": "6px 0", "height": "calc(100dvh - 16px)", "padding": "8px"},
             "cards": frame(section, key, content, subtitle)}
@@ -652,8 +659,6 @@ HAZMAT = {"date": "sensor.schadstoffmobil", "window": "sensor.schadstoffmobil_ze
           "place": "sensor.schadstoffmobil_standort"}
 WASTE_CALS = ["calendar.mullabfuhr_restmull", "calendar.mullabfuhr_biotonne", "calendar.mullabfuhr_gelbe_tonne",
               "calendar.mullabfuhr_papiertonne", "calendar.schadstoffmobil"]
-# Waste calendar -> the bin's colour from BINS (hazmat in red)
-WASTE_COLOURS = dict(zip(WASTE_CALS, [c for _, _, c in BINS] + [RED]))
 ALL_CALS = WASTE_CALS + ["calendar.telephone", "calendar.personal", "calendar.geburtstage",
                          "calendar.deutschland_rp", "calendar.feiertage_in_frankreich"]
 
@@ -691,13 +696,11 @@ def js_events(cals):
     return ("const ids = " + json.dumps(cals) + "; "
             "const ev = ids.map((id) => states[id]).filter((x) => x && x.attributes.start_time)"
             ".map((x) => ({d: new Date(x.attributes.start_time.replace(' ', 'T')), m: x.attributes.message || '?', "
-            "all: x.attributes.all_day, id: x.entity_id})).filter((e) => !isNaN(e.d)).sort((a, b) => a.d - b.d); ")
+            "all: x.attributes.all_day})).filter((e) => !isNaN(e.d)).sort((a, b) => a.d - b.d); ")
 
 
-def agenda_row(cals, i, colour, colours=None, names=None):
-    """Row i of the next-event-per-calendar list. colours: {calendar: colour} colours the row by its
-    calendar's colour
-    (background and stripe via JS style templates, `colour` as fallback and value text colour); names: {title: display title}."""
+def agenda_row(cals, i, colour, names=None):
+    """Row i of the next-event-per-calendar list. names: {event title: display title}."""
     title = "(" + json.dumps(names, ensure_ascii=False) + "[e.m] || e.m)" if names else "e.m"
     label = "[[[ " + js_events(cals) + "const e = ev[" + str(i) + "]; if (!e) return '—'; " \
             "const m = " + title + "; return m.length > 30 ? m.slice(0, 29) + '…' : m; ]]]"
@@ -705,15 +708,6 @@ def agenda_row(cals, i, colour, colours=None, names=None):
             "return wd + ' ' + dm + (e.all ? '' : ' ' + d.toLocaleTimeString('en-GB', {hour: '2-digit', minute: '2-digit'})) " \
             "+ ' · ' + rel; ]]]"
     card = row(None, "", {"default": colour}, value, label_js=label, interactive=False)
-    if colours:
-        # Templates are evaluated under `style` only (not `text`), and after alpha() resolution,
-        # so the background tint is precomputed as rgba().
-        def pick(m, default):
-            return ("[[[ " + js_events(cals) + "const e = ev[" + str(i) + "]; return e && " + json.dumps(m) +
-                    "[e.id] || '" + default + "'; ]]]")
-        card["style"]["border"]["color"] = pick(colours, colour)
-        card["style"]["card"]["color"]["background"] = pick({k: rgba(c, 0.16) for k, c in colours.items()},
-                                                            rgba(colour, 0.16))
     card["triggers_update"] = cals
     return card
 
@@ -896,46 +890,148 @@ def laundry_content():
     return cols(unit, trace, widths=["1fr", "2fr"])
 
 
-def bin_style(card, stripe, background):
-    """Waste-page row look: stripe and tint in the bin colour, value in peach."""
-    card["style"]["border"]["color"] = stripe
-    card["style"]["card"]["color"]["background"] = background
-    card["text"]["value"]["color"] = PEACH
+TIMELINE_DAYS = 28
+TIMELINE_LABEL_W = 150   # label column = the timeline panel's left pillar
+# JS: `ds` = 'yyyy-mm-dd' for today + k days
+JS_DAY = ("const t = new Date(); t.setHours(0,0,0,0); t.setDate(t.getDate() + %d); "
+          "const ds = t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' "
+          "+ String(t.getDate()).padStart(2, '0'); const we = t.getDay() %% 6 === 0; ")
+
+
+PANEL_T = 18        # bar thickness of a panel frame
+PANEL_PILLAR = 22   # width of its left bracket
+PANEL_CORNER = 40   # size of the shoulder (elbow card)
+
+
+def panel_elbow(kind, colour, pillar=PANEL_PILLAR):
+    return {"type": "custom:lcards-elbow", "interactive": False, "tap_action": {"action": "none"},
+            "elbow": {"type": kind, "style": "simple",
+                      "segment": {"bar_width": pillar, "bar_height": PANEL_T, "outer_curve": PANEL_CORNER,
+                                  "inner_curve": PANEL_CORNER - PANEL_T, "color": {"default": colour}}}}
+
+
+def panel(title, colour, content, *, side="left", pillar=None, top=True, bottom=True, overflow="hidden"):
+    """Content in its own LCARS bracket: a pillar on `side` with shoulders (elbows) at the ends that
+    have a bar. The top bar is interrupted by the title; with top=False the frame is open at the top
+    and the title sits in the first row next to the pillar. bottom=False leaves the bottom open.
+
+    pillar=<px> (left side only): the content brings its own pillar of that width as its first
+    column (e.g. the timeline's label blocks); the shoulders widen to match."""
+    right = side == "right"
+    pw = pillar or PANEL_PILLAR
+    corner = (pw + PANEL_CORNER - PANEL_T if pillar else PANEL_CORNER) + 8
+    title_w = int(len(title) * (PANEL_T + 6) * 0.4) + 18   # Antonio is narrow: ~0.4 em per character
+    pad = "right" if right else "left"
+    title_card = {"type": "custom:lcards-button", "preset": "text-only", "show_icon": False, "interactive": False,
+                  "text": {"t": {"content": title, "position": f"center-{pad}", "font_size": PANEL_T + 6,
+                                 "color": colour, "text_transform": "uppercase", "padding": {pad: 10}}}}
+
+    def line(edge, main):          # one row of the areas, edge column on the pillar side
+        return f'"{main} {edge}"' if right else f'"{edge} {main}"'
+
+    areas, rows, cards = [], [], []
+    body_edge = "body" if pillar else "side"
+    if top:
+        bar = (grid('"b t a" ". . ."', f"1fr {title_w}px 14px", f"{PANEL_T}px 1fr",
+                    [at(block(colour), "a"), at(title_card, "t"), at(block(colour), "b")], gap="0 6px") if right else
+               grid('"a t b" ". . ."', f"14px {title_w}px 1fr", f"{PANEL_T}px 1fr",
+                    [at(block(colour), "a"), at(title_card, "t"), at(block(colour), "b")], gap="0 6px"))
+        areas.append(line("tl", "top"))
+        rows.append(f"{PANEL_CORNER}px")
+        cards += [at(panel_elbow("header-right" if right else "header-left", colour, pw), "tl"), at(bar, "top")]
+    else:
+        areas.append(line(body_edge if pillar else "side", "title"))
+        rows.append(f"{PANEL_T + 16}px")
+        cards.append(at(title_card, "title"))
+    areas.append(line(body_edge, "body"))
+    rows.append("1fr")
+    if bottom:
+        areas.append(line("bl", "bot"))
+        rows.append(f"{PANEL_CORNER}px")
+        cards += [at(panel_elbow("footer-right" if right else "footer-left", colour, pw), "bl"),
+                  at(grid('"." "b"', "1fr", f"1fr {PANEL_T}px", [at(block(colour), "b")], gap="0"), "bot")]
+    if pillar:
+        cards.append(at(content, "body", overflow=overflow))
+    else:
+        pillar_card = (grid('". p"', f"1fr {PANEL_PILLAR}px", "1fr", [at(block(colour), "p")], gap="0") if right else
+                       grid('"p ."', f"{PANEL_PILLAR}px 1fr", "1fr", [at(block(colour), "p")], gap="0"))
+        cards += [at(pillar_card, "side"),
+                  at(content, "body", overflow=overflow, margin="0 -18px 0 0" if right else "0 0 0 -18px")]
+    return grid(" ".join(areas), f"1fr {corner}px" if right else f"{corner}px 1fr", " ".join(rows), cards,
+                gap="0 6px")
+
+
+def text_row(label, value_js, entity=None, label_color=ORANGE, value_color=PERI):
+    """Plain data line (label left, value right), no box: the quiet counterpart to row()."""
+    card = row(entity, label, {"default": value_color}, value_js, interactive=bool(entity))
+    card["style"] = {"card": {"color": {"background": "transparent"}}, "border": {"width": 0, "radius": 0}}
+    card["text"]["label"].update({"color": label_color, "padding": {"left": 0}})
+    card["text"]["value"].update({"color": value_color, "padding": {"right": 0}})
     return card
 
 
-def bin_row(label, value_js, entity, colour):
-    return bin_style(info(label, value_js, entity), colour, rgba(colour, 0.16))
+def timeline_cell(entity, k, colour, hit):
+    """One day of the collection timeline: filled in the bin colour on a pickup day, else a dim grid cell.
+    hit: JS condition on `entity` and `ds`. JS templates in `style` are evaluated (see docs/NOTES.md)."""
+    empty = "'" + rgba(PERI, 0.22) + "'" if k == 0 else "(we ? '" + rgba(PERI, 0.05) + "' : '" + rgba(PERI, 0.1) + "')"
+    return {"type": "custom:lcards-button", "entity": entity, "preset": "barrel", "show_icon": False,
+            "interactive": False, "tap_action": {"action": "none"}, "hold_action": {"action": "none"},
+            "triggers_update": ["sensor.time"],
+            "style": {"card": {"color": {"background": "[[[ " + JS_DAY % k + "return (" + hit + ") ? '" + colour +
+                                                       "' : " + empty + "; ]]]"}},
+                      "border": {"width": 0, "radius": 0}}}
+
+
+def timeline_axis_cell(k, value_js, position):
+    """Axis label for day k. Text colours can't be templated, so a weekday field and a weekend field
+    share the spot and only one of them has content."""
+    colour = ORANGE if k == 0 else PERI
+    text = {name: {"content": "[[[ " + JS_DAY % k + "return (" + ("" if name == "wd" else "!") + "we) ? '' : "
+                              + value_js + "; ]]]",
+                   "position": position, "font_size": 15, "color": c, "text_transform": "uppercase"}
+            for name, c in (("wd", colour), ("wkend", GRAY if k else colour))}
+    return {"type": "custom:lcards-button", "entity": "sensor.time", "preset": "text-only", "show_icon": False,
+            "interactive": False, "tap_action": {"action": "none"}, "text": text}
+
+
+def collection_timeline():
+    """Exterior-overview style grid: a label block per bin, one cell per day, day numbers underneath."""
+    rows = [(label, e, colour, "entity.attributes[ds]") for label, e, colour in BINS]
+    rows.append(("Hazmat", HAZMAT["date"], RED, "entity.state === ds"))
+    days = [f"d{k}" for k in range(TIMELINE_DAYS)]
+    areas = ['"lw ' + " ".join(f"w{k}" for k in range(TIMELINE_DAYS)) + '"']
+    cards = [at(block(ORANGE, None, "51-0999"), "lw")]      # pillar piece between shoulder and first bin
+    cards += [at(timeline_axis_cell(k, "t.toLocaleDateString('en-GB', {weekday: 'short'})", "bottom-center"), f"w{k}")
+              for k in range(TIMELINE_DAYS)]
+    for i, (label, entity, colour, hit) in enumerate(rows):
+        areas.append('"' + " ".join([f"l{i}"] + [f"c{i}_{k}" for k in range(TIMELINE_DAYS)]) + '"')
+        cards.append(at(block(colour, label, f"51-{1001 + i}", size=17), f"l{i}"))
+        cards += [at(timeline_cell(entity, k, colour, hit), f"c{i}_{k}") for k in range(TIMELINE_DAYS)]
+    areas.append('"lx ' + " ".join(days) + '"')
+    cards.append(at(block(ORANGE, "Day", "51-1000", size=17), "lx"))
+    cards += [at(timeline_axis_cell(k, "t.getDate()", "top-center"), d) for k, d in enumerate(days)]
+    # Tracks spelled out: LCARdS counts tracks itself, treats repeat() as one and trims the areas to match
+    return grid(" ".join(areas), f"{TIMELINE_LABEL_W}px " + " ".join(["1fr"] * TIMELINE_DAYS),
+"clamp(22px, 2.8vh, 34px) " + " ".join(["1fr"] * len(rows)) + " clamp(28px, 3.6vh, 44px)", cards, gap="clamp(4px, 0.6vh, 8px) 4px")
 
 
 def waste_content():
-    # Next pickup: colour follows the bin named in the sensor state (JS style templates)
-    by_name = {de: next(c for label, _, c in BINS if label == en) for de, en in BIN_NAMES.items() if en != "Hazmat"}
-    def pick(m, default):
-        return ("[[[ const m = " + json.dumps(m, ensure_ascii=False) + "; "
-                "return m[String(entity.state).split(' am ')[0]] || '" + default + "'; ]]]")
-    next_row = bin_style(info("", js_de_date("entity.state"), NEXT_PICKUP), pick(by_name, PEACH),
-                         pick({k: rgba(c, 0.16) for k, c in by_name.items()}, rgba(PEACH, 0.16)))
-    next_row["text"]["label"]["content"] = JS_NEXT_BIN
-    nxt = column([
-        ("h", header("Next collection", ORANGE)),
-        ("p", next_row),
-        ("h", header("All bins", PEACH)),
-        *[("p", bin_row(label, js_de_date("entity.state"), e, colour)) for label, e, colour in BINS],
-    ])
-    hazmat = column([
-        ("h", header("Hazmat collection", RED)),
-        ("p", bin_row("Date", js_iso_date("entity.state"), HAZMAT["date"], RED)),
-        ("p", bin_row("Window", "[[[ return String(entity.state).replace(/\\s*Uhr$/, ''); ]]]", HAZMAT["window"], RED)),
-        ("p", bin_row("Location", "[[[ const s = String(entity.state).split(',')[0]; "
-                                  "return s.length > 18 ? s.slice(0, 17) + '…' : s; ]]]", HAZMAT["place"], RED)),
+    timeline = panel(f"Collection timeline · {TIMELINE_DAYS} days", ORANGE, collection_timeline(),
+                     pillar=TIMELINE_LABEL_W, bottom=False)
+    # The two lower frames face each other: pillars meet in the middle, open at the top
+    schedule = panel("Next per bin", PEACH, column(
+                     [("p", text_row(label, js_de_date("entity.state"), e)) for label, e, _ in BINS]),
+                     side="right", top=False)
+    hazmat = panel("Hazmat collection", RED, top=False, content=column([
+        ("p", text_row("Date", js_iso_date("entity.state"), HAZMAT["date"])),
+        ("p", text_row("Window", "[[[ return String(entity.state).replace(/\\s*Uhr$/, ''); ]]]", HAZMAT["window"])),
+        ("p", text_row("Location", "[[[ return String(entity.state).split(',')[0]; ]]]", HAZMAT["place"])),
         ("p", {"type": "custom:lcards-button", "preset": "text-only", "interactive": False,
                "text": {"n": {"content": "Four times a year · dates appear automatically", "position": "center-left",
                               "font_size": 16, "color": DIM, "text_transform": "uppercase"}}}),
-    ])
-    upcoming = column([("h", header("Upcoming", BLUEY))] +
-                      [("p", agenda_row(WASTE_CALS, i, PEACH, WASTE_COLOURS, BIN_NAMES)) for i in range(5)])
-    return cols(nxt, upcoming, hazmat)
+    ]))
+    return grid('"t t" "s h"', "1fr 1fr", "2fr 1fr",
+                [at(timeline, "t"), at(schedule, "s"), at(hazmat, "h")], gap="clamp(12px, 2vh, 24px) 8px")
 
 
 def english_labels(card):

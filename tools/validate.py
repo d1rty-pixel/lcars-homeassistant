@@ -97,6 +97,41 @@ def unknown_keys(inst, sc, path, found):
                     unknown_keys(v, s2["additionalProperties"], path + [k], found)
 
 
+def split_tracks(tracks):
+    out, depth, cur = [], 0, ""
+    for ch in tracks:
+        depth += (ch == "(") - (ch == ")")
+        if ch == " " and depth == 0:
+            if cur:
+                out.append(cur)
+            cur = ""
+        else:
+            cur += ch
+    return out + ([cur] if cur else [])
+
+
+def layout_problems(card, where):
+    """lcards-layout-card trims grid-template-areas to the track counts it parses (and it doesn't
+    expand repeat()), so every areas row must have exactly one name per column track."""
+    layout = card.get("layout", {})
+    if "grid-template-areas" not in layout:
+        return []
+    rows = [r.split() for r in layout["grid-template-areas"].split('"')[1::2]]
+    ncols = len(split_tracks(layout.get("grid-template-columns", "")))
+    nrows = len(split_tracks(layout.get("grid-template-rows", "")))
+    out = []
+    if "repeat(" in layout.get("grid-template-columns", "") + layout.get("grid-template-rows", ""):
+        out.append(f"{where} LAYOUT repeat() is not expanded by LCARdS")
+    if len(rows) != nrows or any(len(r) != ncols for r in rows):
+        out.append(f"{where} LAYOUT areas {len(rows)}x{[len(r) for r in rows][:3]} vs tracks {nrows}x{ncols}")
+    names = {n for r in rows for n in r}
+    for c in card.get("cards", []):
+        area = c.get("view_layout", {}).get("grid-area")
+        if area and area not in names:
+            out.append(f"{where} LAYOUT card placed in unknown area {area}")
+    return out
+
+
 def walk(card):
     yield card
     if isinstance(card.get("card"), dict):
@@ -116,6 +151,7 @@ def main(path):
                 if t not in schemas:
                     continue
                 checked += 1
+                problems += layout_problems(c, f"{view['path']}:{t}")
                 inst = {k: v for k, v in c.items() if k not in CONTAINER_KEYS and k != "cards"}
                 where = f"{view['path']}:{t}:{c.get('entity', '')}"
                 for e in jsonschema.Draft7Validator(schemas[t]).iter_errors(inst):

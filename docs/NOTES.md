@@ -95,3 +95,10 @@ page before capturing. Missing cards in a screenshot are usually not real.
   a final colour: `rgba(...)`, not `alpha(#hex, 0.16)`.
 - The official schema's colour pattern rejects template strings; `tools/validate.py`
   skips that error for strings under `style` starting with `[[[`.
+
+## Layout cards: no repeat()
+
+`lcards-layout-card` parses `grid-template-columns` / `-rows` into a track list
+and trims `grid-template-areas` to that many rows and columns. It doesn't expand
+`repeat(n, …)`, so `repeat(28, 1fr)` counts as one track and the areas collapse.
+Spell tracks out.
