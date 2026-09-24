@@ -51,7 +51,9 @@ Dashboard config backups are written by `tools/deploy.py` to `build/backups/`
   byte-identical to thelcars.com `beep1.mp3`; `beep2.mp3` equals `key_ok_3` /
   `toggle_on`. `beep3` and `beep4` have no LCARdS counterpart.
 - The UI category is **off** on purpose. Menu clicks would otherwise play the tap
-  sound plus the page-navigation sound.
+  sound plus the page-navigation sound. It also applies to **every** dashboard
+  (LCARdS is loaded globally), so turning it on makes the classic pages beep too.
+  Card sounds only fire on LCARdS cards.
 - Audition or override sounds in **LCARdS Config → Sound**, per event, using
   bundled assets or "Browse HA Media" for the `/media/lcars` files.
 - To bake the thelcars.com beeps into the dashboard, set `CLICK_SOUNDS` in the
