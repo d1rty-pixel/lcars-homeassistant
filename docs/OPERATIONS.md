@@ -18,6 +18,7 @@
 | Resource versions | `tools/deploy_ha_files.sh` sets `?v=<unix timestamp>` on our `/local/` scripts (`tools/bump_resources.py`) | – |
 | Motion switch | `/config/www/lcars-motion.js`, Lovelace resource `/local/lcars-motion.js?v=<timestamp>` (module) | remove resource + file |
 | Day grid card | `/config/www/lcars-day-grid.js`, Lovelace resource `/local/lcars-day-grid.js?v=<timestamp>` (module) | remove resource + file |
+| Forecast / week cards | `/config/www/lcars-forecast.js`, `/config/www/lcars-week.js` + resources | remove resources + files |
 | Bar card | `/config/www/lcars-bar.js`, Lovelace resource `/local/lcars-bar.js?v=<timestamp>` (module) | remove resource + file |
 | Bars helper | `input_boolean.lcars_bars` ("LCARS bars", on): segment bars visible | helpers UI |
 | Sounds | `/media/lcars/thelcars_beep1..4.mp3` (thelcars.com, no licence stated, so **not** in git) | delete files |

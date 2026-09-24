@@ -10,7 +10,7 @@ A full-screen LCARS dashboard (Voyager palette, Titan.DS-style layout) built fro
 | Section  | Sub-views |
 |----------|-----------|
 | Aquarium | Status, Visual, Light, Dosing, Power, Osmosis |
-| OPS      | OPS (atmosphere, radar, NINA alerts, forecast) |
+| OPS      | OPS (atmosphere, radar, next 7 days, forecast) |
 | Laundry  | Laundry |
 | Waste    | Overview, Calendar |
 | Calendar | Calendar, Agenda |
@@ -33,7 +33,9 @@ ha/www/lcards-registry-fix.js  workaround for the LCARdS/HA load-order race
 ha/www/lcars-motion.js         per-device animation switch (?lcars_motion=off, sidebar "Motion"),
                                global segment-bar switch (?lcars_bars=off)
 ha/www/lcars-day-grid.js       the waste timeline's day grid as one light card (was ~200 LCARdS buttons)
-ha/www/lcars-bar.js            countdown / time-window segment bars as light cards, CSS blink
+ha/www/lcars-bar.js            segment bars (countdown, time window, level, span) as light cards, CSS blink
+ha/www/lcars-week.js           next days of several calendars, timeline style (OPS)
+ha/www/lcars-forecast.js       hourly forecast, LCARS style (OPS)
 docs/DESIGN.md                 design rules (user decisions), generator structure, how to extend, URL rules
 docs/OPERATIONS.md             changes made on the HA host, backups, tablet, sounds, known limitations
 docs/NOTES.md                  root causes and LCARdS gotchas
@@ -71,10 +73,7 @@ build time.
 - **Lovelace resources**:
   - Antonio font (Google Fonts, css)
   - `https://cdn.jsdelivr.net/gh/th3jesta/ha-lcars@js-main/lcars.js` (js)
-  - `/local/lcards-registry-fix.js?v=<timestamp>` (module)
-  - `/local/lcars-motion.js?v=<timestamp>` (module)
-  - `/local/lcars-day-grid.js?v=<timestamp>` (module)
-  - `/local/lcars-bar.js?v=<timestamp>` (module)
+  - every `ha/www/*.js` as `/local/<file>?v=<timestamp>` (module; created/updated by `tools/deploy_ha_files.sh`)
 - **kiosk-mode** hides the HA header and sidebar on this dashboard. Append
   `?disable_km` to the URL to reach edit mode.
 - The view theme `LCARS Aquarium` (from `ha/themes/`) must be installed.

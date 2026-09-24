@@ -751,7 +751,6 @@ def power_content():
 
 # ── Shared helpers for the non-aquarium sections ─────────────────────────────────
 WEATHER = "weather.forecast_home"
-NINA = [f"binary_sensor.warning_home_{i}" for i in range(1, 6)]
 OSMO = {"switch": "switch.osmoseanlage", "mode": "sensor.osmoseanlage_mode", "fw": "update.osmoseanlage_firmware",
         "energy": "sensor.osmoseanlage_energie", "power": "sensor.osmoseanlage_leistung",
         "countdown": "sensor.osmoseanlage_auto_off_countdown"}
@@ -838,9 +837,9 @@ LCARS_SKIN = (":host { --primary-color: #FF9900; --accent-color: #FF9900; --prim
               "box-shadow: none !important; font-family: Antonio, sans-serif !important; }")
 
 
-def skinned(card):
+def skinned(card, extra=""):
     card = json.loads(json.dumps(card))
-    card["uix"] = {"style": LCARS_SKIN}
+    card["uix"] = {"style": LCARS_SKIN + (" " + extra if extra else "")}
     return card
 
 
@@ -970,25 +969,42 @@ def home_content():
                              "return hhmm(a.next_rising) + ' – ' + hhmm(a.next_setting); ]]]", "sun.sun"),
                   span_bar("sun.sun", SUNFLOWER, "next_rising", "next_setting"), "left")),
     ], filler=ICE, label_w=ATMOS_LABEL_W))
-    # the two lower frames (NINA, forecast) face each other: pillars meet, open at the bottom
-    nina = panel("Alerts · NINA", RED, side="right", pillar=DATA_LABEL_W, bottom=False, content=pillar_rows([
-        (f"Channel {i}", BONE, lcars_code(f"ops/nina/{i}"),
-         value_text("[[[ if (entity.state !== 'on') return 'Clear'; const h = entity.attributes.headline || "
-                    "'Warning'; return h.length > 26 ? h.slice(0, 25) + '…' : h; ]]]", e, "right",
-                    {"on": RED, "default": PERI}))
-        for i, e in enumerate(NINA, 1)], side="right"))
     radar = panel("Precipitation radar", BLUEY, side="right", content=skinned({
         "type": "iframe", "url": "https://radar.wo-cloud.com/mobile/rr/interactive?wrx=50.00,8.00&wrm=8&wry=50.00,8.00",
-        "aspect_ratio": "56%", "hide_background": True}))
-    forecast = panel("Forecast", ICE, bottom=False, content=skinned(
-        {"type": "weather-forecast", "entity": w, "show_current": False, "show_forecast": True,
-         "forecast_type": "hourly", "forecast_slots": 12}))
+        "hide_background": True}, extra=RADAR_FIT))
+    forecast = panel("Forecast", ICE, side="right", bottom=False, content={
+        "type": "custom:lcars-forecast", "entity": w, "hours": 12, "segments": 8, "font": "Antonio, sans-serif",
+        "colours": {"temp": PEACH, "rain": ICE, "off": rgba(PERI, 0.18), "text": PERI, "dim": GRAY}})
+    week = panel("Next 7 days", BLUEY, pillar=ATMOS_LABEL_W, bottom=False, content=week_calendar())
     # sized like the waste page: fits the 1280x800 tablet, the rest of the page stays black
     top_h = data_panel_height(5)
     bottom_h = f"calc({data_panel_height(5)} - {PANEL_CORNER}px)"
-    return grid('"atm atm radar" "nina fc fc" ". . ."', "1fr 1fr 1.4fr", f"{top_h} {bottom_h} 1fr",
-                [at(atmosphere, "atm"), at(nina, "nina"), at(radar, "radar"), at(forecast, "fc")],
+    return grid('"atm atm radar" "week week fc" ". . ."', "1fr 1fr 1.4fr", f"{top_h} {bottom_h} 1fr",
+                [at(atmosphere, "atm"), at(radar, "radar"), at(week, "week"), at(forecast, "fc")],
                 gap="clamp(12px, 2vh, 24px) 8px")
+
+
+# The radar iframe fills its frame (no fixed aspect ratio) and renders at 80 %, so more map fits
+RADAR_FIT = (":host, ha-card { height: 100% !important; } #root { padding-top: 0 !important; height: 100% !important; } "
+             "iframe { width: 125% !important; height: 125% !important; transform: scale(0.8); "
+             "transform-origin: 0 0; }")
+WEEK_PALETTE = [PEACH, ICE, LILAC, PERI, SUNFLOWER, ALMOND, ROSE, BUTTERSCOTCH, VIOLET, BLUEY]
+
+
+def week_calendar():
+    """Next 7 days of every calendar (ha/www/lcars-week.js): like the waste timeline, a label block per
+    calendar with events (the pillar), a column per day, event titles in the calendar's colour."""
+    waste = dict(zip(WASTE_CALS, [c for _, _, c in BINS] + [RED]))
+    labels = {c["entity"]: CAL_LABELS.get(c.get("label"), c.get("label"))
+              for c in foreign_card("dashboard-termine", "kalender").get("calendars", [])}
+    others = iter(WEEK_PALETTE)
+    cals = [{"entity": e, "label": labels.get(e, e.split(".")[1]), "colour": waste.get(e) or next(others),
+             "code": lcars_code(f"week/{e}")} for e in ALL_CALS]
+    return {"type": "custom:lcars-week", "days": 7, "calendars": cals, "titles": BIN_NAMES, "max_rows": 5,
+            "label_w": ATMOS_LABEL_W,
+            "pillar": BLUEY, "head": TL_HEAD, "row": DATA_ROW, "gap": PANEL_GAP, "font": "Antonio, sans-serif",
+            "colours": {"empty": rgba(PERI, 0.1), "weekend": rgba(PERI, 0.05), "today": rgba(PERI, 0.22),
+                        "text": PERI, "text_weekend": GRAY, "text_today": ORANGE, "ink": INK}}
 
 
 def osmosis_content():

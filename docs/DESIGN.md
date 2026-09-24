@@ -63,8 +63,11 @@
 - **OPS page** follows the waste page: header outside/condition + number
   columns (+ pills on wide screens); "Atmosphere" with label-block pillar and
   a scale bar per value (temperature −10..35 °C, humidity, pressure 970..1050
-  hPa, wind 0..60 km/h, daylight hours on a 24 h scale); radar; NINA alerts and
-  forecast in facing frames, open at the bottom. No tasks (user decision).
+  hPa, wind 0..60 km/h, daylight hours on a 24 h scale); precipitation radar
+  (fills its frame, rendered at 80 %); "Next 7 days" of all calendars
+  (`lcars-week.js`: only calendars with events get a row, max 5, event titles
+  in the calendar colour); hourly forecast (`lcars-forecast.js`: hour,
+  condition code, temperature bar, °C, mm). No tasks, no NINA (user decisions).
 - **Frames per group**: `panel()` draws a bracket with elbow shoulders; sides,
   open ends and a content-supplied pillar are options.
 - **Every numbered thing has its own number**: codes come from
