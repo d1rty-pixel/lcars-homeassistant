@@ -61,7 +61,9 @@ This is not reported upstream yet.
 - The `text-reveal` animation made the text disappear for good, so it is not used.
 - The official `lcards-schema.json` has generator bugs: `$ref` where lists belong,
   `enum: []` for text `position` and slider `preset`, and no
-  `additionalProperties: false`. `tools/validate.py` works around all three.
+  `additionalProperties: false`. `tools/validate.py` works around all three. Also,
+  `sounds` is declared only on the slider, although every card reads it (from
+  `LCARdSCard`), so the validator copies it onto the other cards.
 - Charts: `data_sources: {x: {entity, history: {hours: 24}}}`, then
   `sources: [{datasource, buffer: main, name}]`. Also set `style.yaxis.decimals`
   and `style.formatters`, or the axis shows float noise.

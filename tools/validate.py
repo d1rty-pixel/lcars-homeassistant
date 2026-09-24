@@ -40,7 +40,14 @@ def load_schemas():
             return [res(v, depth + 1) for v in x]
         return x
 
-    return {k: res(v) for k, v in raw["cards"].items()}
+    schemas = {k: res(v) for k, v in raw["cards"].items()}
+    # Schema gap: every card inherits `sounds` from LCARdSCard (runtime reads config.sounds
+    # in src/base/LCARdSCard.js), but only the slider schema declares it.
+    sounds = schemas["lcards-slider"]["properties"].get("sounds")
+    for card in schemas.values():
+        if sounds and "properties" in card and "sounds" not in card["properties"]:
+            card["properties"]["sounds"] = sounds
+    return schemas
 
 
 def subschemas(sc):
