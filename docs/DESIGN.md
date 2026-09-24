@@ -1,8 +1,9 @@
 # Design rules and how to extend the dashboard
 
 Everything here was decided with the user. Keep it unless the user changes it.
-**The waste, OPS and laundry pages are the reference style**; other pages still use the
-older row style and should move towards the reference when they are reworked.
+**The waste, OPS, laundry and aquarium pages are the reference style**; the calendar
+pages still use the older row style and should move towards the reference when they
+are reworked.
 
 ## General decisions
 
@@ -45,7 +46,7 @@ older row style and should move towards the reference when they are reworked.
   small custom cards in `ha/www/` with plain divs/CSS. Hundreds of LCARdS
   buttons crash the tablet's renderer (see `docs/NOTES.md`).
 
-## Reference style (waste, OPS and laundry pages)
+## Reference style (waste, OPS, laundry and aquarium pages)
 
 Inspired by LCARS "exterior overview" / "database" screens (the user's two
 reference images): brackets around groups, label blocks as pillars, graphics
@@ -86,7 +87,15 @@ next to values, restrained colour.
   day for time scales), inactive segments static at 18 % peri, lit segments in
   the row colour. They grow away from the pillar. A level at its minimum lights
   nothing. **Status bars** (`state_bar()`, mode `state`) light every segment in
-  the state's colour (e.g. ice = on/running) or none.
+  the state's colour (e.g. ice = on/running) or none. Other modes can take their
+  lit colour from the state too (`states`, e.g. the water-change countdown in
+  its status colour), a level can turn red below a threshold (`alarm`, dosing
+  fill levels), and `days` lights weekdays from a list (dosing schedule).
+- **Switches have no bar** (user decision): a row that switches something (tap
+  its block or value; hold: more-info) shows only its value, e.g. RO unit,
+  CO² coupling, light automation, laundry Supply. Bars are for readings.
+- **Mode switches are LCARS buttons** (`mode_button()`): rounded pills in a
+  frame, in their state colour while on and grey while off (aquarium Modes).
 - **Timeline / week grids**: weekday header and day numbers, weekends dimmer,
   today lighter and its labels orange.
 - Bin colours appear only in label blocks, filled cells and bars.
@@ -137,19 +146,36 @@ next to values, restrained colour.
   (active one orange with "◂", stored per device), peak per 5 min (24 h) or
   per hour (7 d, 28 d) from HA's long-term statistics. "Running" means above
   3 W. No protection sensors (user decision: no real value).
-- **Other pages** (older style): flat dark-tinted rows with a state-coloured
-  left stripe, small section headers, flat command blocks. RGB channels and
-  dosing levels are vertical segment columns; leave black space around them.
-  The aquarium power chart is mirrored (zero axis in the middle, total above,
-  consumers below, log scale, smooth filled areas, no legend in the chart: the
-  "Power grid" readouts are the legend).
+- **Aquarium** (header: Total power, Circulation, number columns, pills):
+  - *Status*: facing frames "Modes" (four LCARS buttons: Auto/Manual mode,
+    Maintenance, Feeding with its resume time, Water change) | "Equipment"
+    (Pump, Heater, CO² with status bars, CO² coupling), below "Illumination"
+    (Automation, Light phase, Next change) | "Water change" (Status with days
+    since on a 0..14 d bar, Last change, Next due as a countdown).
+  - *Visual*: the camera in "Visual sensor 01" (numbered pillar facing the
+    readings), "Readings" (Feed, Circulation, Illumination, Total power) next to it.
+  - *Light*: "Phase control" (Automation, Current, Scheduled, Next, Ramp bar);
+    below, facing "Profiles" (Fire, Chill, Resume: tap the block) | "Channels"
+    (red/green/blue as horizontal LCARdS segment sliders).
+  - *Dosing*: "Fill level" (ml and %, bar red below 50 ml; hold a channel's
+    block or value to mark the bottle refilled) and "Schedule" (dose, time, next
+    weekday, Mon–Sun bar; tap a channel's block to switch its schedule).
+  - *Power*: "Power grid" (Total 0..350 W, Pump 0..250, Light 0..100, CO² valve
+    0..2 W; the block colours are the chart's legend) and "Power visualization"
+    (mirrored 24 h LCARdS chart: zero axis in the middle, total above, consumers
+    below, log scale, 10/100 W lines; 1 W lines don't fit on the tablet).
+  - *Osmosis*: like Laundry: "RO unit" (unit with auto-off time and pending
+    firmware update, Mode, Power 0..40 W, Energy) and the power trace with
+    range buttons. Four rows, so the trace keeps its height on the tablet.
+- **Calendar pages** (older style): flat dark-tinted rows with a state-coloured
+  left stripe, small section headers.
 
 ## Light custom cards (`ha/www/`)
 
 | Card | Used for |
 |------|----------|
 | `lcars-day-grid.js` | waste collection timeline cells |
-| `lcars-bar.js` | segment bars: `countdown`, `window`, `level`, `span`, `state` |
+| `lcars-bar.js` | segment bars: `countdown`, `window`, `level`, `span`, `state`, `days` |
 | `lcars-week.js` | next days of all calendars (refreshes HA's calendars first) |
 | `lcars-forecast.js` | hourly forecast (weather/subscribe_forecast) |
 | `lcars-radar.js` | DWD radar with its own control pillar |
@@ -167,8 +193,9 @@ registers it as a resource with `?v=<timestamp>`.
 | Palette, entity constants, `lcars_code()` | colours, entity IDs, the number registry |
 | `block`, `segments`, `elbow` | frame primitives |
 | `clock`, `stardate_block` | foot bar: local date/time, stardate (`FOOT_FONT` sets the bar's size) |
-| `header`, `row`, `pill`, `info`, `action_btn`, `column` | older content primitives |
+| `header`, `row`, `column` | older content primitives (calendar pages) |
 | `panel`, `pillar_rows`, `value_text`, `with_bar`, `with_decor_pillar` | reference-style frames and rows |
+| `aq_panel`, `state_row`, `plain_row`, `mode_button`, `channel_slider` | aquarium rows: status/switch rows, LCARS mode buttons, light sliders |
 | `data_bar`, `countdown_bar`, `window_bar`, `level_bar`, `span_bar`, `state_bar` | segment bar configs (`lcars-bar.js`) |
 | `power_card` | power chart with range buttons (`lcars-power.js`) |
 | `number_columns`, `number_sensors`, `header_buttons` | header decoration |

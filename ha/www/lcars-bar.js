@@ -13,12 +13,15 @@
 //         level              # a number (state, or `attribute`) on a min..max scale
 //         span               # one segment per hour, lit between the times of day in the ISO timestamps
 //                            #   `start_attr` and `end_attr` (e.g. sun.sun next_rising / next_setting)
+//         days               # one segment per weekday (Mon first), lit for the weekdays listed in
+//                            #   `attribute` (0 = Monday, e.g. a dosing schedule's weekdays)
 //         state              # a status: every segment lit in states[state] (e.g. {on: ice}), none if
 //                            #   the state isn't listed; with `threshold`, a number above it is "on",
 //                            #   else "off"
-//   attribute: temperature   # level: read this attribute instead of the state
+//   attribute: temperature   # level, countdown: read this attribute instead of the state; days: the list
 //   min: -10, max: 35        # level: scale
-//   states: {on: "#99CCFF"}  # state: colour per state
+//   states: {on: "#99CCFF"}  # state: colour per state; other modes: lit colour per state (else colour)
+//   alarm: {below: 50, colour: "#DD4444"}   # level: lit colour while the value is below `below`
 //   threshold: 3             # state: numeric state -> "on" / "off"
 //   segments: 14
 //   days_per_segment: 2
@@ -62,16 +65,21 @@ class LcarsBar extends HTMLElement {
     const c = this._config;
     const state = st ? String(st.state) : "";
     const lit = [];
-    if (c.mode === "state") {
+    const attr = c.attribute ? st && st.attributes[c.attribute] : undefined;
+    if (c.mode === "days") {
+      const days = Array.isArray(attr) ? attr : [];
+      for (let j = 0; j < c.segments; j++) lit.push(days.includes(j));
+    } else if (c.mode === "state") {
       let s = state;
       if (c.threshold != null) s = parseFloat(state) > c.threshold ? "on" : "off";
       const colour = c.states && c.states[s];
       for (let j = 0; j < c.segments; j++) lit.push(colour || false);
     } else if (c.mode === "level") {
-      const v = parseFloat(c.attribute ? (st && st.attributes[c.attribute]) : state);
+      const v = parseFloat(c.attribute ? attr : state);
       const f = isNaN(v) ? 0 : Math.min(1, Math.max(0, (v - c.min) / (c.max - c.min)));
       const count = isNaN(v) || f <= 0 ? 0 : Math.max(1, Math.round(f * c.segments));   // nothing lit at min
-      for (let j = 0; j < c.segments; j++) lit.push(j < count);
+      const colour = c.alarm && v < c.alarm.below ? c.alarm.colour : true;
+      for (let j = 0; j < c.segments; j++) lit.push(j < count && colour);
     } else if (c.mode === "span") {
       const hour = (iso) => { const d = new Date(iso); return d.getHours() + d.getMinutes() / 60; };
       const a = st && st.attributes[c.start_attr];
@@ -83,11 +91,13 @@ class LcarsBar extends HTMLElement {
         lit.push(!!m && h < +m[3] + m[4] / 60 && h + 1 > +m[1] + m[2] / 60);
       }
     } else {
-      const n = LcarsBar._days(state);
+      const n = LcarsBar._days(c.attribute ? String(attr ?? "") : state);
       const count = n == null || n < 0 ? 0 : Math.max(1, Math.ceil(n / (c.days_per_segment || 2)));
       for (let j = 0; j < c.segments; j++) lit.push(j < count);
     }
-    return lit;
+    // lit colour per state (e.g. a water-change countdown in the status colour)
+    const byState = c.mode !== "state" && c.states && c.states[state];
+    return byState ? lit.map((on) => on === true ? byState : on) : lit;
   }
 
   _render(st) {

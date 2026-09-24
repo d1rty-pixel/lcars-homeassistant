@@ -37,18 +37,18 @@ ha/www/lcards-registry-fix.js  workaround for the LCARdS/HA load-order race
 ha/www/lcars-motion.js         per-device animation switch (?lcars_motion=off, sidebar "Motion"),
                                global segment-bar switch (?lcars_bars=off)
 ha/www/lcars-day-grid.js       the waste timeline's day grid as one light card (was ~200 LCARdS buttons)
-ha/www/lcars-bar.js            segment bars (countdown, time window, level, span) as light cards, CSS blink
+ha/www/lcars-bar.js            segment bars (countdown, time window, level, span, status, weekdays) as light cards, CSS blink
 ha/www/lcars-week.js           next days of several calendars, timeline style (OPS)
 ha/www/lcars-forecast.js       hourly forecast, LCARS style (OPS)
 ha/www/lcars-radar.js          DWD precipitation radar with LCARS controls (OPS)
-ha/www/lcars-power.js          power chart over 24 h / 7 d / 28 d with range buttons (Laundry)
+ha/www/lcars-power.js          power chart over 24 h / 7 d / 28 d with range buttons (Laundry, Osmosis)
 docs/DESIGN.md                 design rules (user decisions), generator structure, how to extend, URL rules
 docs/OPERATIONS.md             changes made on the HA host, backups, tablet, sounds, known limitations
 docs/NOTES.md                  root causes and LCARdS gotchas
 ```
 
 **Read `docs/DESIGN.md` before changing the look.** It records decisions the
-user already made and the reference style of the waste, OPS and laundry pages (frames,
+user already made and the reference style of the waste, OPS, laundry and aquarium pages (frames,
 pillars, graphics next to values, restrained animation, both target screens).
 
 ## Usage

@@ -124,6 +124,13 @@ the card *height* only. For text that must shrink with the viewport *width*
   only a "lit" state, stack two cards in the same grid area (static base, and
   an animated top layer that is transparent unless lit).
 
+## Horizontal LCARdS sliders in short rows
+
+An `lcards-slider`'s SVG keeps a minimum height of its own (56 px). In a row
+lower than that the viewBox is scaled into the taller box and drawn centred,
+i.e. well below the row. The light channels override it through UIX
+(`.slider-container, .slider-container svg { height: 100%; min-height: 0 }`).
+
 ## Performance on the kiosk tablet
 
 Every LCARdS button is its own SVG-rendered element with template processing.
