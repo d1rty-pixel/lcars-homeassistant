@@ -971,7 +971,7 @@ def home_content():
     ], filler=ICE, label_w=ATMOS_LABEL_W))
     radar = panel("Precipitation radar", BLUEY, side="right", pillar=DECOR_PILLAR_W, content=with_decor_pillar(
         skinned({"type": "iframe", "hide_background": True,
-                 "url": "https://radar.wo-cloud.com/mobile/rr/interactive?wrx=50.00,8.00&wrm=8&wry=50.00,8.00"},
+                 "url": RADAR_URL},
                 extra=RADAR_FIT),
         "ops/radar", [PERI, ICE, LILAC], filler=BLUEY))
     forecast = panel("Forecast", ICE, side="right", bottom=False, pillar=DECOR_PILLAR_W, content=with_decor_pillar(
@@ -1003,10 +1003,16 @@ def with_decor_pillar(content, key, colours, side="right", filler=None):
     return grid(areas, widths, "1fr", [at(content, "c", overflow="hidden"), at(pillar, "p")], gap="0 16px")
 
 
-# The radar iframe fills its frame (no fixed aspect ratio) and renders at 80 %, so more map fits
+# wetteronline radar (radar.wo-cloud.com). Its URL options (read from the app bundle): wrx/wry position,
+# wrm zoom, wro=true loop (plays on load), hideLocate=true (ignored by this mobile view). No theme or
+# hide-controls option, and no postMessage for play/pause (only prev_next).
+RADAR_URL = ("https://radar.wo-cloud.com/mobile/rr/interactive?wrx=50.00,8.00&wrm=8&wry=50.00,8.00"
+             "&wro=true&hideLocate=true")
+# The radar iframe fills its frame (no fixed aspect ratio) and renders at 80 %, so more map fits. The app
+# has no dark theme: invert + hue-rotate turns the grey map dark and keeps the rain colours' hues.
 RADAR_FIT = (":host, ha-card { height: 100% !important; } #root { padding-top: 0 !important; height: 100% !important; } "
              "iframe { width: 125% !important; height: 125% !important; transform: scale(0.8); "
-             "transform-origin: 0 0; }")
+             "transform-origin: 0 0; filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(1.1); }")
 WEEK_PALETTE = [PEACH, ICE, LILAC, PERI, SUNFLOWER, ALMOND, ROSE, BUTTERSCOTCH, VIOLET, BLUEY]
 
 
