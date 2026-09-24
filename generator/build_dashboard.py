@@ -976,7 +976,8 @@ def home_content():
         "ops/radar", [PERI, ICE, LILAC], filler=BLUEY))
     forecast = panel("Forecast", ICE, side="right", bottom=False, pillar=DECOR_PILLAR_W, content=with_decor_pillar(
         {"type": "custom:lcars-forecast", "entity": w, "hours": 12, "segments": 8, "font": "Antonio, sans-serif",
-         "colours": {"temp": PEACH, "rain": ICE, "off": rgba(PERI, 0.18), "text": PERI, "dim": GRAY}},
+         "colours": {"temp": PEACH, "rain": ICE, "off": rgba(PERI, 0.18), "text": PERI, "dim": GRAY, "flash": "#FFFFFF"},
+         "blink": [8000, 24000], "off_fraction": 0.025},
         "ops/forecast", [BONE, PERI, ICE]))
     week = panel("Next 7 days", BLUEY, pillar=ATMOS_LABEL_W, bottom=False, content=week_calendar())
     # sized like the waste page: fits the 1280x800 tablet, the rest of the page stays black

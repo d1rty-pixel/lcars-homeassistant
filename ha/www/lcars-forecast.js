@@ -9,7 +9,8 @@
 //   entity: weather.forecast_home
 //   hours: 12
 //   segments: 8                      # temperature bar
-//   colours: {temp, rain, off, text, dim}
+//   colours: {temp, rain, off, text, dim, flash}
+//   blink: [min_ms, max_ms], off_fraction: 0.025   # lit segments flash briefly, like lcars-bar.js
 //   font: "Antonio, sans-serif"
 const CONDITION_CODES = {
   "clear-night": "CLEAR", cloudy: "CLOUD", exceptional: "ALERT", fog: "FOG", hail: "HAIL",
@@ -57,11 +58,20 @@ class LcarsForecast extends HTMLElement {
     const lo = Math.min(...temps);
     const hi = Math.max(...temps);
     const n = c.segments || 8;
-    const cols = hours.map((f) => {
+    let motion = true;
+    try { motion = localStorage.getItem("lcars-motion") !== "off"; } catch (e) { /* default on */ }
+    const [bmin, bmax] = c.blink || [8000, 24000];
+    // stable pseudo-random cycle per segment (same after every re-render)
+    const cycle = (i, j) => bmin + ((i * 7919 + j * 104729) % 1000) / 1000 * (bmax - bmin);
+    const cols = hours.map((f, i) => {
       const d = new Date(f.datetime);
       const lit = Math.max(1, Math.round(((f.temperature - lo) / ((hi - lo) || 1)) * (n - 1)) + 1);
       const segs = [];
-      for (let j = n - 1; j >= 0; j--) segs.push(`<i style="background:${j < lit ? col.temp : col.off}"></i>`);
+      for (let j = n - 1; j >= 0; j--) {
+        if (j >= lit) { segs.push(`<i style="background:${col.off}"></i>`); continue; }
+        const anim = motion ? `;animation:blink ${Math.round(cycle(i, j))}ms step-end infinite` : "";
+        segs.push(`<i style="background:${col.temp}${anim}"></i>`);
+      }
       const rain = f.precipitation || 0;
       return `<div class="col">
           <b>${String(d.getHours()).padStart(2, "0")}</b>
@@ -83,7 +93,9 @@ class LcarsForecast extends HTMLElement {
         .t { font-size: 17px; font-weight: bold; color: ${col.temp}; }
         .r { font-size: 12px; }
         .bar { display: grid; width: 60%; min-height: 0; gap: 2px; grid-template-rows: repeat(${n}, minmax(0, 1fr)); }
-        .bar i { display: block; }
+        .bar i { display: block; --c: ${col.temp}; }
+        @keyframes blink { 0% { background: var(--c); }
+                           ${Math.round((1 - (c.off_fraction ?? 0.025)) * 1000) / 10}%, 100% { background: ${col.flash || "#FFFFFF"}; } }
       </style>
       <div class="grid">${cols.join("")}</div>`;
   }
