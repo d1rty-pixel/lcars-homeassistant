@@ -2,7 +2,7 @@
 
 A full-screen LCARS dashboard (Voyager palette, Titan.DS-style layout) built from
 [LCARdS](https://lcards.unimatrix01.ca) cards. It lives in the HA dashboard
-`aquarium-lcars` (sidebar title **LCARS**).
+`lcars-bridge` (sidebar title **LCARS**), e.g. `/lcars-bridge/aquarium-power`.
 
 - **Header row** switches sections: Aquarium, Home, Waschen, Müll, Kalender.
 - **Sidebar** lists the active section's sub-views plus **Classic**, a link to the original dashboard.

@@ -1,4 +1,4 @@
-"""Build the LCARS dashboard (HA dashboard url_path: aquarium-lcars, sidebar title "LCARS").
+"""Build the LCARS dashboard (HA dashboard url_path: lcars-bridge, sidebar title "LCARS").
 
 Usage:  python3 build_dashboard.py            -> writes ../build/lcars_dashboard.json
         python3 ../tools/deploy.py            -> validates and saves it to Home Assistant
@@ -139,19 +139,10 @@ def segments(colors_fr, position):
     return grid(areas, cols, rows, [at(block(c), n) for (c, _), n in zip(colors_fr, names)], gap="0 6px")
 
 
-def flowbar(colors_fr, flow_index):
-    """Bottom segmented bar where one segment carries a streaming 'flow' texture."""
-    bar = segments(colors_fr, "bottom")
-    seg = bar["cards"][flow_index]
-    seg["shape_texture"] = {"preset": "flow", "opacity": 0.9, "speed": 1.0,
-                            "config": {"color": "rgba(255,255,255,0.55)", "num_streaks": 2, "scroll_speed_x": 90}}
-    return bar
-
-
-def elbow(kind, color, text=None):
+def elbow(kind, color, text=None, bar_height=BAR):
     card = {"type": "custom:lcards-elbow", "interactive": False, "tap_action": {"action": "none"},
             "elbow": {"type": kind, "style": "simple",
-                      "segment": {"bar_width": PILLAR, "bar_height": BAR, "color": {"default": color}}}}
+                      "segment": {"bar_width": PILLAR, "bar_height": bar_height, "color": {"default": color}}}}
     if text:
         card["text"] = text
     return card
@@ -164,19 +155,6 @@ def readout(entity, label, value, colors=None, label_color=LILAC):
                      "val": {"content": value, "position": "bottom-left", "font_size": 40, "font_weight": "bold",
                              "color": colors or PEACH, "text_transform": "uppercase"}},
             "tap_action": {"action": "more-info"}}
-
-
-def decor(cols, rows, color=PERI, size=13):
-    return {"type": "custom:lcards-data-grid", "data_mode": "decorative", "format": "digit",
-            "refresh_interval": 4000,
-            "grid": {"grid-template-columns": f"repeat({cols}, 1fr)", "grid-template-rows": f"repeat({rows}, 1fr)",
-                     "gap": "0 6px"},
-            "style": {"font_size": size, "color": color},
-            "animations": [{"trigger": "on_load", "preset": "cascade-color"}]}
-
-
-# ── Content primitives ──────────────────────────────────────────────────────────
-DIM = "#B4B4CC"      # row label colour (dimmed lavender)
 
 
 def tint(color, alpha=0.16):
@@ -239,27 +217,6 @@ def action_btn(label, color, action, *, hold=False, icon=None):
     return card
 
 
-LIGHT_PATTERN = [  # (colour, blink half-cycle ms, delay ms) — irregular on purpose
-    (ORANGE, 900, 0), (PEACH, 1700, 300), (ICE, 600, 150), (LILAC, 2300, 900), (ORANGE, 1300, 500),
-    (BLUEY, 800, 1200), (PEACH, 2600, 200), (ICE, 1100, 700), (ROSE, 1900, 400), (ORANGE, 700, 1000),
-    (LILAC, 1500, 50), (ICE, 2100, 600),
-]
-
-
-def lights(n=12, offset=0):
-    """Row of small blinking indicator squares (the Titan 'misc lights')."""
-    names, cards = [], []
-    for i in range(n):
-        colour, dur, delay = LIGHT_PATTERN[(i + offset) % len(LIGHT_PATTERN)]
-        names.append(f"l{i}")
-        cards.append(at({"type": "custom:lcards-button", "preset": "barrel", "interactive": False, "show_icon": False,
-                         "style": {"card": {"color": {"background": colour}}, "border": {"radius": 0}},
-                         "animations": [{"trigger": "on_load", "preset": "blink", "duration": dur, "delay": delay,
-                                         "loop": True, "alternate": True,
-                                         "params": {"min_opacity": 0.12, "max_opacity": 1.0}}]}, f"l{i}"))
-    return grid('"' + " ".join(names) + '"', " ".join(["1fr"] * n), "1fr", cards, gap="0 5px")
-
-
 def column(items, filler=PERI):
     """Vertical stack of (kind, card): 'h' header / 'p' pill rows sized to the viewport,
     remaining space left black."""
@@ -275,46 +232,55 @@ def column(items, filler=PERI):
 
 
 # ── Shared frame ────────────────────────────────────────────────────────────────
-BASE = "/aquarium-lcars/"
+BASE = "/lcars-bridge/"
 
 # Header sections, each with its sidebar sub-views.
 #   section: (key, label, code, colour, classic_url, [(view_key, label, code, colour, path), ...])
 SECTIONS = [
     ("aquarium", "Aquarium", "10-0001", ORANGE, "/lovelace/phishtank", [
-        ("status", "Status", "01-1138", PEACH, "phishtank-lcars"),
-        ("visual", "Visual", "02-4712", LILAC, "lcars-visual"),
-        ("light", "Light", "03-2256", SUNFLOWER, "lcars-light"),
-        ("dosing", "Dosing", "04-9031", BLUEY, "lcars-dosing"),
-        ("power", "Power", "05-6620", ALMOND, "lcars-power"),
-        ("osmose", "Osmose", "06-2240", ICE, "lcars-osmose"),
+        ("status", "Status", "01-1138", PEACH, "aquarium-status"),
+        ("visual", "Visual", "02-4712", LILAC, "aquarium-visual"),
+        ("light", "Light", "03-2256", SUNFLOWER, "aquarium-light"),
+        ("dosing", "Dosing", "04-9031", BLUEY, "aquarium-dosing"),
+        ("power", "Power", "05-6620", ALMOND, "aquarium-power"),
+        ("osmose", "Osmose", "06-2240", ICE, "aquarium-osmose"),
     ]),
     ("home", "Home", "11-1701", ROSE, "/lovelace/home", [
-        ("home", "Home", "21-0001", ROSE, "lcars-home"),
+        ("home", "Home", "21-0001", ROSE, "home"),
     ]),
     ("waschen", "Waschen", "13-5519", LILAC, "/lovelace/waschen", [
-        ("waschen", "Waschen", "41-0001", LILAC, "lcars-waschen"),
+        ("waschen", "Waschen", "41-0001", LILAC, "waschen"),
     ]),
     ("muell", "Müll", "14-0815", PEACH, "/dashboard-muell/muell", [
-        ("muell", "Übersicht", "51-0001", PEACH, "lcars-muell"),
-        ("muell-kalender", "Kalender", "51-0002", BUTTERSCOTCH, "lcars-muell-kalender"),
+        ("muell", "Übersicht", "51-0001", PEACH, "muell"),
+        ("muell-kalender", "Kalender", "51-0002", BUTTERSCOTCH, "muell-kalender"),
     ]),
     ("kalender", "Kalender", "15-3301", BLUEY, "/dashboard-termine/kalender", [
-        ("termine", "Kalender", "61-0001", BLUEY, "lcars-termine"),
-        ("agenda", "Agenda", "61-0002", PERI, "lcars-termine-agenda"),
+        ("termine", "Kalender", "61-0001", BLUEY, "kalender"),
+        ("agenda", "Agenda", "61-0002", PERI, "kalender-agenda"),
     ]),
 ]
 
 
+NAV_ORDER = ["home", "aquarium", "waschen", "muell", "kalender"]
+NAV_H = 38          # height of the header frame bar, which doubles as the section menu
+
+
 def dashboard_nav(active_section):
-    names = [sec[0] for sec in SECTIONS]
-    cards = []
-    for key, label, code, colour, _classic, subviews in SECTIONS:
+    """Section menu rendered as the segments of the header frame bar (like the sidebar blocks)."""
+    by_key = {sec[0]: sec for sec in SECTIONS}
+    names, cards = [], []
+    for key in NAV_ORDER:
+        _, label, code, colour, _classic, subviews = by_key[key]
         active = key == active_section
         card = block(ORANGE if active else colour, label + (" ◂" if active else ""), code,
-                     None if active else BASE + subviews[0][4], size=17)
+                     None if active else BASE + subviews[0][4], size=18)
         card["text"]["code"]["font_size"] = 10
+        names.append(key)
         cards.append(at(card, key))
-    return grid('"' + " ".join(names) + ' ."', " ".join(["1fr"] * len(names)) + " 0.4fr", "1fr", cards,
+    names.append("tail")                       # plain segment running the bar out to the right edge
+    cards.append(at(block(LILAC), "tail"))
+    return grid('"' + " ".join(names) + '"', " ".join(["1fr"] * len(NAV_ORDER)) + " 1.6fr", "1fr", cards,
                 gap="0 6px")
 
 
@@ -355,18 +321,16 @@ def frame(section, active, content, subtitle):
              "animations": [{"trigger": "on_entity_change", "entity": PUMP, "to_state": "Critical",
                              "check_on_load": True, "preset": "blink", "loop": True}],
              "tap_action": {"action": "more-info"}}
-    readouts = grid('"p c l d t" "n n n n t" "x x x x t"', "1fr 1fr 1fr 1fr 2.4fr",
-                    "1fr clamp(30px, 3.8vh, 44px) 10px", [
-        at(dashboard_nav(section), "n"),
-        at(lights(16), "x"),
+    readouts = grid('"p c l d t"', "1fr 1fr 1fr 1fr 2.4fr", "1fr", [
         *[at(card, area) for card, area in zip(section_readouts(section), ["p", "c", "l", "d"])],
         at(title, "t"),
     ], gap="6px 16px")
-    top = grid('"elbow data" "elbow bars"', f"{ELBOW_W}px 1fr", f"1fr {BAR}px", [
+    top = grid('"elbow data" "elbow nav"', f"{ELBOW_W}px 1fr", f"1fr {NAV_H}px", [
         at(elbow("footer-left", LILAC, {"code": {"content": "LCARS 47174", "position": "top-left", "font_size": 14,
-                                                 "color": INK, "padding": {"left": 8, "top": 6}}}), "elbow"),
-        at(readouts, "data", margin="0 0 8px 0"),
-        at(segments([(LILAC, 5), (ORANGE, 2), (PERI, 1), (PEACH, 3)], "bottom"), "bars"),
+                                                 "color": INK, "padding": {"left": 8, "top": 6}}},
+                 bar_height=NAV_H), "elbow"),
+        at(readouts, "data", margin="0 0 10px 0"),
+        at(dashboard_nav(section), "nav"),
     ], gap="0 6px")
     mid = grid('"elbow bars"', f"{ELBOW_W}px 1fr", "1fr", [
         at(elbow("header-left", PEACH), "elbow"),
@@ -375,7 +339,7 @@ def frame(section, active, content, subtitle):
     side = sidebar(section, active)
     foot = grid('"elbow bars"', f"{ELBOW_W}px 1fr", "1fr", [
         at(elbow("footer-left", BLUEY), "elbow"),
-        at(flowbar([(BLUEY, 3), (LILAC, 1), (ORANGE, 5), (PEACH, 1)], flow_index=2), "bars"),
+        at(segments([(BLUEY, 3), (LILAC, 1), (ORANGE, 5), (PEACH, 1)], "bottom"), "bars"),
     ], gap="0 6px")
     return [at(top, "top"), at(mid, "mid"), at(side, "side"), at(content, "main", margin="4px 0 4px 18px"),
             at(foot, "foot")]
@@ -888,19 +852,19 @@ def agenda_content():
 
 
 VIEWS = [
-    view("aquarium", "status", "LCARS Status", "phishtank-lcars", status_content(), "Systems status · 01-1138"),
-    view("aquarium", "visual", "LCARS Visual", "lcars-visual", visual_content(), "Visual sensor · 02-4712"),
-    view("aquarium", "light", "LCARS Light", "lcars-light", light_content(), "Illumination control · 03-2256"),
-    view("aquarium", "dosing", "LCARS Dosing", "lcars-dosing", dosing_content(), "Nutrient dosing · 04-9031"),
-    view("aquarium", "power", "LCARS Power", "lcars-power", power_content(), "Power distribution · 05-6620"),
-    view("home", "home", "LCARS Home", "lcars-home", home_content(), "Habitat overview · 21-0001"),
-    view("aquarium", "osmose", "LCARS Osmose", "lcars-osmose", osmose_content(), "Water reclamation · 06-2240"),
-    view("waschen", "waschen", "LCARS Waschen", "lcars-waschen", waschen_content(), "Laundry · 41-0001"),
-    view("muell", "muell", "LCARS Müll", "lcars-muell", muell_content(), "Waste disposal · 51-0001"),
-    view("muell", "muell-kalender", "LCARS Müll Kalender", "lcars-muell-kalender", muell_calendar_content(),
+    view("aquarium", "status", "LCARS Status", "aquarium-status", status_content(), "Systems status · 01-1138"),
+    view("aquarium", "visual", "LCARS Visual", "aquarium-visual", visual_content(), "Visual sensor · 02-4712"),
+    view("aquarium", "light", "LCARS Light", "aquarium-light", light_content(), "Illumination control · 03-2256"),
+    view("aquarium", "dosing", "LCARS Dosing", "aquarium-dosing", dosing_content(), "Nutrient dosing · 04-9031"),
+    view("aquarium", "power", "LCARS Power", "aquarium-power", power_content(), "Power distribution · 05-6620"),
+    view("home", "home", "LCARS Home", "home", home_content(), "Habitat overview · 21-0001"),
+    view("aquarium", "osmose", "LCARS Osmose", "aquarium-osmose", osmose_content(), "Water reclamation · 06-2240"),
+    view("waschen", "waschen", "LCARS Waschen", "waschen", waschen_content(), "Laundry · 41-0001"),
+    view("muell", "muell", "LCARS Müll", "muell", muell_content(), "Waste disposal · 51-0001"),
+    view("muell", "muell-kalender", "LCARS Müll Kalender", "muell-kalender", muell_calendar_content(),
          "Waste schedule · 51-0002"),
-    view("kalender", "termine", "LCARS Kalender", "lcars-termine", termine_content(), "Stardate calendar · 61-0001"),
-    view("kalender", "agenda", "LCARS Agenda", "lcars-termine-agenda", agenda_content(), "Mission agenda · 61-0002"),
+    view("kalender", "termine", "LCARS Kalender", "kalender", termine_content(), "Stardate calendar · 61-0001"),
+    view("kalender", "agenda", "LCARS Agenda", "kalender-agenda", agenda_content(), "Mission agenda · 61-0002"),
 ]
 
 CONFIG = {"title": "LCARS",

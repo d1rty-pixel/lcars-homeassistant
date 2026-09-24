@@ -14,7 +14,7 @@ ROOT = os.path.join(HERE, "..")
 sys.path.insert(0, os.path.join(ROOT, "generator"))
 import ha_ws  # noqa: E402
 
-URL_PATH = "aquarium-lcars"
+URL_PATH = "lcars-bridge"
 BUILT = os.path.join(ROOT, "build", "lcars_dashboard.json")
 
 
