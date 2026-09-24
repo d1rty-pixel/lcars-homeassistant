@@ -33,6 +33,11 @@
   hourly forecast. The view theme restyles them.
 - **Colours stay semantic**: ice = OK/running, sunflower = warning/manual, red =
   critical, grey = off.
+- **Aquarium power chart is mirrored**: zero axis in the middle, total above,
+  consumers (pump, CO²) below, log scale, filled areas with smooth curves (no
+  steps, no bars). Its header has the cap on the right, facing "Power grid".
+  No legend inside the chart: the readouts under "Power grid" are the legend
+  (colour swatch, label, value in the series colour) and are not buttons.
 
 ## Structure of `generator/build_dashboard.py`
 

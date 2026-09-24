@@ -15,6 +15,7 @@ custom:lcards-layout-view view type:
     foot  : footer elbow, segmented bar
 """
 import json
+import math
 import os
 import re
 import sys
@@ -157,6 +158,15 @@ def readout(entity, label, value, colors=None, label_color=LILAC):
             "tap_action": {"action": "more-info"}}
 
 
+def legend_readout(entity, label, colour):
+    """Readout that doubles as a chart legend entry: colour swatch, label, value in the series colour."""
+    swatch = {"type": "custom:lcards-button", "preset": "barrel", "interactive": False, "show_icon": False,
+              "style": {"card": {"color": {"background": colour}}, "border": {"radius": 0}}}
+    return grid('"sw txt"', "clamp(10px, 0.8vw, 16px) 1fr", "1fr",
+                [at(swatch, "sw"), at(readout(entity, label, "{entity.state}", colour, label_color=DIM), "txt")],
+                gap="0 clamp(12px, 1vw, 20px)")
+
+
 # ── Content primitives ──────────────────────────────────────────────────────────
 DIM = "#B4B4CC"      # row label colour (dimmed lavender)
 
@@ -165,13 +175,17 @@ def tint(color, alpha=0.16):
     return f"alpha({color}, {alpha})"
 
 
-def header(text, color=ORANGE):
-    """Section header: square cap + thin underline in the section colour (Titan-style, Voyager hue)."""
+def header(text, color=ORANGE, cap="left"):
+    """Section header: square cap + thin underline in the section colour (Titan-style, Voyager hue).
+
+    cap="right" mirrors it (cap and text on the right), e.g. to face a header in the next column.
+    """
+    far = "right" if cap == "left" else "left"
     return {"type": "custom:lcards-button", "preset": "barrel", "interactive": False, "show_icon": False,
             "style": {"card": {"color": {"background": "transparent"}},
-                      "border": {"width": {"top": 0, "right": 0, "left": 14, "bottom": 2}, "color": color, "radius": 0}},
-            "text": {"label": {"show": True, "content": text, "position": "center-left", "color": color,
-                               "text_transform": "uppercase", "font_size_percent": 62, "padding": {"left": 24}}}}
+                      "border": {"width": {"top": 0, far: 0, cap: 14, "bottom": 2}, "color": color, "radius": 0}},
+            "text": {"label": {"show": True, "content": text, "position": f"center-{cap}", "color": color,
+                               "text_transform": "uppercase", "font_size_percent": 62, "padding": {cap: 24}}}}
 
 
 def row(entity, label, colours, value_js, *, label_js=None, tap="more-info", interactive=True):
@@ -222,13 +236,13 @@ def action_btn(label, color, action, *, hold=False, icon=None):
 
 
 def column(items, filler=PERI):
-    """Vertical stack of (kind, card): 'h' header / 'p' pill rows sized to the viewport,
+    """Vertical stack of (kind, card): 'h' header / 'p' pill / 'r' readout rows sized to the viewport,
     remaining space left black."""
     names, rows, cards = [], [], []
     for i, (kind, card) in enumerate(items):
         n = f"r{i}"
         names.append(f'"{n}"')
-        rows.append("clamp(30px, 4.2vh, 54px)" if kind == "h" else "clamp(40px, 5.6vh, 72px)")
+        rows.append({"h": "clamp(30px, 4.2vh, 54px)", "r": "clamp(56px, 8vh, 96px)"}.get(kind, "clamp(40px, 5.6vh, 72px)"))
         cards.append(at(card, n))
     names.append('"fill"')
     rows.append("1fr")
@@ -549,24 +563,59 @@ def dosing_content():
     return grid('"a b c d"', "1fr 1fr 1fr 1fr", "1fr", [at(c, n) for c, n in zip(cols, names)], gap="0 36px")
 
 
+# lcards-chart hands ApexCharts the container's pixel size at first render and never
+# resizes; percentages let ApexCharts' own parent-resize observer redraw at full size.
+# That observer ignores resizes while the draw-in animation runs (the layout settles
+# exactly then), so animations stay off - which the no-animation rule wants anyway.
+FLUID = {"width": "100%", "height": "100%", "animations": {"enabled": False}}
+
+
+def mirrored_log_chart(series, ticks=(1, 10, 100), top=2.5):
+    """series: [(entity, name, colour, sign)] -> 24 h area chart, mirrored around a zero axis.
+
+    ApexCharts' log scale rejects negatives, so each series is mapped to
+    sign * log10(1 + W) by an expression processor. Axis labels would show those
+    log values, so they are hidden and the W ticks are drawn as labelled
+    annotation lines instead. The tooltip is off for the same reason.
+    """
+    def lg(w):
+        return math.log10(1 + w)
+
+    lines = [{"y": 0, "borderColor": DIM, "borderWidth": 2, "strokeDashArray": 0, "opacity": 0.9}]
+    for w in ticks:
+        for s in (1, -1):
+            lines.append({"y": s * lg(w), "borderColor": GRAY, "strokeDashArray": 4, "opacity": 0.6,
+                          "label": {"text": f"{w} W", "position": "left", "textAnchor": "start",
+                                    "borderWidth": 0, "offsetX": 4,
+                                    "style": {"color": DIM, "background": "transparent", "fontSize": "12px"}}})
+    return {"type": "custom:lcards-chart", "chart_type": "area", "xaxis_type": "datetime",
+            # keyed by display name: live updates label the legend with the key, not series_names
+            "data_sources": {n: {"entity": e, "history": {"hours": 24}, "processing": {"log": {
+                "type": "expression",
+                "expression": f"v == null ? null : {sign} * Math.log10(1 + Math.max(0, v))"}}}
+                             for e, n, _, sign in series},
+            "sources": [{"datasource": n, "buffer": "log", "name": n} for _, n, _, _ in series],
+            "series_names": [n for _, n, _, _ in series],
+            "style": {"colors": {"series": [c for _, _, c, _ in series]},
+                      "stroke": {"curve": "monotoneCubic", "width": 2}, "fill": {"type": "solid", "opacity": 0.35},
+                      "legend": {"show": False}, "grid": {"show": False},
+                      "yaxis": {"labels": {"show": False}},
+                      "display": {"tooltip": {"show": False}},
+                      "formatters": {"xaxis_label": "HH:mm"},
+                      "chart_options": {"chart": FLUID, "yaxis": {"min": -top, "max": top},
+                                        "annotations": {"yaxis": lines}}}}
+
+
 def power_content():
-    chart = {"type": "custom:lcards-chart", "chart_type": "line", "xaxis_type": "datetime",
-             "data_sources": {"total": {"entity": POWER, "history": {"hours": 24}},
-                              "pump": {"entity": PUMP_POWER, "history": {"hours": 24}},
-                              "co2": {"entity": CO2_POWER, "history": {"hours": 24}}},
-             "sources": [{"datasource": "total", "buffer": "main", "name": "Total"},
-                         {"datasource": "pump", "buffer": "main", "name": "Pump"},
-                         {"datasource": "co2", "buffer": "main", "name": "CO²"}],
-             "series_names": ["Total", "Pump", "CO²"],
-             "style": {"colors": {"series": [ORANGE, ICE, LILAC]},
-                       "stroke": {"curve": "stepline", "width": 3}, "legend": {"show": True},
-                       "yaxis": {"decimals": 0},
-                       "formatters": {"yaxis_label": "{value} W", "xaxis_label": "HH:mm"}}}
+    chart = mirrored_log_chart([(POWER, "Total", ORANGE, 1),
+                                (PUMP_POWER, "Pump", ICE, -1),
+                                (CO2_POWER, "CO²", LILAC, -1)])
+    chart = framed("Power visualization · 24 h", ALMOND, chart, overflow="hidden", cap="right")
     side = column([
         ("h", header("Power grid", ALMOND)),
-        ("p", info("Total", "{entity.state}", POWER, ORANGE)),
-        ("p", info("Pump", "{entity.state}", PUMP_POWER, ICE)),
-        ("p", info("CO² valve", "{entity.state}", CO2_POWER, LILAC)),
+        ("r", legend_readout(POWER, "Total", ORANGE)),
+        ("r", legend_readout(PUMP_POWER, "Pump", ICE)),
+        ("r", legend_readout(CO2_POWER, "CO² valve", LILAC)),
     ])
     return grid('"chart side"', "2.6fr 1fr", "1fr", [at(chart, "chart"), at(side, "side")], gap="0 18px")
 
@@ -660,13 +709,18 @@ def power_chart(series):
             "series_names": [n for _, n, _ in series],
             "style": {"colors": {"series": [c for _, _, c in series]}, "stroke": {"curve": "stepline", "width": 3},
                       "legend": {"show": len(series) > 1}, "yaxis": {"decimals": 0},
-                      "formatters": {"yaxis_label": "{value} W", "xaxis_label": "HH:mm"}}}
+                      "formatters": {"yaxis_label": "{value} W", "xaxis_label": "HH:mm"},
+                      "chart_options": {"chart": FLUID}}}
 
 
-def framed(title, colour, card, head_rows="clamp(30px, 4.2vh, 54px)"):
-    """LCARS section header above an embedded card that fills the rest."""
-    return grid('"h" "c"', "1fr", f"{head_rows} 1fr", [at(header(title, colour), "h"),
-                                                       at(card, "c", overflow="auto")], gap="8px")
+def framed(title, colour, card, head_rows="clamp(30px, 4.2vh, 54px)", overflow="auto", cap="left"):
+    """LCARS section header above an embedded card that fills the rest.
+
+    Charts need overflow="hidden": ApexCharts' canvas sticks out a little below the SVG,
+    and the resulting scrollbars shrink the chart container.
+    """
+    return grid('"h" "c"', "1fr", f"{head_rows} 1fr", [at(header(title, colour, cap=cap), "h"),
+                                                       at(card, "c", overflow=overflow)], gap="8px")
 
 
 def cols(*items, widths=None, gap="0 22px"):
@@ -788,7 +842,7 @@ def osmose_content():
         ("p", info("Firmware", "[[[ const a = entity.attributes; return a.installed_version + "
                                "(entity.state === 'on' ? ' → ' + a.latest_version : ' · current'); ]]]", o["fw"], PERI)),
     ])
-    trace = framed("Power trace · 24 h", ORANGE, power_chart([(o["power"], "RO unit", ICE)]))
+    trace = framed("Power trace · 24 h", ORANGE, power_chart([(o["power"], "RO unit", ICE)]), overflow="hidden")
     return cols(control, trace, widths=["1fr", "2fr"])
 
 
@@ -804,7 +858,8 @@ def waschen_content():
         ("h", header("Protection", RED)),
         *[("p", on_off(e, label, on=("Alert", CRIT), off=("Nominal", OK))) for label, e in WASH_PROTECT],
     ])
-    trace = framed("Power trace · 24 h", ORANGE, power_chart([(wsh["power"], "Waschmaschine", ORANGE)]))
+    trace = framed("Power trace · 24 h", ORANGE, power_chart([(wsh["power"], "Waschmaschine", ORANGE)]),
+                   overflow="hidden")
     return cols(unit, trace, widths=["1fr", "2fr"])
 
 

@@ -67,6 +67,18 @@ This is not reported upstream yet.
 - Charts: `data_sources: {x: {entity, history: {hours: 24}}}`, then
   `sources: [{datasource, buffer: main, name}]`. Also set `style.yaxis.decimals`
   and `style.formatters`, or the axis shows float noise.
+- Chart sizing: lcards-chart gives ApexCharts the container's pixel size once and
+  never resizes, so charts rendered during layout settling came out too narrow.
+  `FLUID` sets width/height to 100 % and turns the animation off, because ApexCharts
+  ignores parent resizes while it animates. Frame charts with `overflow: hidden`:
+  the Apex canvas sticks out ~24 px below the SVG, and the scrollbars from
+  `overflow: auto` shrink the container.
+- Chart legend names come from the `data_sources` key on live updates
+  (`series_names` only applies to the first render), so key sources by display name.
+- ApexCharts' log y-axis rejects negatives. The mirrored power chart maps values
+  with an `expression` processor (`sign * log10(1 + W)`, applied to history too)
+  and draws W ticks as `chart_options.annotations`. The schema declares only
+  `type`/`from` on processors, so `tools/validate.py` adds `expression`/`sources`.
 
 ## Testing caveat
 

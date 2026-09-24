@@ -47,6 +47,14 @@ def load_schemas():
     for card in schemas.values():
         if sounds and "properties" in card and "sounds" not in card["properties"]:
             card["properties"]["sounds"] = sounds
+    # Schema gap: processors declare only `type`/`from`, but the expression processor
+    # reads `expression` and `sources` (src/core/data-sources/processors/ExpressionProcessor.js).
+    for card in schemas.values():
+        ds = card.get("properties", {}).get("data_sources", {}).get("additionalProperties", {})
+        proc = ds.get("properties", {}).get("processing", {}).get("additionalProperties", {})
+        if isinstance(proc.get("properties"), dict):
+            proc["properties"].setdefault("expression", {"type": "string"})
+            proc["properties"].setdefault("sources", {"type": "array", "items": {"type": "string"}})
     return schemas
 
 
