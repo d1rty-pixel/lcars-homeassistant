@@ -3,7 +3,9 @@
 // Styled like the waste page's collection timeline: a label block per calendar (the frame's pillar),
 // a column per day with weekday and date, and each day with events filled in the calendar's colour with
 // the event title. Only calendars with events in the window get a row (at most max_rows, soonest first).
-// Calendar entities only expose their next event, so events come from HA's calendar REST API.
+// Calendar entities only expose their next event, so events come from HA's calendar REST API. Before
+// each fetch (on load, then every 10 min) the card asks HA to refresh the calendars
+// (homeassistant.update_entity): HA's Google calendar sync otherwise lags behind new events.
 //
 // Config (written by generator/build_dashboard.py):
 //   type: custom:lcars-week
@@ -46,6 +48,10 @@ class LcarsWeek extends HTMLElement {
     const end = LcarsWeek._day0(c.days);
     const q = `?start=${encodeURIComponent(start.toISOString())}&end=${encodeURIComponent(end.toISOString())}`;
     try {
+      try {
+        await this._hass.callService("homeassistant", "update_entity",
+                                     {entity_id: c.calendars.map((cal) => cal.entity)});
+      } catch (e) { /* not allowed or failed: use what HA has */ }
       this._events = await Promise.all(c.calendars.map((cal) =>
         this._hass.callApi("GET", `calendars/${cal.entity}${q}`).catch(() => [])));
       this._fetchedAt = Date.now();
