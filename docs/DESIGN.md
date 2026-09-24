@@ -20,9 +20,9 @@
     sub-views, plus **Classic** (link to the original dashboard).
   - The header frame bar *is* the section menu, in the order **OPS, Aquarium,
     Laundry, Waste, Calendar**. The active item is orange with "◂".
-- **No decorative animation**: no blinking lights, no flowing textures, no
-  cascading number columns. The only animation left is the title blinking on a
-  *critical* pump alert.
+- **Little decorative animation**: no blinking lights, no flowing textures.
+  Exceptions: the title blinks on a *critical* pump alert, and (user request
+  2026-09-24) LCARS number columns in free header space (waste page).
 - **Leave space.** Controls don't need to stretch to 100 % width. The RGB channels
   and dosing levels are narrow vertical "transporter" columns with black space
   around them.
@@ -42,11 +42,18 @@
     Weekday header and day numbers; weekends are dimmer, today is lighter.
     The bin label blocks form the frame's left pillar; the frame is open at the
     bottom.
-  - Below, two text-only tables (label orange, value peri, no boxes) in frames
-    that face each other: pillars meet in the middle, open at the top.
-  - Bin colours appear only in the label blocks and filled cells.
+  - Below, "Next per bin" and "Hazmat collection" in frames that face each
+    other: pillars meet in the middle, title in the top bar. Their label blocks
+    are the pillars (bin colours / bone), labels vertically centred on the
+    right, values next to them in peri. A filler piece runs into the bottom
+    shoulder without a gap.
+  - Frames hug their content; the rest of the page stays black.
+  - Header: next pickup, date, then LCARS number columns in the free space.
 - **Frames per group**: `panel()` draws a bracket with elbow shoulders; sides,
   open ends and a content-supplied pillar are options.
+- **Every numbered thing has its own number**: codes come from
+  `lcars_code(key)` (stable hash of a key, collision-checked). A view's sidebar
+  block and its subtitle share one code; nothing is hand-numbered.
 - **Frame corners**: the mid and foot elbows share one outer radius (the frame
   row height) and all corners around the content share one inner radius.
 - **Aquarium power chart is mirrored**: zero axis in the middle, total above,

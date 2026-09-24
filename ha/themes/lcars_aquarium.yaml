@@ -37,6 +37,8 @@ LCARS Aquarium:
   lcars-gray: "#666688"
   # Header readout values scale with the viewport width (tablet 1280 px ... desktop 1920 px)
   lcars-readout-size: "clamp(24px, 2.1vw, 40px)"
+  # Values in the waste page's data panels scale with the row height (vh)
+  lcars-data-size: "clamp(16px, 2.6vh, 28px)"
   primary-font-family: "Antonio, Helvetica, Arial, sans-serif"
   paper-font-common-base_-_font-family: "Antonio, Helvetica, Arial, sans-serif"
   ha-font-family-body: "Antonio, Helvetica, Arial, sans-serif"

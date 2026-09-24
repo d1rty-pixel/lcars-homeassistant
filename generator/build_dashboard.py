@@ -19,6 +19,7 @@ import math
 import os
 import re
 import sys
+import zlib
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import ha_ws  # noqa: E402  (raw websocket client, token from ~/.config/homeassistant/token)
@@ -36,6 +37,22 @@ def foreign_card(url_path, view_path, index=0):
     return view.get("cards", [])[index]
 
 # ── Voyager-era palette (hex on purpose: stays put when LCARdS alert modes shift vars) ──
+_CODES = {}
+
+
+def lcars_code(key):
+    """Stable, unique LCARS number (NN-NNNN) for a thing, derived from its key. The same key (the same
+    thing, e.g. a sidebar block shown on several views) always gets the same number, and no two keys
+    share one."""
+    if key not in _CODES:
+        h = zlib.crc32(key.encode())
+        taken = set(_CODES.values())
+        while f"{10 + h % 90:02d}-{h // 90 % 10000:04d}" in taken:
+            h += 1
+        _CODES[key] = f"{10 + h % 90:02d}-{h // 90 % 10000:04d}"
+    return _CODES[key]
+
+
 ORANGE = "#FF9900"
 BUTTERSCOTCH = "#FF9966"
 PEACH = "#FFCC99"
@@ -49,6 +66,7 @@ ROSE = "#CC6699"
 RED = "#DD4444"
 SUNFLOWER = "#FFCC66"
 GRAY = "#666688"
+BONE = "#EEE4CC"     # light LCARS block (the "LCARS" / "LCARS VERSION" blocks of the database screens)
 INK = "#000000"
 
 OK, WARN, CRIT, OFF, INFO = ICE, SUNFLOWER, RED, GRAY, VIOLET
@@ -118,8 +136,9 @@ def grid(areas, columns, rows, cards, gap="6px", **layout):
 def block(color, label=None, code=None, path=None, align="bottom-right", size=21):
     text = {}
     if label:
+        pad = {"right": 8} if align.startswith("center") else {"right": 8, "bottom": 3}
         text["label"] = {"show": True, "content": label, "position": align, "font_size": size,
-                         "color": INK, "text_transform": "uppercase", "padding": {"right": 8, "bottom": 3}}
+                         "color": INK, "text_transform": "uppercase", "padding": pad}
     if code:
         text["code"] = {"content": code, "position": "top-left", "font_size": 12, "color": INK,
                         "padding": {"left": 6, "top": 3}}
@@ -164,6 +183,16 @@ def readout(entity, label, value, colors=None, label_color=LILAC):
                              "font_weight": "bold",
                              "color": colors or PEACH, "text_transform": "uppercase"}},
             "tap_action": {"action": "more-info"}}
+
+
+def number_columns(cols, rows, color=PERI, size=14):
+    """Decorative LCARS number columns: random digits, re-rolled every few seconds, with a colour cascade."""
+    return {"type": "custom:lcards-data-grid", "data_mode": "decorative", "format": "digit",
+            "refresh_interval": 4000,
+            "grid": {"grid-template-columns": f"repeat({cols}, auto)", "grid-template-rows": f"repeat({rows}, 1fr)",
+                     "gap": "0 14px", "justify-content": "start"},    # packed columns, not spread out
+            "style": {"font_size": size, "color": color},
+            "animations": [{"trigger": "on_load", "preset": "cascade-color"}]}
 
 
 def legend_readout(entity, label, colour):
@@ -268,27 +297,27 @@ BASE = "/lcars-bridge/"
 # Header sections, each with its sidebar sub-views.
 #   section: (key, label, code, colour, classic_url, [(view_key, label, code, colour, path), ...])
 SECTIONS = [
-    ("aquarium", "Aquarium", "10-0001", ORANGE, "/lovelace/phishtank", [
-        ("status", "Status", "01-1138", PEACH, "aquarium-status"),
-        ("visual", "Visual", "02-4712", LILAC, "aquarium-visual"),
-        ("light", "Light", "03-2256", SUNFLOWER, "aquarium-light"),
-        ("dosing", "Dosing", "04-9031", BLUEY, "aquarium-dosing"),
-        ("power", "Power", "05-6620", ALMOND, "aquarium-power"),
-        ("osmosis", "Osmosis", "06-2240", ICE, "aquarium-osmosis"),
+    ("aquarium", "Aquarium", lcars_code("section/aquarium"), ORANGE, "/lovelace/phishtank", [
+        ("status", "Status", lcars_code("view/status"), PEACH, "aquarium-status"),
+        ("visual", "Visual", lcars_code("view/visual"), LILAC, "aquarium-visual"),
+        ("light", "Light", lcars_code("view/light"), SUNFLOWER, "aquarium-light"),
+        ("dosing", "Dosing", lcars_code("view/dosing"), BLUEY, "aquarium-dosing"),
+        ("power", "Power", lcars_code("view/power"), ALMOND, "aquarium-power"),
+        ("osmosis", "Osmosis", lcars_code("view/osmosis"), ICE, "aquarium-osmosis"),
     ]),
-    ("home", "OPS", "11-1701", ROSE, "/lovelace/home", [
-        ("home", "OPS", "21-0001", ROSE, "ops"),
+    ("home", "OPS", lcars_code("section/home"), ROSE, "/lovelace/home", [
+        ("home", "OPS", lcars_code("view/home"), ROSE, "ops"),
     ]),
-    ("laundry", "Laundry", "13-5519", LILAC, "/lovelace/waschen", [
-        ("laundry", "Laundry", "41-0001", LILAC, "laundry"),
+    ("laundry", "Laundry", lcars_code("section/laundry"), LILAC, "/lovelace/waschen", [
+        ("laundry", "Laundry", lcars_code("view/laundry"), LILAC, "laundry"),
     ]),
-    ("waste", "Waste", "14-0815", PEACH, "/dashboard-muell/muell", [
-        ("waste", "Overview", "51-0001", PEACH, "waste"),
-        ("waste-calendar", "Calendar", "51-0002", BUTTERSCOTCH, "waste-calendar"),
+    ("waste", "Waste", lcars_code("section/waste"), PEACH, "/dashboard-muell/muell", [
+        ("waste", "Overview", lcars_code("view/waste"), PEACH, "waste"),
+        ("waste-calendar", "Calendar", lcars_code("view/waste-calendar"), BUTTERSCOTCH, "waste-calendar"),
     ]),
-    ("calendar", "Calendar", "15-3301", BLUEY, "/dashboard-termine/kalender", [
-        ("calendar", "Calendar", "61-0001", BLUEY, "calendar"),
-        ("agenda", "Agenda", "61-0002", PERI, "calendar-agenda"),
+    ("calendar", "Calendar", lcars_code("section/calendar"), BLUEY, "/dashboard-termine/kalender", [
+        ("calendar", "Calendar", lcars_code("view/calendar"), BLUEY, "calendar"),
+        ("agenda", "Agenda", lcars_code("view/agenda"), PERI, "calendar-agenda"),
     ]),
 ]
 
@@ -318,7 +347,7 @@ def dashboard_nav(active_section):
 def sidebar(section_key, active_view):
     _, _, _, _, classic, subviews = next(sec for sec in SECTIONS if sec[0] == section_key)
     items = [(k, label, code, colour, BASE + path) for k, label, code, colour, path in subviews]
-    items.append(("classic", "Classic", "09-0074", VIOLET, classic))
+    items.append(("classic", "Classic", lcars_code(f"classic/{section_key}"), VIOLET, classic))
     cards, areas, rows = [], [], []
     for key, label, code, colour, path in items:
         is_active = key == active_view
@@ -326,7 +355,7 @@ def sidebar(section_key, active_view):
                               None if is_active else path), key))
         areas.append(f'"{key}"')
         rows.append("clamp(56px, 9vh, 110px)")
-    cards.append(at(block(GRAY, None, "08-3390"), "filler"))
+    cards.append(at(block(GRAY, None, lcars_code(f"sidebar-filler/{section_key}")), "filler"))
     areas.append('"filler"')
     rows.append("1fr")
     return grid(" ".join(areas), "1fr", " ".join(rows), cards, gap="6px")
@@ -352,10 +381,16 @@ def frame(section, active, content, subtitle):
              "animations": [{"trigger": "on_entity_change", "entity": PUMP, "to_state": "Critical",
                              "check_on_load": True, "preset": "blink", "loop": True}],
              "tap_action": {"action": "more-info"}}
-    readouts = grid('"p c l d t"', "1fr 1fr 1fr 1fr 1.7fr", "1fr", [
-        *[at(card, area) for card, area in zip(section_readouts(section), ["p", "c", "l", "d"]) if card],
-        at(title, "t"),
-    ], gap="6px 16px")
+    # Four readout slots; an entry (card, n) spans n slots
+    slots, cards = [], []
+    for i, item in enumerate(section_readouts(section)):
+        card, span = item if isinstance(item, tuple) else (item, 1)
+        name = f"s{i}"
+        slots += [name if card else "."] * span
+        if card:
+            cards.append(at(card, name, **({"margin": "0 0 0 clamp(16px, 2vw, 40px)"} if span > 1 else {})))
+    readouts = grid('"' + " ".join(slots) + ' t"', "1fr 1fr 1fr 1fr 1.7fr", "1fr", [*cards, at(title, "t")],
+                    gap="6px 16px")
     top = grid('"elbow data" "elbow nav"', f"{ELBOW_W}px 1fr", f"1fr {NAV_H}px", [
         at(elbow("footer-left", LILAC, {"code": {"content": "LCARS 47174", "position": "top-left", "font_size": 14,
                                                  "color": INK, "padding": {"left": 8, "top": 6}}},
@@ -382,7 +417,7 @@ def view(section, key, title, path, content, subtitle):
                        "grid-template-rows": f"clamp(140px, 17vh, 176px) {FRAME_H}px 1fr {FRAME_H}px",
                        "grid-template-areas": '"top top" "mid mid" "side main" "foot foot"',
                        "grid-gap": "6px 0", "height": "calc(100dvh - 16px)", "padding": "8px"},
-            "cards": frame(section, key, content, subtitle)}
+            "cards": frame(section, key, content, f"{subtitle} · {lcars_code(f'view/{key}')}")}
 
 
 # ── Views ───────────────────────────────────────────────────────────────────────
@@ -804,8 +839,8 @@ def section_readouts(section):
         return [
             readout(NEXT_PICKUP, "Next pickup", JS_NEXT_BIN, ORANGE),
             readout(NEXT_PICKUP, "Date", js_de_date("entity.state", weekday=False), PEACH),
-            None,                               # keep the slot free: the date is wide
-            readout("sensor.time", "Local time", "{entity.state}"),
+            (number_columns(7, 4), 2),
+
         ]
     if section == "calendar":
         nxt = "[[[ " + js_events(ALL_CALS) + "const e = ev[0]; if (!e) return '—'; const n = " + \
@@ -895,8 +930,10 @@ def laundry_content():
 TIMELINE_DAYS = 28
 TIMELINE_LABEL_W = 150   # label column = the timeline panel's left pillar
 # Fixed row heights, so the frames hug their content instead of filling the viewport
-TL_HEAD, TL_ROW, TL_AXIS, TL_GAP = "clamp(22px, 2.8vh, 30px)", "clamp(26px, 4vh, 40px)", "clamp(24px, 3vh, 32px)", 6
-DATA_ROW, DATA_GAP = "clamp(30px, 4.4vh, 48px)", 6
+# Budget at 1280x800 (tablet): the content area is ~550 px high, timeline + data panels must fit
+TL_HEAD, TL_ROW, TL_AXIS, TL_GAP = "clamp(22px, 2.8vh, 30px)", "clamp(24px, 3.4vh, 40px)", "clamp(24px, 3vh, 32px)", 4
+DATA_ROW, DATA_GAP = "clamp(28px, 3.8vh, 46px)", TL_GAP
+DATA_LABEL_W = 130      # label blocks = pillar of the data panels
 # JS: `ds` = 'yyyy-mm-dd' for today + k days
 JS_DAY = ("const t = new Date(); t.setHours(0,0,0,0); t.setDate(t.getDate() + %d); "
           "const ds = t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' "
@@ -905,7 +942,8 @@ JS_DAY = ("const t = new Date(); t.setHours(0,0,0,0); t.setDate(t.getDate() + %d
 
 PANEL_T = 26        # bar thickness of a panel frame; the title sits in it, so it must fit the font
 PANEL_PILLAR = 26   # width of its pillar
-PANEL_CORNER = 54   # size of the shoulder (elbow card)
+PANEL_CORNER = 46   # size of the shoulder (elbow card)
+PANEL_GAP = TL_GAP  # gap between the pieces of a pillar
 
 
 def panel_elbow(kind, colour, pillar=PANEL_PILLAR):
@@ -920,8 +958,8 @@ def panel(title, colour, content, *, side="left", pillar=None, top=True, bottom=
     have a bar. The top bar is interrupted by the title; with top=False the frame is open at the top
     and the title moves into the bottom bar (a caption). bottom=False leaves the bottom open.
 
-    pillar=<px> (left side only): the content brings its own pillar of that width as its first
-    column (e.g. the timeline's label blocks); the shoulders widen to match."""
+    pillar=<px>: the content brings its own pillar of that width as its column on `side` (e.g. the
+    timeline's label blocks, see pillar_rows()); the shoulders widen to match."""
     right = side == "right"
     pw = pillar or PANEL_PILLAR
     corner = (pw + PANEL_CORNER - PANEL_T if pillar else PANEL_CORNER) + 8
@@ -961,7 +999,9 @@ def panel(title, colour, content, *, side="left", pillar=None, top=True, bottom=
         cards += [at(panel_elbow("footer-right" if right else "footer-left", colour, pw), "bl"),
                   at(bar("bottom", not top), "bot")]
     if pillar:
-        cards.append(at(content, "body", overflow=overflow))
+        # the pillar's blocks keep the same small gap to the top shoulder as between each other; at the
+        # bottom the pillar's filler piece (pillar_rows(filler=...)) runs into the shoulder without a gap
+        cards.append(at(content, "body", overflow=overflow, margin=f"{PANEL_GAP}px 0 0 0"))
     else:
         pillar_card = (grid('". p"', f"1fr {PANEL_PILLAR}px", "1fr", [at(block(colour), "p")], gap="0") if right else
                        grid('"p ."', f"{PANEL_PILLAR}px 1fr", "1fr", [at(block(colour), "p")], gap="0"))
@@ -969,16 +1009,6 @@ def panel(title, colour, content, *, side="left", pillar=None, top=True, bottom=
                   at(content, "body", overflow=overflow, margin="0 -18px 0 0" if right else "0 0 0 -18px")]
     return grid(" ".join(areas), f"1fr {corner}px" if right else f"{corner}px 1fr", " ".join(rows), cards,
                 gap="0 6px")
-
-
-def text_row(label, value_js, entity=None, label_color=ORANGE, value_color=PERI):
-    """Plain data line (label left, value right), no box: the quiet counterpart to row()."""
-    card = row(entity, label, {"default": value_color}, value_js, interactive=bool(entity))
-    card["style"] = {"card": {"color": {"background": "transparent"}}, "border": {"width": 0, "radius": 0}}
-    # Sizes relative to the row height, larger than row()'s: these rows are short and have no box
-    card["text"]["label"].update({"color": label_color, "padding": {"left": 0}, "font_size_percent": 40})
-    card["text"]["value"].update({"color": value_color, "padding": {"right": 0}, "font_size_percent": 50})
-    return card
 
 
 def timeline_cell(entity, k, colour, hit):
@@ -1011,49 +1041,69 @@ def collection_timeline():
     rows.append(("Hazmat", HAZMAT["date"], RED, "entity.state === ds"))
     days = [f"d{k}" for k in range(TIMELINE_DAYS)]
     areas = ['"lw ' + " ".join(f"w{k}" for k in range(TIMELINE_DAYS)) + '"']
-    cards = [at(block(ORANGE, None, "51-0999"), "lw")]      # pillar piece between shoulder and first bin
+    cards = [at(block(ORANGE, None, lcars_code("timeline/weekdays")), "lw")]      # pillar piece between shoulder and first bin
     cards += [at(timeline_axis_cell(k, "t.toLocaleDateString('en-GB', {weekday: 'short'})", "bottom-center"), f"w{k}")
               for k in range(TIMELINE_DAYS)]
     for i, (label, entity, colour, hit) in enumerate(rows):
         areas.append('"' + " ".join([f"l{i}"] + [f"c{i}_{k}" for k in range(TIMELINE_DAYS)]) + '"')
-        cards.append(at(block(colour, label, f"51-{1001 + i}", size=17), f"l{i}"))
+        cards.append(at(block(colour, label, lcars_code(f"timeline/{label}"), align="center-right", size=17), f"l{i}"))
         cards += [at(timeline_cell(entity, k, colour, hit), f"c{i}_{k}") for k in range(TIMELINE_DAYS)]
     areas.append('"lx ' + " ".join(days) + '"')
-    cards.append(at(block(ORANGE, "Day", "51-1000", size=17), "lx"))
+    cards.append(at(block(ORANGE, "Day", lcars_code("timeline/day"), align="center-right", size=17), "lx"))
     cards += [at(timeline_axis_cell(k, "t.getDate()", "top-center"), d) for k, d in enumerate(days)]
     # Tracks spelled out: LCARdS counts tracks itself, treats repeat() as one and trims the areas to match
     return grid(" ".join(areas), f"{TIMELINE_LABEL_W}px " + " ".join(["1fr"] * TIMELINE_DAYS),
 " ".join([TL_HEAD] + [TL_ROW] * len(rows) + [TL_AXIS]), cards, gap=f"{TL_GAP}px 4px")
 
 
-def data_stack(cards):
-    """Fixed-height rows of text_row()s (column() would stretch to fill)."""
-    names = [f"r{i}" for i in range(len(cards))]
-    return grid(" ".join(f'"{n}"' for n in names), "1fr", " ".join([DATA_ROW] * len(cards)),
-                [at(c, n) for c, n in zip(cards, names)], gap=f"{DATA_GAP}px")
+def pillar_rows(items, side="left", filler=None):
+    """Rows of (label, colour, code, value card): the label blocks stack up as the frame's pillar on
+    `side` (use with panel(pillar=DATA_LABEL_W)), each value sits next to its block. A filler colour
+    continues the pillar below the last row down to the shoulder."""
+    areas, cards = [], []
+    for i, (label, colour, code, value) in enumerate(items):
+        areas.append(f'"v{i} l{i}"' if side == "right" else f'"l{i} v{i}"')
+        cards += [at(block(colour, label, code, align="center-right", size=17), f"l{i}"), at(value, f"v{i}")]
+    rows = [DATA_ROW] * len(items)
+    if filler:
+        areas.append('". f"' if side == "right" else '"f ."')
+        cards.append(at(block(filler), "f"))
+        rows.append("1fr")
+    widths = f"1fr {DATA_LABEL_W}px" if side == "right" else f"{DATA_LABEL_W}px 1fr"
+    return grid(" ".join(areas), widths, " ".join(rows), cards, gap=f"{DATA_GAP}px 16px")
+
+
+def value_text(value_js, entity, align="left"):
+    """Just the value of a data row, in peri, aligned towards its label block."""
+    return {"type": "custom:lcards-button", "entity": entity, "preset": "text-only", "show_icon": False,
+            "tap_action": {"action": "more-info"},
+            "text": {"value": {"content": value_js, "position": f"center-{align}", "color": PERI,
+                               "text_transform": "uppercase", "font_size": "var(--lcars-data-size)",
+                               "font_weight": "bold", "padding": {align: 4}}}}
 
 
 def data_panel_height(n):
-    return f"calc({n} * {DATA_ROW} + {(n - 1) * DATA_GAP + 8}px + {PANEL_CORNER}px)"
+    """Height of a panel with top and bottom bars around n data rows: rows, the gaps between them and
+    to both shoulders, and a short filler piece of pillar."""
+    return f"calc({n} * {DATA_ROW} + {(n + 1) * DATA_GAP + 12}px + {2 * PANEL_CORNER}px)"
 
 
 def waste_content():
     timeline = panel(f"Collection timeline · {TIMELINE_DAYS} days", ORANGE, collection_timeline(),
                      pillar=TIMELINE_LABEL_W, bottom=False)
-    # The two lower frames face each other: pillars meet in the middle, open at the top
-    schedule = panel("Next per bin", PEACH, data_stack(
-                     [text_row(label, js_de_date("entity.state"), e) for label, e, _ in BINS]),
-                     side="right", top=False)
-    hazmat = panel("Hazmat collection", RED, top=False, content=data_stack([
-        text_row("Date", js_iso_date("entity.state"), HAZMAT["date"]),
-        text_row("Window", "[[[ return String(entity.state).replace(/\\s*Uhr$/, ''); ]]]", HAZMAT["window"]),
-        text_row("Location", "[[[ return String(entity.state).split(',')[0]; ]]]", HAZMAT["place"]),
-        {"type": "custom:lcards-button", "preset": "text-only", "interactive": False,
-         "text": {"n": {"content": "Four times a year · dates appear automatically", "position": "center-left",
-                        "font_size": 16, "color": DIM, "text_transform": "uppercase"}}},
-    ]))
+    # The two lower frames face each other: pillars meet in the middle, labels next to them
+    schedule = panel("Next per bin", PEACH, side="right", pillar=DATA_LABEL_W, content=pillar_rows(
+        [(label, colour, lcars_code(f"next-per-bin/{label}"), value_text(js_de_date("entity.state"), e, "right"))
+         for label, e, colour in BINS], side="right", filler=PEACH))
+    hazmat = panel("Hazmat collection", RED, pillar=DATA_LABEL_W, content=pillar_rows([
+        ("Date", BONE, lcars_code("hazmat/date"), value_text(js_iso_date("entity.state"), HAZMAT["date"])),
+        ("Window", BONE, lcars_code("hazmat/window"),
+         value_text("[[[ return String(entity.state).replace(/\\s*Uhr$/, ''); ]]]", HAZMAT["window"])),
+        ("Location", BONE, lcars_code("hazmat/location"),
+         value_text("[[[ return String(entity.state).split(',')[0]; ]]]", HAZMAT["place"])),
+    ], filler=RED))
     n_tl = len(BINS) + 1
-    timeline_h = f"calc({PANEL_CORNER}px + {TL_HEAD} + {n_tl} * {TL_ROW} + {TL_AXIS} + {(n_tl + 1) * TL_GAP}px)"
+    timeline_h = f"calc({PANEL_CORNER}px + {TL_HEAD} + {n_tl} * {TL_ROW} + {TL_AXIS} + {(n_tl + 2) * TL_GAP}px)"
     # Sized to content, not stretched to the viewport; what's left stays black
     return grid('"t t" "s h" ". ."', "1fr 1fr", f"{timeline_h} {data_panel_height(4)} 1fr",
                 [at(timeline, "t"), at(schedule, "s"), at(hazmat, "h")], gap="clamp(12px, 2vh, 24px) 8px")
@@ -1092,19 +1142,19 @@ def agenda_content():
 
 
 VIEWS = [
-    view("aquarium", "status", "LCARS Status", "aquarium-status", status_content(), "Systems status · 01-1138"),
-    view("aquarium", "visual", "LCARS Visual", "aquarium-visual", visual_content(), "Visual sensor · 02-4712"),
-    view("aquarium", "light", "LCARS Light", "aquarium-light", light_content(), "Illumination control · 03-2256"),
-    view("aquarium", "dosing", "LCARS Dosing", "aquarium-dosing", dosing_content(), "Nutrient dosing · 04-9031"),
-    view("aquarium", "power", "LCARS Power", "aquarium-power", power_content(), "Power distribution · 05-6620"),
-    view("home", "home", "LCARS OPS", "ops", home_content(), "Operations · habitat overview · 21-0001"),
-    view("aquarium", "osmosis", "LCARS Osmosis", "aquarium-osmosis", osmosis_content(), "Water reclamation · 06-2240"),
-    view("laundry", "laundry", "LCARS Laundry", "laundry", laundry_content(), "Laundry · 41-0001"),
-    view("waste", "waste", "LCARS Waste", "waste", waste_content(), "Waste disposal · 51-0001"),
+    view("aquarium", "status", "LCARS Status", "aquarium-status", status_content(), "Systems status"),
+    view("aquarium", "visual", "LCARS Visual", "aquarium-visual", visual_content(), "Visual sensor"),
+    view("aquarium", "light", "LCARS Light", "aquarium-light", light_content(), "Illumination control"),
+    view("aquarium", "dosing", "LCARS Dosing", "aquarium-dosing", dosing_content(), "Nutrient dosing"),
+    view("aquarium", "power", "LCARS Power", "aquarium-power", power_content(), "Power distribution"),
+    view("home", "home", "LCARS OPS", "ops", home_content(), "Operations · habitat overview"),
+    view("aquarium", "osmosis", "LCARS Osmosis", "aquarium-osmosis", osmosis_content(), "Water reclamation"),
+    view("laundry", "laundry", "LCARS Laundry", "laundry", laundry_content(), "Laundry"),
+    view("waste", "waste", "LCARS Waste", "waste", waste_content(), "Waste disposal"),
     view("waste", "waste-calendar", "LCARS Waste Calendar", "waste-calendar", waste_calendar_content(),
-         "Waste schedule · 51-0002"),
-    view("calendar", "calendar", "LCARS Calendar", "calendar", calendar_content(), "Stardate calendar · 61-0001"),
-    view("calendar", "agenda", "LCARS Agenda", "calendar-agenda", agenda_content(), "Mission agenda · 61-0002"),
+         "Waste schedule"),
+    view("calendar", "calendar", "LCARS Calendar", "calendar", calendar_content(), "Stardate calendar"),
+    view("calendar", "agenda", "LCARS Agenda", "calendar-agenda", agenda_content(), "Mission agenda"),
 ]
 
 CONFIG = {"title": "LCARS",
