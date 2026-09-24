@@ -17,6 +17,7 @@ custom:lcards-layout-view view type:
 import json
 import math
 import os
+import random
 import re
 import sys
 import zlib
@@ -27,6 +28,32 @@ import ha_ws  # noqa: E402  (raw websocket client, token from ~/.config/homeassi
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "..", "build", "lcars_dashboard.json")
 _FOREIGN = {}
+
+
+def number_sensors(n, seed=47174):
+    """n sensors for the number columns, read live at build time: power/energy meters first (without
+    the always-zero feed-in counters), topped up with a fixed-seed random pick of other sensors whose
+    value is a non-zero number (zeros would all show as 0000)."""
+    power, other = [], []
+    for st in ha_ws.Client().call({"type": "get_states"})["result"]:
+        eid, attrs = st["entity_id"], st["attributes"]
+        if not eid.startswith("sensor."):
+            continue
+        try:
+            value = float(st["state"])
+        except ValueError:
+            continue
+        if (attrs.get("device_class") in ("power", "energy") or attrs.get("unit_of_measurement") in
+                ("W", "kW", "Wh", "kWh")):
+            if "einspeisung" not in eid:
+                power.append(eid)
+        elif value != 0:
+            other.append(eid)
+    rng = random.Random(seed)
+    picks = rng.sample(sorted(power), min(n, len(power)))
+    picks += rng.sample(sorted(other), n - len(picks))
+    rng.shuffle(picks)
+    return picks
 
 
 def foreign_card(url_path, view_path, index=0):
@@ -185,18 +212,28 @@ def readout(entity, label, value, colors=None, label_color=LILAC):
             "tap_action": {"action": "more-info"}}
 
 
-CASCADE_MS = 1800   # one colour cycle of the number columns; digits re-roll at the same rate
+CASCADE_MS = 1800   # one colour cycle of the number columns
+HEX_ROWS, HEX_COLS = 4, 5
+
+
+def js_hex(entity):
+    """JS: the sensor's value (x100) as a 4-digit hex code, e.g. 11.6 -> 0488."""
+    return ("[[[ const v = parseFloat((states['" + entity + "'] || {}).state); if (isNaN(v)) return '----'; "
+            "return (Math.round(Math.abs(v) * 100) % 65536).toString(16).toUpperCase().padStart(4, '0'); ]]]")
 
 
 def number_columns(color_start=ICE, color_text="#223366", color_end="#DFE1E8"):
-    """LCARS data cascade (LCARdS canvas preset): as many digit columns as fit, each row cycling
-    through the colours; digits re-roll once per cycle (refresh_interval = cycle duration)."""
-    return {"type": "custom:lcards-button", "preset": "text-only", "show_icon": False, "interactive": False,
-            "tap_action": {"action": "none"},
-            "background_animation": [{"preset": "cascade", "config": {
-                "format": "digit", "font_size": 14, "gap": 6, "duration": CASCADE_MS,
-                "refresh_interval": CASCADE_MS,
-                "colors": {"start": color_start, "text": color_text, "end": color_end}}}]}
+    """LCARS number columns from real sensors (mostly power meters, see number_sensors()), each shown as
+    a hex code read when the page loads, with a staggered colour waterfall running over them."""
+    picks = number_sensors(HEX_ROWS * HEX_COLS)
+    rows = [[js_hex(e) for e in picks[r * HEX_COLS:(r + 1) * HEX_COLS]] for r in range(HEX_ROWS)]
+    return {"type": "custom:lcards-data-grid", "data_mode": "data", "rows": rows,
+            "grid": {"grid-template-columns": f"repeat({HEX_COLS}, auto)",
+                     "grid-template-rows": f"repeat({HEX_ROWS}, 1fr)", "gap": "0 14px", "justify-content": "start"},
+            "style": {"font_size": 15, "font_weight": "bold", "color": color_start, "align": "left"},
+            "animations": [{"trigger": "on_load", "preset": "cascade-color",
+                            "params": {"duration": CASCADE_MS, "colors": [color_start, color_text, color_end],
+                                       "stagger_from": "first", "stagger_delay": 70}}]}
 
 
 def legend_readout(entity, label, colour):
