@@ -6,6 +6,9 @@
 //   buttons support navigate, not fire-dom-event); that flips the choice and reloads without the param.
 // - "off" pauses anime.js' global engine (window.lcards.animejs.engine), which drives every LCARdS
 //   animation preset used here (blink, cascade-color). Nothing is animated while it is paused.
+//
+// Also ?lcars_bars=off|on|toggle: switches the segment bars off/on for everyone (it sets the HA helper
+// input_boolean.lcars_bars, which the bars' visibility conditions check), then drops the parameter.
 (() => {
   const KEY = "lcars-motion";
   const get = () => {
@@ -40,7 +43,30 @@
     setTimeout(() => clearInterval(timer), 30000);
   }
 
+  // ?lcars_bars: set the global helper through this browser's HA connection
+  const BARS = "input_boolean.lcars_bars";
+  const handleBars = () => {
+    const url = new URL(location.href);
+    const param = url.searchParams.get("lcars_bars");
+    if (!["on", "off", "toggle"].includes(param)) return;
+    const send = () => {
+      const ha = document.querySelector("home-assistant");
+      const hass = ha && ha.hass;
+      if (!hass || !hass.connection || !hass.states[BARS]) return false;
+      hass.callService("input_boolean", `turn_${param}`, {entity_id: BARS});
+      url.searchParams.delete("lcars_bars");
+      history.replaceState(history.state, "", url.pathname + url.search + url.hash);
+      return true;
+    };
+    if (!send()) {
+      const timer = setInterval(() => { if (send()) clearInterval(timer); }, 250);
+      setTimeout(() => clearInterval(timer), 30000);
+    }
+  };
+  handleBars();
+
   window.addEventListener("location-changed", () => {
+    handleBars();
     if (handleParam()) location.reload();
   });
 })();

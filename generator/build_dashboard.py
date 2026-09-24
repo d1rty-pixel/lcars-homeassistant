@@ -1180,6 +1180,11 @@ JS_IN_WINDOW = ("const m = String(entity.state).match(/(\\d+):(\\d+)\\s*-\\s*(\\
 
 _BLINK = random.Random(1701)
 BAR_OFF = rgba(PERI, 0.18)   # inactive bar segment
+# All segment bars can be switched off globally (lighter pages for weak kiosk browsers):
+# input_boolean.lcars_bars, set via ?lcars_bars=off|on|toggle (ha/www/lcars-motion.js). HA's hui-card,
+# which LCARdS layout cards wrap every child in, doesn't render a card whose conditions fail.
+BARS_HELPER = "input_boolean.lcars_bars"
+BARS_VISIBLE = [{"condition": "state", "entity": BARS_HELPER, "state": "on"}]
 
 
 def bar_segment(entity, colour, lit_js):
@@ -1208,7 +1213,9 @@ def data_bar(entity, colour, lit_js_for, count, side):
     cards = []
     for j, n in enumerate(names):
         cards += [at(layer, n) for layer in bar_segment(entity, colour, lit_js_for(j))]
-    return grid('"' + " ".join(order) + '"', " ".join(["1fr"] * count), "1fr", cards, gap="0 3px")
+    bar = grid('"' + " ".join(order) + '"', " ".join(["1fr"] * count), "1fr", cards, gap="0 3px")
+    bar["visibility"] = BARS_VISIBLE
+    return bar
 
 
 def countdown_bar(entity, colour, side):

@@ -15,7 +15,8 @@
 | Old theme copies | Stale 2024 manual copy moved to `/config/themes_backup/lcars-2024-manual-copy.yaml`; 4.0.2 version with appended profiles in `/config/themes_backup/lcars-4.0.2-with-lcards-profiles.yaml`; plus `/config/themes/lcars.yaml.bak-20260924` (ignored by HA, not `.yaml`) | copy back |
 | View theme | `/config/themes/lcars_aquarium.yaml` ("LCARS Aquarium") | delete file, reload themes |
 | Registry workaround | `/config/www/lcards-registry-fix.js` | remove resource + file |
-| Motion switch | `/config/www/lcars-motion.js`, Lovelace resource `/local/lcars-motion.js?v=1` (module) | remove resource + file |
+| Motion switch | `/config/www/lcars-motion.js`, Lovelace resource `/local/lcars-motion.js?v=2` (module) | remove resource + file |
+| Bars helper | `input_boolean.lcars_bars` ("LCARS bars", on): segment bars visible | helpers UI |
 | Sounds | `/media/lcars/thelcars_beep1..4.mp3` (thelcars.com, no licence stated, so **not** in git) | delete files |
 | Dashboards | `lcars-bridge` (live). `aquarium-lcars` hidden as "LCARS (alt)". | dashboards UI |
 | Profile theme | Admin user's profile theme was set to "LCARS Default", **reset to default** the same day: profile themes are stored per user (synced to all devices) and restyled every classic dashboard. The LCARS dashboard doesn't need it (view theme + kiosk mode). | profile |
@@ -45,6 +46,10 @@ Dashboard config backups are written by `tools/deploy.py` to `build/backups/`
   `…/lcars-bridge/aquarium-status?lcars_motion=off`. The choice is stored per
   browser (localStorage) and pauses anime.js' global engine. The "Motion" block
   at the bottom of every sidebar toggles it on any device.
+- **Segment bars off (global)**: `?lcars_bars=off` (or `on` / `toggle`) on any
+  LCARS URL sets `input_boolean.lcars_bars` for everyone. The bars' visibility
+  condition checks it, and hidden cards aren't rendered at all (waste page:
+  444 → 256 LCARdS buttons).
 - Kiosk mode and the view theme apply to every user.
 - Sounds play after the first touch. If the tablet stays silent, allow media
   playback in Fully's web content settings.

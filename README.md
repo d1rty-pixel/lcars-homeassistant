@@ -30,7 +30,8 @@ tools/deploy_ha_files.sh       copy ha/ files to the HA host, reload themes
 tools/gen_registry_fix.py      regenerate the registry workaround after an LCARdS update
 ha/themes/lcars_aquarium.yaml  view theme "LCARS Aquarium"
 ha/www/lcards-registry-fix.js  workaround for the LCARdS/HA load-order race
-ha/www/lcars-motion.js         per-device animation switch (?lcars_motion=off, sidebar "Motion")
+ha/www/lcars-motion.js         per-device animation switch (?lcars_motion=off, sidebar "Motion"),
+                               global segment-bar switch (?lcars_bars=off)
 docs/DESIGN.md                 design rules (user decisions), generator structure, how to extend, URL rules
 docs/OPERATIONS.md             changes made on the HA host, backups, tablet, sounds, known limitations
 docs/NOTES.md                  root causes and LCARdS gotchas
@@ -62,14 +63,14 @@ build time.
 - **UIX** 8.3.1 (HACS integration, config entry). **card-mod was removed**, because
   HA 2026.x broke it and UIX refuses setup while `card-mod.js` is a resource.
   UIX still honours existing `card_mod:` keys.
-- **Helpers**: `input_boolean.lcars_sound`, `input_boolean.lcars_texture`,
+- **Helpers**: `input_boolean.lcars_bars` (segment bars on/off), `input_boolean.lcars_sound`, `input_boolean.lcars_texture`,
   `input_number.lcars_vertical` (26–60), `input_number.lcars_horizontal` (6–60),
   and Time & Date (`sensor.time`).
 - **Lovelace resources**:
   - Antonio font (Google Fonts, css)
   - `https://cdn.jsdelivr.net/gh/th3jesta/ha-lcars@js-main/lcars.js` (js)
   - `/local/lcards-registry-fix.js?v=2` (module)
-  - `/local/lcars-motion.js?v=1` (module)
+  - `/local/lcars-motion.js?v=2` (module)
 - **kiosk-mode** hides the HA header and sidebar on this dashboard. Append
   `?disable_km` to the URL to reach edit mode.
 - The view theme `LCARS Aquarium` (from `ha/themes/`) must be installed.
