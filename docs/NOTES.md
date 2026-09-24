@@ -125,5 +125,7 @@ the card *height* only. For text that must shrink with the viewport *width*
 Every LCARdS button is its own SVG-rendered element with template processing.
 Hundreds of them (the waste timeline had ~200) crash Fully Kiosk's renderer on
 the Tab M10. Dense grids of plain cells belong in a small custom card with a
-CSS grid (`ha/www/lcars-day-grid.js`); keep LCARdS for the frame and the
-things people interact with.
+CSS grid (`ha/www/lcars-day-grid.js`, `ha/www/lcars-bar.js`); keep LCARdS for
+the frame and the things people interact with. Custom cards that animate must
+honour the motion switch themselves (localStorage `lcars-motion`), since it only
+pauses anime.js. Waste page: 444 → 60 LCARdS buttons.

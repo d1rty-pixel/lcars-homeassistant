@@ -17,6 +17,7 @@
 | Registry workaround | `/config/www/lcards-registry-fix.js` | remove resource + file |
 | Motion switch | `/config/www/lcars-motion.js`, Lovelace resource `/local/lcars-motion.js?v=2` (module) | remove resource + file |
 | Day grid card | `/config/www/lcars-day-grid.js`, Lovelace resource `/local/lcars-day-grid.js?v=1` (module) | remove resource + file |
+| Bar card | `/config/www/lcars-bar.js`, Lovelace resource `/local/lcars-bar.js?v=1` (module) | remove resource + file |
 | Bars helper | `input_boolean.lcars_bars` ("LCARS bars", on): segment bars visible | helpers UI |
 | Sounds | `/media/lcars/thelcars_beep1..4.mp3` (thelcars.com, no licence stated, so **not** in git) | delete files |
 | Dashboards | `lcars-bridge` (live). `aquarium-lcars` hidden as "LCARS (alt)". | dashboards UI |
@@ -49,7 +50,8 @@ Dashboard config backups are written by `tools/deploy.py` to `build/backups/`
   at the bottom of every sidebar toggles it on any device.
 - **Segment bars**: never shown to the `kiosk` user (visibility condition with
   the allowed user ids, read at build time: **rebuild after adding a user**).
-  Hidden cards aren't rendered at all (waste page: 444 → 256 LCARdS buttons).
+  Hidden cards aren't rendered at all. Since the bars became one light card
+  each (`lcars-bar.js`), this restriction could be lifted.
 - **Segment bars off for everyone** (emergency switch): `input_boolean.lcars_bars`,
   also via `?lcars_bars=off|on|toggle`. It is *stored* in HA, so don't put the
   parameter in a start URL: Fully reloads it and switches the bars off for all.

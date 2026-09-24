@@ -1141,20 +1141,12 @@ def value_text(value_js, entity, align="left"):
 
 VALUE_W = "clamp(190px, 15vw, 290px)"   # value column next to a countdown bar
 BAR_SEGMENTS = 14                        # countdown bars: one segment per 2 days, 0-28 days like the timeline
-# JS: `n` = days from today to the date in entity.state ('dd.mm.yyyy' or 'yyyy-mm-dd'), null if none
-JS_DAYS = ("const s = String(entity.state); let d = null; let m = s.match(/(\\d\\d)\\.(\\d\\d)\\.(\\d{4})/); "
-           "if (m) d = new Date(+m[3], +m[2] - 1, +m[1]); else if ((m = s.match(/^(\\d{4})-(\\d\\d)-(\\d\\d)/))) "
-           "d = new Date(+m[1], +m[2] - 1, +m[3]); const t0 = new Date(); t0.setHours(0,0,0,0); "
-           "const n = d ? Math.round((d - t0) / 86400000) : null; ")
-# JS: is hour `h` inside the window in entity.state ('14:30 - 15:00 Uhr')
-JS_IN_WINDOW = ("const m = String(entity.state).match(/(\\d+):(\\d+)\\s*-\\s*(\\d+):(\\d+)/); "
-                "const on = !!m && h < +m[3] + m[4] / 60 && h + 1 > +m[1] + m[2] / 60; ")
-
 
 _BLINK = random.Random(1701)
 BAR_OFF = rgba(PERI, 0.18)   # inactive bar segment
-# Segment bars are heavy (two cards per segment). HA's hui-card, which LCARdS layout cards wrap every
-# child in, doesn't render a card whose visibility conditions fail, so:
+# Segment bars (ha/www/lcars-bar.js). They used to be two LCARdS cards per segment and are still kept
+# off the kiosk tablet. HA's hui-card, which LCARdS layout cards wrap every child in, doesn't render a
+# card whose visibility conditions fail, so:
 #  - they are never shown to the kiosk user (the Fully tablet's renderer can't cope);
 #  - input_boolean.lcars_bars switches them off for everyone (?lcars_bars=off|on|toggle, see
 #    ha/www/lcars-motion.js).
@@ -1172,47 +1164,24 @@ BARS_VISIBLE = [{"condition": "state", "entity": BARS_HELPER, "state": "on"},
                 {"condition": "user", "users": bar_users()}]
 
 
-def bar_segment(entity, colour, lit_js):
-    """One segment of a data bar, as two stacked cards: a static inactive segment underneath and, on
-    top, the lit segment (transparent unless lit_js is true) blinking hard on/off (steps(1), no fade)
-    at its own random rate fixed at build time. Only lit segments blink; animations act on a whole
-    card, hence the two layers."""
-    base = {"type": "custom:lcards-button", "preset": "barrel", "show_icon": False, "interactive": False,
-            "tap_action": {"action": "none"},
-            "style": {"card": {"color": {"background": BAR_OFF}}, "border": {"width": 0, "radius": 0}}}
-    lit = {"type": "custom:lcards-button", "entity": entity, "preset": "barrel", "show_icon": False,
-           "interactive": False, "tap_action": {"action": "none"}, "hold_action": {"action": "none"},
-           "triggers_update": ["sensor.time"],
-           "style": {"card": {"color": {"background": "[[[ " + lit_js + " ? '" + colour + "' : 'transparent'; ]]]"}},
-                     "border": {"width": 0, "radius": 0}},
-           "animations": [{"trigger": "on_load", "preset": "blink",
-                           "params": {"duration": _BLINK.randrange(600, 2800, 100), "min_opacity": 0.35,
-                                      "max_opacity": 1, "ease": "steps(1)"}}]}
-    return base, lit
-
-
-def data_bar(entity, colour, lit_js_for, count, side):
-    """Segmented bar; segment j = 0 sits next to the value (towards the pillar on `side`)."""
-    names = [f"b{j}" for j in range(count)]
-    order = list(reversed(names)) if side == "right" else names
-    cards = []
-    for j, n in enumerate(names):
-        cards += [at(layer, n) for layer in bar_segment(entity, colour, lit_js_for(j))]
-    bar = grid('"' + " ".join(order) + '"', " ".join(["1fr"] * count), "1fr", cards, gap="0 3px")
+def data_bar(entity, colour, mode, segments, side):
+    """Segmented bar as one light custom card (ha/www/lcars-bar.js): segment 0 sits next to the value
+    (towards the pillar on `side`); lit segments blink hard on/off at random rates fixed here."""
+    bar = {"type": "custom:lcars-bar", "entity": entity, "mode": mode, "segments": segments,
+           "days_per_segment": 28 // BAR_SEGMENTS, "side": side, "colour": colour, "off": BAR_OFF,
+           "blink": [_BLINK.randrange(600, 2800, 100) for _ in range(segments)], "min_opacity": 0.35, "gap": 3}
     bar["visibility"] = BARS_VISIBLE
     return bar
 
 
 def countdown_bar(entity, colour, side):
     """Days until the date in entity.state, 2 days per segment, growing away from the pillar."""
-    return data_bar(entity, colour, lambda j: JS_DAYS + f"return n != null && n >= 0 && {j} < Math.max(1, "
-                                              f"Math.ceil(n / {28 // BAR_SEGMENTS}))",
-                    BAR_SEGMENTS, side)
+    return data_bar(entity, colour, "countdown", BAR_SEGMENTS, side)
 
 
 def window_bar(entity, colour, side):
     """24 h scale, one segment per hour, the hours of the time window in entity.state lit."""
-    return data_bar(entity, colour, lambda j: f"const h = {j}; " + JS_IN_WINDOW + "return on", 24, side)
+    return data_bar(entity, colour, "window", 24, side)
 
 
 def with_bar(value, bar, side):
