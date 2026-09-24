@@ -66,3 +66,8 @@ build time.
 - **kiosk-mode** hides the HA header and sidebar on this dashboard. Append
   `?disable_km` to the URL to reach edit mode.
 - The view theme `LCARS Aquarium` (from `ha/themes/`) must be installed.
+- **Sounds**: LCARdS helpers `input_boolean.lcards_sound_enabled` (master),
+  `_cards` (on), `_ui` (off, so menu clicks don't double-beep), `_alerts` (on),
+  `input_number.lcards_sound_volume` (0–1) and `input_select.lcards_sound_scheme`.
+  The thelcars.com beeps live in HA's media library under `/media/lcars/`, not in
+  this repo (no licence stated). `CLICK_SOUNDS` in the generator switches to them.

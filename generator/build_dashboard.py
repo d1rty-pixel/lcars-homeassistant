@@ -875,6 +875,13 @@ CONFIG = {"title": "LCARS",
           "kiosk_mode": {"hide_header": True, "hide_sidebar": True},
           "views": VIEWS}
 
+# Click sounds. None = LCARdS' own scheme (lcards_default; its tap.mp3 is byte-identical to
+# thelcars.com's beep1). Set to a dict to use the thelcars.com beeps stored in HA's media
+# library (/media/lcars, deliberately not in this repo), e.g.:
+#   CLICK_SOUNDS = {"card_tap": THELCARS.format(2), "card_hold": THELCARS.format(3)}
+THELCARS = "media-source://media_source/local/lcars/thelcars_beep{}.mp3"
+CLICK_SOUNDS = None
+
 FR = re.compile(r"(?<![\w(,])(\d*\.?\d+)fr")
 
 
@@ -890,6 +897,9 @@ def finalize(node):
         if node.get("type") in ("custom:lcards-button", "custom:lcards-elbow", "custom:lcards-slider",
                                 "custom:lcards-data-grid", "custom:lcards-chart"):
             node.setdefault("min_height", 0)
+        if CLICK_SOUNDS and node.get("type") in ("custom:lcards-button", "custom:lcards-slider") \
+                and node.get("interactive", True) and node.get("tap_action", {}).get("action") != "none":
+            node.setdefault("sounds", dict(CLICK_SOUNDS))
         for v in node.values():
             finalize(v)
     elif isinstance(node, list):
