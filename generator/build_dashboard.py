@@ -18,6 +18,8 @@ import json
 import math
 import os
 import random
+import urllib.parse
+import urllib.request
 import re
 import sys
 import zlib
@@ -969,22 +971,20 @@ def home_content():
                              "return hhmm(a.next_rising) + ' – ' + hhmm(a.next_setting); ]]]", "sun.sun"),
                   span_bar("sun.sun", SUNFLOWER, "next_rising", "next_setting"), "left")),
     ], filler=ICE, label_w=ATMOS_LABEL_W))
-    radar = panel("Precipitation radar", BLUEY, side="right", pillar=DECOR_PILLAR_W, content=with_decor_pillar(
-        skinned({"type": "iframe", "hide_background": True,
-                 "url": RADAR_URL},
-                extra=RADAR_FIT),
-        "ops/radar", [PERI, ICE, LILAC], filler=BLUEY))
-    forecast = panel("Forecast", ICE, side="right", bottom=False, pillar=DECOR_PILLAR_W, content=with_decor_pillar(
+    radar = panel("Precipitation radar · DWD", BLUEY, side="right", pillar=DECOR_PILLAR_W, content=radar_card())
+    forecast = panel("Forecast", LILAC, bottom=False, pillar=DECOR_PILLAR_W, content=with_decor_pillar(
         {"type": "custom:lcars-forecast", "entity": w, "hours": 12, "segments": 8, "font": "Antonio, sans-serif",
          "colours": {"temp": PEACH, "rain": ICE, "off": rgba(PERI, 0.18), "text": PERI, "dim": GRAY, "flash": "#FFFFFF"},
          "blink": [8000, 24000], "off_fraction": 0.025},
-        "ops/forecast", [BONE, PERI, ICE]))
-    week = panel("Next 7 days", BLUEY, pillar=ATMOS_LABEL_W, bottom=False, content=week_calendar())
+        "ops/forecast", [BONE, PERI, ICE], side="left"))
+    # the lower frames face each other: their shoulders meet in the middle
+    week = panel("Next 7 days", SUNFLOWER, side="right", pillar=ATMOS_LABEL_W, bottom=False, content=week_calendar())
     # sized like the waste page: fits the 1280x800 tablet, the rest of the page stays black
     top_h = data_panel_height(5)
     bottom_h = f"calc({data_panel_height(5)} - {PANEL_CORNER}px)"
-    return grid('"atm atm radar" "week week fc" ". . ."', "1fr 1fr 1.4fr", f"{top_h} {bottom_h} 1fr",
-                [at(atmosphere, "atm"), at(radar, "radar"), at(week, "week"), at(forecast, "fc")],
+    lower = grid('"week fc"', "1.15fr 1fr", "1fr", [at(week, "week"), at(forecast, "fc")], gap="0 8px")
+    return grid('"atm atm radar" "low low low" ". . ."', "1fr 1fr 1.4fr", f"{top_h} {bottom_h} 1fr",
+                [at(atmosphere, "atm"), at(radar, "radar"), at(lower, "low")],
                 gap="clamp(12px, 2vh, 24px) 8px")
 
 
@@ -1004,16 +1004,57 @@ def with_decor_pillar(content, key, colours, side="right", filler=None):
     return grid(areas, widths, "1fr", [at(content, "c", overflow="hidden"), at(pillar, "p")], gap="0 16px")
 
 
-# wetteronline radar (radar.wo-cloud.com). Its URL options (read from the app bundle): wrx/wry position,
-# wrm zoom, wro=true loop (plays on load), hideLocate=true (ignored by this mobile view). No theme or
-# hide-controls option, and no postMessage for play/pause (only prev_next).
-RADAR_URL = ("https://radar.wo-cloud.com/mobile/rr/interactive?wrx=50.00,8.00&wrm=8&wry=50.00,8.00"
-             "&wro=true&hideLocate=true")
-# The radar iframe fills its frame (no fixed aspect ratio) and renders at 80 %, so more map fits. The app
-# has no dark theme: invert + hue-rotate turns the grey map dark and keeps the rain colours' hues.
-RADAR_FIT = (":host, ha-card { height: 100% !important; } #root { padding-top: 0 !important; height: 100% !important; } "
-             "iframe { width: 125% !important; height: 125% !important; transform: scale(0.8); "
-             "transform-origin: 0 0; filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(1.1); }")
+# Precipitation radar: DWD composite + nowcast (ha/www/lcars-radar.js). Borders come from the DWD WFS at
+# build time (its WMS forbids custom styles), rounded to ~100 m and passed to the card as SVG paths.
+RADAR_CENTER, RADAR_HOME, RADAR_WIDTH_KM = (50.00, 8.00), (50.00, 8.00), 170
+DWD_WFS = "https://maps.dwd.de/geoserver/dwd/ows"
+
+
+def dwd_border_path(layer, digits=3, margin=(0.9, 1.4)):
+    """SVG path (x = lon, y = -lat) of a DWD WFS polygon layer's outlines, clipped to the radar area plus a
+    margin (paths break where they leave it) and rounded to `digits` decimals (3 ~ 100 m)."""
+    lat, lon = RADAR_CENTER
+    inside = lambda x, y: abs(y - lat) <= margin[0] and abs(x - lon) <= margin[1]
+    bbox = f"{lat - margin[0]},{lon - margin[1]},{lat + margin[0]},{lon + margin[1]},urn:ogc:def:crs:EPSG::4326"
+    q = urllib.parse.urlencode({"service": "WFS", "version": "2.0.0", "request": "GetFeature", "typeNames": layer,
+                                "outputFormat": "application/json", "srsName": "EPSG:4326", "bbox": bbox})
+    feats = json.load(urllib.request.urlopen(f"{DWD_WFS}?{q}", timeout=60))["features"]
+    parts = []
+    for f in feats:
+        g = f["geometry"]
+        rings = g["coordinates"] if g["type"] == "Polygon" else [r for poly in g["coordinates"] for r in poly]
+        for ring in rings:
+            runs, pts, last = [], [], None
+            for x, y in ring:
+                if not inside(x, y):
+                    if len(pts) > 1:
+                        runs.append(pts)
+                    pts, last = [], None
+                    continue
+                p = (round(x, digits), round(-y, digits))
+                if p != last:
+                    pts.append(p)
+                    last = p
+            if len(pts) > 1:
+                runs.append(pts)
+            parts += ["M" + "L".join(f"{x:g} {y:g}" for x, y in run) for run in runs]
+    return "".join(parts)
+
+
+def radar_card():
+    return {"type": "custom:lcars-radar", "center": list(RADAR_CENTER), "home": list(RADAR_HOME),
+            "width_km": RADAR_WIDTH_KM, "layer": "dwd:Radar_wn-product_1x1km_ger",
+            "past_min": 60, "future_min": 90, "step_min": 10, "lag_min": 10, "frame_ms": 500, "hold_ms": 1600,
+            "borders": [{"d": dwd_border_path("dwd:Warngebiete_Kreise"), "colour": PERI, "width": 1, "opacity": 0.35},
+                        {"d": dwd_border_path("dwd:Laender", digits=2), "colour": LILAC, "width": 1.5,
+                         "opacity": 0.8}],
+            "pillar": {"width": DECOR_PILLAR_W, "gap": PANEL_GAP, "filler": BLUEY, "ink": INK,
+                       "blocks": [{"colour": c, "code": lcars_code(f"ops/radar/{i}")}
+                                  for i, c in enumerate([PERI, ICE, LILAC])]},
+            "colours": {"past": PERI, "now": ORANGE, "future": LILAC, "text": PERI, "dim": GRAY, "home": ORANGE},
+            "font": "Antonio, sans-serif"}
+
+
 WEEK_PALETTE = [PEACH, ICE, LILAC, PERI, SUNFLOWER, ALMOND, ROSE, BUTTERSCOTCH, VIOLET, BLUEY]
 
 
@@ -1027,8 +1068,8 @@ def week_calendar():
     cals = [{"entity": e, "label": labels.get(e, e.split(".")[1]), "colour": waste.get(e) or next(others),
              "code": lcars_code(f"week/{e}")} for e in ALL_CALS]
     return {"type": "custom:lcars-week", "days": 7, "calendars": cals, "titles": BIN_NAMES, "max_rows": 5,
-            "label_w": ATMOS_LABEL_W,
-            "pillar": BLUEY, "head": TL_HEAD, "row": DATA_ROW, "gap": PANEL_GAP, "font": "Antonio, sans-serif",
+            "label_w": ATMOS_LABEL_W, "side": "right",
+            "pillar": SUNFLOWER, "head": TL_HEAD, "row": DATA_ROW, "gap": PANEL_GAP, "font": "Antonio, sans-serif",
             "colours": {"empty": rgba(PERI, 0.1), "weekend": rgba(PERI, 0.05), "today": rgba(PERI, 0.22),
                         "text": PERI, "text_weekend": GRAY, "text_today": ORANGE, "ink": INK}}
 

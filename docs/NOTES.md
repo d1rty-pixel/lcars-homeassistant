@@ -129,3 +129,15 @@ CSS grid (`ha/www/lcars-day-grid.js`, `ha/www/lcars-bar.js`); keep LCARdS for
 the frame and the things people interact with. Custom cards that animate must
 honour the motion switch themselves (localStorage `lcars-motion`), since it only
 pauses anime.js. Waste page: 444 → 60 LCARdS buttons.
+
+## DWD radar (maps.dwd.de)
+
+- WMS layer `dwd:Radar_wn-product_1x1km_ger`: composite + nowcast, time
+  dimension in 5-min steps up to ~2 h ahead, EPSG:4326 only. With WMS 1.3.0
+  the bbox is lat,lon order.
+- Custom styles are refused ("Dynamic style usage is forbidden"), so borders
+  come from the WFS (`dwd:Warngebiete_Kreise`, `dwd:Laender`) at build time,
+  clipped to the radar area and rounded, as SVG paths in the card config
+  (~76 KB). Unclipped, the state borders alone were ~400 KB.
+- The former iframe (radar.wo-cloud.com) couldn't be themed or controlled:
+  no theme/hide-controls URL options and no play/pause message API.

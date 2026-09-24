@@ -12,6 +12,7 @@
 //   titles: {"Biotonne": "Organic", ...}   # event titles to replace (the waste calendars' German names)
 //   max_rows: 5
 //   label_w: 150                     # pillar width (px)
+//   side: left | right               # which side the label pillar is on
 //   pillar: "#8899FF"                # frame colour: header piece and filler below the rows
 //   head: "28px", row: "30px", gap: 4
 //   colours: {empty, weekend, today, text, text_weekend, text_today, ink}
@@ -96,39 +97,42 @@ class LcarsWeek extends HTMLElement {
       .sort((a, b) => a.first - b.first)
       .slice(0, c.max_rows);
 
+    // one grid row: the pillar cell and the day cells, pillar on the configured side
+    const right = c.side === "right";
     const cells = [];
+    const line = (pillarCell, dayCells) => cells.push(...(right ? [...dayCells, pillarCell] : [pillarCell, ...dayCells]));
     const tc = (day) => (day.today ? col.text_today : day.we ? col.text_weekend : col.text);
-    cells.push(`<div class="blk" style="background:${c.pillar}"></div>`);
-    for (const day of days) {
+    line(`<div class="blk" style="background:${c.pillar}"></div>`, days.map((day) => {
       const wd = day.d.toLocaleDateString("en-GB", {weekday: "short"}).toUpperCase();
-      cells.push(`<div class="head" style="color:${tc(day)}">${wd} ${day.d.getDate()}</div>`);
-    }
+      return `<div class="head" style="color:${tc(day)}">${wd} ${day.d.getDate()}</div>`;
+    }));
     for (const r of rows) {
-      cells.push(`<div class="blk" style="background:${r.cal.colour}"><em>${esc(r.cal.code)}</em>` +
-                 `<span>${esc(r.cal.label)}</span></div>`);
+      const dayCells = [];
       r.days.forEach((evs, k) => {
         const day = days[k];
         if (!evs.length) {
-          cells.push(`<div class="cell" style="background:${day.today ? col.today : day.we ? col.weekend : col.empty}"></div>`);
+          dayCells.push(`<div class="cell" style="background:${day.today ? col.today : day.we ? col.weekend : col.empty}"></div>`);
         } else {
           const more = evs.length > 1 ? ` +${evs.length - 1}` : "";
-          cells.push(`<div class="cell ev" style="background:${r.cal.colour}" title="${esc(evs.map((e) => e.title).join("\n"))}">` +
-                     `<span>${esc(evs[0].title)}</span><b>${more}</b></div>`);
+          dayCells.push(`<div class="cell ev" style="background:${r.cal.colour}" title="${esc(evs.map((e) => e.title).join("\n"))}">` +
+                        `<span>${esc(evs[0].title)}</span><b>${more}</b></div>`);
         }
       });
+      line(`<div class="blk" style="background:${r.cal.colour}"><em>${esc(r.cal.code)}</em>` +
+           `<span>${esc(r.cal.label)}</span></div>`, dayCells);
     }
-    cells.push(`<div class="blk" style="background:${c.pillar}"></div>`);
-    for (let k = 0; k < c.days; k++) cells.push("<div></div>");
     if (!rows.length) {
-      cells.splice(1 + c.days, 0, `<div class="blk" style="background:${c.pillar}"></div>`,
-                   `<div class="none" style="grid-column: span ${c.days}">No events in the next ${c.days} days</div>`);
+      line(`<div class="blk" style="background:${c.pillar}"></div>`,
+           [`<div class="none" style="grid-column: span ${c.days}">No events in the next ${c.days} days</div>`]);
     }
+    line(`<div class="blk" style="background:${c.pillar}"></div>`, Array.from({length: c.days}, () => "<div></div>"));
     const n = rows.length || 1;
     this.shadowRoot.innerHTML = `
       <style>
         :host { display: block; height: 100%; }
         .grid { display: grid; height: 100%; gap: ${c.gap}px ${c.gap}px;
-                grid-template-columns: ${c.label_w}px repeat(${c.days}, minmax(0, 1fr));
+                grid-template-columns: ${right ? `repeat(${c.days}, minmax(0, 1fr)) ${c.label_w}px`
+                                                : `${c.label_w}px repeat(${c.days}, minmax(0, 1fr))`};
                 grid-template-rows: ${c.head} repeat(${n}, ${c.row}) minmax(0, 1fr);
                 font-family: ${c.font}; text-transform: uppercase; line-height: 1; }
         .head { display: flex; align-items: flex-end; justify-content: center; font-size: 15px; white-space: nowrap; }

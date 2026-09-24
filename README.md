@@ -10,7 +10,7 @@ A full-screen LCARS dashboard (Voyager palette, Titan.DS-style layout) built fro
 | Section  | Sub-views |
 |----------|-----------|
 | Aquarium | Status, Visual, Light, Dosing, Power, Osmosis |
-| OPS      | OPS (atmosphere, radar, next 7 days, forecast) |
+| OPS      | OPS (atmosphere, DWD radar, next 7 days, forecast) |
 | Laundry  | Laundry |
 | Waste    | Overview, Calendar |
 | Calendar | Calendar, Agenda |
@@ -36,6 +36,7 @@ ha/www/lcars-day-grid.js       the waste timeline's day grid as one light card (
 ha/www/lcars-bar.js            segment bars (countdown, time window, level, span) as light cards, CSS blink
 ha/www/lcars-week.js           next days of several calendars, timeline style (OPS)
 ha/www/lcars-forecast.js       hourly forecast, LCARS style (OPS)
+ha/www/lcars-radar.js          DWD precipitation radar with LCARS controls (OPS)
 docs/DESIGN.md                 design rules (user decisions), generator structure, how to extend, URL rules
 docs/OPERATIONS.md             changes made on the HA host, backups, tablet, sounds, known limitations
 docs/NOTES.md                  root causes and LCARdS gotchas
