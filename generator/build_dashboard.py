@@ -1,0 +1,937 @@
+"""Build the LCARS dashboard (HA dashboard url_path: aquarium-lcars, sidebar title "LCARS").
+
+Usage:  python3 build_dashboard.py            -> writes ../build/lcars_dashboard.json
+        python3 ../tools/deploy.py            -> validates and saves it to Home Assistant
+
+Voyager palette, Titan.DS-style layout, no page scrolling.
+
+Every view shares one full-viewport frame (no scrolling), built with the
+custom:lcards-layout-view view type:
+
+    top   : header elbow (footer-left) + readouts + title, segmented bar
+    mid   : main-frame elbow (header-left), segmented bar
+    side  : stacked navigation blocks (shared across views, active one highlighted)
+    main  : the view's own content
+    foot  : footer elbow, segmented bar
+"""
+import json
+import os
+import re
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import ha_ws  # noqa: E402  (raw websocket client, token from ~/.config/homeassistant/token)
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+OUT = os.path.join(HERE, "..", "build", "lcars_dashboard.json")
+_FOREIGN = {}
+
+
+def foreign_card(url_path, view_path, index=0):
+    """First card(s) of a view on another dashboard, fetched live (used for the calendar cards)."""
+    if url_path not in _FOREIGN:
+        _FOREIGN[url_path] = ha_ws.Client().call({"type": "lovelace/config", "url_path": url_path})["result"]
+    view = next(v for v in _FOREIGN[url_path]["views"] if v.get("path") == view_path)
+    return view.get("cards", [])[index]
+
+# ── Voyager-era palette (hex on purpose: stays put when LCARdS alert modes shift vars) ──
+ORANGE = "#FF9900"
+BUTTERSCOTCH = "#FF9966"
+PEACH = "#FFCC99"
+ALMOND = "#FFAA90"
+VIOLET = "#CC99FF"
+LILAC = "#CC99CC"
+BLUEY = "#8899FF"
+PERI = "#9999FF"
+ICE = "#99CCFF"
+ROSE = "#CC6699"
+RED = "#DD4444"
+SUNFLOWER = "#FFCC66"
+GRAY = "#666688"
+INK = "#000000"
+
+OK, WARN, CRIT, OFF, INFO = ICE, SUNFLOWER, RED, GRAY, VIOLET
+
+PILLAR = 140        # width of the vertical frame bars / sidebar
+BAR = 10            # thickness of the horizontal frame bars
+ELBOW_W = PILLAR + 44
+
+THEME = "LCARS Aquarium"
+
+PUMP = "sensor.switch_shellyplugsg3_000000000000_switch_0_status"
+HEATER = "binary_sensor.switch_shellyplugsg3_000000000000_switch_0_heater"
+CO2 = "sensor.switch_co2_anlage_status"
+CO2_COUPLING = "switch.switch_co2_anlage_automatic_coupling"
+LIGHT_AUTO = "switch.chihiros_wrgb2_slim_90_ble_xxxxxxxxxxxxxxxxxx_rgb_automatic_schedule"
+PHASE = "sensor.chihiros_wrgb2_slim_90_ble_xxxxxxxxxxxxxxxxxx_rgb_current_phase"
+CHANNEL = "number.chihiros_wrgb2_slim_90_ble_xxxxxxxxxxxxxxxxxx_rgb_{}_channel"
+WC = "sensor.aquarium_water_change_status"
+POWER = "sensor.aquarium_total_power"
+PUMP_POWER = "sensor.shellyplugsg3_000000000000_switch_0_power"
+CO2_POWER = "sensor.co2_anlage_leistung"
+CAMERA = "camera.esphome_esp32_aquarium_webcam_aquarium_webcam"
+
+DOSE_CHANNELS = [  # (label, slug, bottle_ml)
+    ("Nitrat", "nitrat", 500), ("Phosphat", "phosphat", 500),
+    ("Eisen", "eisen", 500), ("GH Boost N", "gh_boost_n", 500),
+]
+
+PHASE_STATES = {
+    "Daylight": ("Daylight", "mdi:white-balance-sunny", SUNFLOWER),
+    "Daylight (ramping up)": ("Ramp up", "mdi:weather-sunset-up", BUTTERSCOTCH),
+    "Daylight (ramping down)": ("Ramp down", "mdi:weather-sunset-down", BUTTERSCOTCH),
+    "Moonlight": ("Moonlight", "mdi:weather-night", BLUEY),
+    "Manual Override": ("Override", "mdi:hand-back-right", WARN),
+    "Off": ("Off", "mdi:power-off", OFF),
+}
+PUMP_STATES = {
+    "Critical": ("Critical", "mdi:alert-octagon", CRIT), "Warning": ("Warning", "mdi:alert-outline", WARN),
+    "Running": ("Running", "mdi:pump", OK), "Off": ("Off", "mdi:power-off", OFF),
+}
+CO2_STATES = {
+    "Safety Cutoff": ("Cutoff", "mdi:alert-octagon", CRIT), "Manual": ("Manual", "mdi:hand-back-right", WARN),
+    "Running": ("Running", "mdi:gas-cylinder", OK), "Idle": ("Idle", "mdi:pause-circle-outline", OFF),
+}
+
+
+def js_map(states, fallback="entity.state"):
+    names = {k: v[0] for k, v in states.items()}
+    return (f"[[[ const m = {json.dumps(names, ensure_ascii=False)}; "
+            f"return (entity.state in m) ? m[entity.state] : {fallback}; ]]]")
+
+
+def at(card, area, **extra):
+    card = dict(card)
+    card["view_layout"] = {"grid-area": area, **extra}
+    return card
+
+
+def grid(areas, columns, rows, cards, gap="6px", **layout):
+    return {"type": "custom:lcards-layout-card",
+            "layout": {"grid-template-areas": areas, "grid-template-columns": columns,
+                       "grid-template-rows": rows, "grid-gap": gap, **layout},
+            "cards": cards}
+
+
+# ── Frame primitives ────────────────────────────────────────────────────────────
+def block(color, label=None, code=None, path=None, align="bottom-right", size=21):
+    text = {}
+    if label:
+        text["label"] = {"show": True, "content": label, "position": align, "font_size": size,
+                         "color": INK, "text_transform": "uppercase", "padding": {"right": 8, "bottom": 3}}
+    if code:
+        text["code"] = {"content": code, "position": "top-left", "font_size": 12, "color": INK,
+                        "padding": {"left": 6, "top": 3}}
+    card = {"type": "custom:lcards-button", "preset": "barrel", "show_icon": False,
+            "interactive": bool(path), "style": {"card": {"color": {"background": color}}}, "text": text,
+            "tap_action": {"action": "navigate", "navigation_path": path} if path else {"action": "none"}}
+    return card
+
+
+def segments(colors_fr, position):
+    """Segmented horizontal bar. position: 'top' or 'bottom' (bar sits on that edge)."""
+    cols = " ".join(f"{fr}fr" for _, fr in colors_fr)
+    names = [f"s{i}" for i in range(len(colors_fr))]
+    row = '"' + " ".join(names) + '"'
+    blank = '"' + " ".join("." for _ in names) + '"'
+    areas = f"{row} {blank}" if position == "top" else f"{blank} {row}"
+    rows = f"{BAR}px 1fr" if position == "top" else f"1fr {BAR}px"
+    return grid(areas, cols, rows, [at(block(c), n) for (c, _), n in zip(colors_fr, names)], gap="0 6px")
+
+
+def flowbar(colors_fr, flow_index):
+    """Bottom segmented bar where one segment carries a streaming 'flow' texture."""
+    bar = segments(colors_fr, "bottom")
+    seg = bar["cards"][flow_index]
+    seg["shape_texture"] = {"preset": "flow", "opacity": 0.9, "speed": 1.0,
+                            "config": {"color": "rgba(255,255,255,0.55)", "num_streaks": 2, "scroll_speed_x": 90}}
+    return bar
+
+
+def elbow(kind, color, text=None):
+    card = {"type": "custom:lcards-elbow", "interactive": False, "tap_action": {"action": "none"},
+            "elbow": {"type": kind, "style": "simple",
+                      "segment": {"bar_width": PILLAR, "bar_height": BAR, "color": {"default": color}}}}
+    if text:
+        card["text"] = text
+    return card
+
+
+def readout(entity, label, value, colors=None, label_color=LILAC):
+    return {"type": "custom:lcards-button", "entity": entity, "preset": "text-only", "show_icon": False,
+            "text": {"lbl": {"content": label, "position": "top-left", "font_size": 17, "color": label_color,
+                             "text_transform": "uppercase"},
+                     "val": {"content": value, "position": "bottom-left", "font_size": 40, "font_weight": "bold",
+                             "color": colors or PEACH, "text_transform": "uppercase"}},
+            "tap_action": {"action": "more-info"}}
+
+
+def decor(cols, rows, color=PERI, size=13):
+    return {"type": "custom:lcards-data-grid", "data_mode": "decorative", "format": "digit",
+            "refresh_interval": 4000,
+            "grid": {"grid-template-columns": f"repeat({cols}, 1fr)", "grid-template-rows": f"repeat({rows}, 1fr)",
+                     "gap": "0 6px"},
+            "style": {"font_size": size, "color": color},
+            "animations": [{"trigger": "on_load", "preset": "cascade-color"}]}
+
+
+# ── Content primitives ──────────────────────────────────────────────────────────
+DIM = "#B4B4CC"      # row label colour (dimmed lavender)
+
+
+def tint(color, alpha=0.16):
+    return f"alpha({color}, {alpha})"
+
+
+def header(text, color=ORANGE):
+    """Section header: square cap + thin underline in the section colour (Titan-style, Voyager hue)."""
+    return {"type": "custom:lcards-button", "preset": "barrel", "interactive": False, "show_icon": False,
+            "style": {"card": {"color": {"background": "transparent"}},
+                      "border": {"width": {"top": 0, "right": 0, "left": 14, "bottom": 2}, "color": color, "radius": 0}},
+            "text": {"label": {"show": True, "content": text, "position": "center-left", "color": color,
+                               "text_transform": "uppercase", "font_size_percent": 62, "padding": {"left": 24}}}}
+
+
+def row(entity, label, colours, value_js, *, label_js=None, tap="more-info", interactive=True):
+    """Flat readout row: tinted box, state-coloured stripe on the left, value in the state colour."""
+    colours = dict(colours)
+    colours.setdefault("default", OFF)
+    colours.setdefault("unavailable", GRAY)
+    card = {"type": "custom:lcards-button", "preset": "barrel", "show_icon": False, "interactive": interactive,
+            "style": {"card": {"color": {"background": {k: tint(c) for k, c in colours.items()}}},
+                      "border": {"width": {"top": 0, "right": 0, "bottom": 0, "left": 10}, "color": colours, "radius": 0}},
+            "text": {"label": {"show": True, "content": label_js or label, "position": "center-left",
+                               "color": DIM, "text_transform": "uppercase", "font_size_percent": 30,
+                               "padding": {"left": 22}},
+                     "value": {"content": value_js, "position": "center-right", "color": colours,
+                               "text_transform": "uppercase", "font_size_percent": 42, "font_weight": "bold",
+                               "padding": {"right": 16}}},
+            "tap_action": {"action": tap if interactive else "none"}}
+    if entity:
+        card["entity"] = entity
+        card["hold_action"] = {"action": "more-info"}
+    return card
+
+
+def pill(entity, label, states, *, label_js=None, tap="more-info", triggers=None):
+    card = row(entity, label, {k: v[2] for k, v in states.items()}, js_map(states), label_js=label_js, tap=tap)
+    if triggers:
+        card["triggers_update"] = triggers
+    return card
+
+
+def info(label, value_js, entity=None, color=PERI):
+    return row(entity, label, {"default": color}, value_js, interactive=bool(entity))
+
+
+def action_btn(label, color, action, *, hold=False, icon=None):
+    """Flat filled command block, label bottom-right in black (LCARS button)."""
+    card = {"type": "custom:lcards-button", "preset": "barrel", "show_icon": False,
+            "style": {"card": {"color": {"background": color}}, "border": {"radius": 0}},
+            "text": {"label": {"show": True, "content": label, "position": "bottom-right", "color": INK,
+                               "font_size_percent": 38, "text_transform": "uppercase",
+                               "padding": {"right": 12, "bottom": 4}}}}
+    if hold:
+        card["tap_action"] = {"action": "none"}
+        card["hold_action"] = action
+    else:
+        card["tap_action"] = action
+    return card
+
+
+LIGHT_PATTERN = [  # (colour, blink half-cycle ms, delay ms) — irregular on purpose
+    (ORANGE, 900, 0), (PEACH, 1700, 300), (ICE, 600, 150), (LILAC, 2300, 900), (ORANGE, 1300, 500),
+    (BLUEY, 800, 1200), (PEACH, 2600, 200), (ICE, 1100, 700), (ROSE, 1900, 400), (ORANGE, 700, 1000),
+    (LILAC, 1500, 50), (ICE, 2100, 600),
+]
+
+
+def lights(n=12, offset=0):
+    """Row of small blinking indicator squares (the Titan 'misc lights')."""
+    names, cards = [], []
+    for i in range(n):
+        colour, dur, delay = LIGHT_PATTERN[(i + offset) % len(LIGHT_PATTERN)]
+        names.append(f"l{i}")
+        cards.append(at({"type": "custom:lcards-button", "preset": "barrel", "interactive": False, "show_icon": False,
+                         "style": {"card": {"color": {"background": colour}}, "border": {"radius": 0}},
+                         "animations": [{"trigger": "on_load", "preset": "blink", "duration": dur, "delay": delay,
+                                         "loop": True, "alternate": True,
+                                         "params": {"min_opacity": 0.12, "max_opacity": 1.0}}]}, f"l{i}"))
+    return grid('"' + " ".join(names) + '"', " ".join(["1fr"] * n), "1fr", cards, gap="0 5px")
+
+
+def column(items, filler=PERI):
+    """Vertical stack of (kind, card): 'h' header / 'p' pill rows sized to the viewport,
+    remaining space left black."""
+    names, rows, cards = [], [], []
+    for i, (kind, card) in enumerate(items):
+        n = f"r{i}"
+        names.append(f'"{n}"')
+        rows.append("clamp(30px, 4.2vh, 54px)" if kind == "h" else "clamp(40px, 5.6vh, 72px)")
+        cards.append(at(card, n))
+    names.append('"fill"')
+    rows.append("1fr")
+    return grid(" ".join(names), "1fr", " ".join(rows), cards, gap="clamp(6px, 0.9vh, 12px)")
+
+
+# ── Shared frame ────────────────────────────────────────────────────────────────
+BASE = "/aquarium-lcars/"
+
+# Header sections, each with its sidebar sub-views.
+#   section: (key, label, code, colour, classic_url, [(view_key, label, code, colour, path), ...])
+SECTIONS = [
+    ("aquarium", "Aquarium", "10-0001", ORANGE, "/lovelace/phishtank", [
+        ("status", "Status", "01-1138", PEACH, "phishtank-lcars"),
+        ("visual", "Visual", "02-4712", LILAC, "lcars-visual"),
+        ("light", "Light", "03-2256", SUNFLOWER, "lcars-light"),
+        ("dosing", "Dosing", "04-9031", BLUEY, "lcars-dosing"),
+        ("power", "Power", "05-6620", ALMOND, "lcars-power"),
+        ("osmose", "Osmose", "06-2240", ICE, "lcars-osmose"),
+    ]),
+    ("home", "Home", "11-1701", ROSE, "/lovelace/home", [
+        ("home", "Home", "21-0001", ROSE, "lcars-home"),
+    ]),
+    ("waschen", "Waschen", "13-5519", LILAC, "/lovelace/waschen", [
+        ("waschen", "Waschen", "41-0001", LILAC, "lcars-waschen"),
+    ]),
+    ("muell", "Müll", "14-0815", PEACH, "/dashboard-muell/muell", [
+        ("muell", "Übersicht", "51-0001", PEACH, "lcars-muell"),
+        ("muell-kalender", "Kalender", "51-0002", BUTTERSCOTCH, "lcars-muell-kalender"),
+    ]),
+    ("kalender", "Kalender", "15-3301", BLUEY, "/dashboard-termine/kalender", [
+        ("termine", "Kalender", "61-0001", BLUEY, "lcars-termine"),
+        ("agenda", "Agenda", "61-0002", PERI, "lcars-termine-agenda"),
+    ]),
+]
+
+
+def dashboard_nav(active_section):
+    names = [sec[0] for sec in SECTIONS]
+    cards = []
+    for key, label, code, colour, _classic, subviews in SECTIONS:
+        active = key == active_section
+        card = block(ORANGE if active else colour, label + (" ◂" if active else ""), code,
+                     None if active else BASE + subviews[0][4], size=17)
+        card["text"]["code"]["font_size"] = 10
+        cards.append(at(card, key))
+    return grid('"' + " ".join(names) + ' ."', " ".join(["1fr"] * len(names)) + " 0.4fr", "1fr", cards,
+                gap="0 6px")
+
+
+def sidebar(section_key, active_view):
+    _, _, _, _, classic, subviews = next(sec for sec in SECTIONS if sec[0] == section_key)
+    items = [(k, label, code, colour, BASE + path) for k, label, code, colour, path in subviews]
+    items.append(("classic", "Classic", "09-0074", VIOLET, classic))
+    cards, areas, rows = [], [], []
+    for key, label, code, colour, path in items:
+        is_active = key == active_view
+        cards.append(at(block(ORANGE if is_active else colour, label + (" ◂" if is_active else ""), code,
+                              None if is_active else path), key))
+        areas.append(f'"{key}"')
+        rows.append("clamp(56px, 9vh, 110px)")
+    cards.append(at(block(GRAY, None, "08-3390"), "filler"))
+    areas.append('"filler"')
+    rows.append("1fr")
+    return grid(" ".join(areas), "1fr", " ".join(rows), cards, gap="6px")
+
+
+pump_title_js = (
+    "[[[ const a = entity.attributes; const s = entity.state; "
+    "if (s === 'Critical') return 'RED ALERT · PUMP OFFLINE > ' + a.critical_minutes + ' MIN'; "
+    "if (s === 'Warning' || s === 'Off') { const m = a.minutes_left != null ? a.minutes_left : a.critical_minutes; "
+    "return 'PUMP OFFLINE · ' + m + ' MIN TO CRITICAL'; } "
+    "return '%s'; ]]]"
+)
+
+
+def frame(section, active, content, subtitle):
+    section_label = next(sec[1] for sec in SECTIONS if sec[0] == section).upper()
+    title = {"type": "custom:lcards-button", "entity": PUMP, "preset": "text-only", "show_icon": False,
+             "text": {"title": {"content": pump_title_js % section_label, "position": "top-right", "font_size": 60,
+                                "color": {"Critical": RED, "Warning": SUNFLOWER, "Off": SUNFLOWER, "default": ORANGE},
+                                "text_transform": "uppercase"},
+                      "sub": {"content": subtitle, "position": "bottom-right", "font_size": 20, "color": PEACH,
+                              "text_transform": "uppercase"}},
+             "animations": [{"trigger": "on_entity_change", "entity": PUMP, "to_state": "Critical",
+                             "check_on_load": True, "preset": "blink", "loop": True}],
+             "tap_action": {"action": "more-info"}}
+    readouts = grid('"p c l d t" "n n n n t" "x x x x t"', "1fr 1fr 1fr 1fr 2.4fr",
+                    "1fr clamp(30px, 3.8vh, 44px) 10px", [
+        at(dashboard_nav(section), "n"),
+        at(lights(16), "x"),
+        *[at(card, area) for card, area in zip(section_readouts(section), ["p", "c", "l", "d"])],
+        at(title, "t"),
+    ], gap="6px 16px")
+    top = grid('"elbow data" "elbow bars"', f"{ELBOW_W}px 1fr", f"1fr {BAR}px", [
+        at(elbow("footer-left", LILAC, {"code": {"content": "LCARS 47174", "position": "top-left", "font_size": 14,
+                                                 "color": INK, "padding": {"left": 8, "top": 6}}}), "elbow"),
+        at(readouts, "data", margin="0 0 8px 0"),
+        at(segments([(LILAC, 5), (ORANGE, 2), (PERI, 1), (PEACH, 3)], "bottom"), "bars"),
+    ], gap="0 6px")
+    mid = grid('"elbow bars"', f"{ELBOW_W}px 1fr", "1fr", [
+        at(elbow("header-left", PEACH), "elbow"),
+        at(segments([(PEACH, 1), (ROSE, 4), (BLUEY, 2), (ORANGE, 1)], "top"), "bars"),
+    ], gap="0 6px")
+    side = sidebar(section, active)
+    foot = grid('"elbow bars"', f"{ELBOW_W}px 1fr", "1fr", [
+        at(elbow("footer-left", BLUEY), "elbow"),
+        at(flowbar([(BLUEY, 3), (LILAC, 1), (ORANGE, 5), (PEACH, 1)], flow_index=2), "bars"),
+    ], gap="0 6px")
+    return [at(top, "top"), at(mid, "mid"), at(side, "side"), at(content, "main", margin="4px 0 4px 18px"),
+            at(foot, "foot")]
+
+
+def view(section, key, title, path, content, subtitle):
+    return {"title": title, "path": path, "type": "custom:lcards-layout-view", "theme": THEME,
+            "layout": {"grid-template-columns": f"{PILLAR}px 1fr",
+                       "grid-template-rows": "clamp(140px, 17vh, 176px) 34px 1fr 30px",
+                       "grid-template-areas": '"top top" "mid mid" "side main" "foot foot"',
+                       "grid-gap": "6px 0", "height": "calc(100dvh - 16px)", "padding": "8px"},
+            "cards": frame(section, key, content, subtitle)}
+
+
+# ── Views ───────────────────────────────────────────────────────────────────────
+def status_content():
+    modes = column([
+        ("h", header("Modes", ORANGE)),
+        ("p", pill("switch.aquarium_auto_mode", "Mode",
+                   {"on": ("Auto", "mdi:autorenew", OK), "off": ("Manual", "mdi:hand-back-right", WARN)}, tap="toggle")),
+        ("p", pill("switch.aquarium_maintenance_mode", "Maintenance",
+                   {"on": ("Active", "mdi:wrench", CRIT), "off": ("Off", "mdi:wrench-outline", OFF)}, tap="toggle")),
+        ("p", pill("switch.aquarium_feeding_mode", "Feeding",
+                   {"on": ("Active", "mdi:food-drumstick", OK), "off": ("Off", "mdi:food-drumstick-off", OFF)},
+                   label_js="[[[ const r = entity.attributes.resume_at; if (!r) return 'Feeding'; "
+                            "return 'Feeding · until ' + new Date(r).toLocaleTimeString('de-DE', "
+                            "{hour: '2-digit', minute: '2-digit'}); ]]]", tap="toggle")),
+        ("p", pill("switch.aquarium_water_change_mode", "Water change",
+                   {"on": ("Active", "mdi:water-sync", CRIT), "off": ("Off", "mdi:water-off-outline", OFF)},
+                   tap="toggle")),
+    ])
+    equipment = column([
+        ("h", header("Equipment", LILAC)),
+        ("p", pill(PUMP, "Pump", PUMP_STATES,
+                   label_js="[[[ const a = entity.attributes; "
+                            "if (a.off_minutes != null) return 'Pump · off ' + a.off_minutes + ' min'; "
+                            "return a.power != null ? 'Pump · ' + a.power + ' W' : 'Pump'; ]]]")),
+        ("p", pill(HEATER, "Heater", {"on": ("On", "mdi:radiator", BUTTERSCOTCH), "off": ("Off", "mdi:radiator-off", OFF)})),
+        ("p", pill(CO2, "CO²", CO2_STATES,
+                   label_js="[[[ const a = entity.attributes; "
+                            "if (a.reason === 'hysteresis_hold') return 'CO² · hold (' + a.schedule_reason + ')'; "
+                            "return 'CO²'; ]]]")),
+        ("p", pill(CO2_COUPLING, "CO² coupling",
+                   {"on": ("Coupled", "mdi:link-variant", OK), "off": ("Manual", "mdi:link-variant-off", WARN)},
+                   tap="toggle")),
+    ])
+    life = column([
+        ("h", header("Illumination", SUNFLOWER)),
+        ("p", pill(LIGHT_AUTO, "Automation",
+                   {"on": ("Schedule", "mdi:calendar-clock", OK), "off": ("Manual", "mdi:hand-back-right", WARN)},
+                   tap="toggle")),
+        ("p", pill(PHASE, "Light", PHASE_STATES,
+                   label_js="[[[ const a = entity.attributes; if (!a.next_change) return 'Light'; "
+                            "const t = new Date(a.next_change).toLocaleTimeString('de-DE', "
+                            "{hour: '2-digit', minute: '2-digit'}); return '→ ' + (a.next_phase || '?') + ' ' + t; ]]]")),
+        ("h", header("Water change", ICE)),
+        ("p", pill(WC, "Status",
+                   {"Never": ("Never", "mdi:water-alert-outline", OFF), "OK": ("OK", "mdi:water-check", OK),
+                    "Due": ("Due", "mdi:water-alert", WARN), "Overdue": ("Overdue", "mdi:water-remove", CRIT)},
+                   label_js="[[[ const d = entity.attributes.days_since; if (d == null) return 'Status'; "
+                            "return d + (d === 1 ? ' day' : ' days') + ' since'; ]]]")),
+        ("p", info("Last change",
+                   "[[[ const t = entity.attributes.last_water_change_at; if (!t) return '–'; const d = new Date(t); "
+                   "return d.toLocaleDateString('de-DE', {day: '2-digit', month: '2-digit'}) + ' ' + "
+                   "d.toLocaleTimeString('de-DE', {hour: '2-digit', minute: '2-digit'}); ]]]", WC)),
+        ("p", info("Next due",
+                   "[[[ const t = entity.attributes.next_due_at; if (!t) return '–'; "
+                   "return new Date(t + 'T00:00:00').toLocaleDateString('de-DE', "
+                   "{day: '2-digit', month: '2-digit', year: 'numeric'}); ]]]", WC)),
+    ])
+    return grid('"a b c"', "1fr 1fr 1fr", "1fr", [at(modes, "a"), at(equipment, "b"), at(life, "c")], gap="0 18px")
+
+
+def visual_content():
+    cam = {"type": "custom:timed-camera-card", "entity": CAMERA, "still_interval": 30, "live_duration": 60,
+           "show_name": False,
+           "uix": {"style": "ha-card { background: #000 !important; border-radius: 0 !important; "
+                            "border: none !important; box-shadow: none !important; }"}}
+    side = column([
+        ("h", header("Visual sensor 01", LILAC)),
+        ("p", info("Feed", "[[[ return entity.state; ]]]", CAMERA, ICE)),
+        ("p", pill(PUMP, "Circulation", PUMP_STATES)),
+        ("p", pill(PHASE, "Illumination", PHASE_STATES)),
+        ("p", info("Total power", "{entity.state}", POWER, ALMOND)),
+    ])
+    return grid('"cam side"', "2.6fr 1fr", "1fr", [at(cam, "cam", overflow="hidden"), at(side, "side")],
+                gap="0 18px")
+
+
+def light_content():
+    state = column([
+        ("h", header("Phase control", SUNFLOWER)),
+        ("p", pill(LIGHT_AUTO, "Automation",
+                   {"on": ("Schedule", "mdi:calendar-clock", OK), "off": ("Manual", "mdi:hand-back-right", WARN)},
+                   tap="toggle")),
+        ("p", pill(PHASE, "Current", PHASE_STATES)),
+        ("p", info("Scheduled", "[[[ return entity.attributes.scheduled_phase || '–'; ]]]", PHASE, PERI)),
+        ("p", info("Next", "[[[ const a = entity.attributes; if (!a.next_change) return '–'; "
+                           "return (a.next_phase || '?') + ' · ' + new Date(a.next_change).toLocaleTimeString("
+                           "'de-DE', {hour: '2-digit', minute: '2-digit'}); ]]]", PHASE, PERI)),
+        ("p", info("Ramp", "[[[ const a = entity.attributes; const f = a.ramp_fraction; "
+                           "if (f == null || !a.ramp_direction) return '–'; "
+                           "return a.ramp_direction + ' ' + Math.round(f * 100) + ' %'; ]]]", PHASE, PERI)),
+    ])
+
+    def channel(name, colour):
+        return {"type": "custom:lcards-slider", "entity": CHANNEL.format(name), "preset": "pills-basic",
+                "control": {"min": 0, "max": 100, "step": 1},
+                "style": {"track": {"orientation": "vertical",
+                                    "segments": {"count": 18, "gap": 5, "shape": {"radius": 6},
+                                                 "gradient": {"start": colour, "end": colour},
+                                                 "appearance": {"unfilled": {"opacity": 0.18}}}}}}
+
+    def channel_label(name, colour):
+        """Titan-style value box under a slider: name small top-left, value large bottom-right."""
+        return {"type": "custom:lcards-button", "entity": CHANNEL.format(name), "preset": "barrel",
+                "show_icon": False,
+                "style": {"card": {"color": {"background": tint(colour, 0.18)}},
+                          "border": {"width": {"top": 3, "right": 0, "bottom": 0, "left": 0}, "color": colour,
+                                     "radius": 0}},
+                "text": {"name": {"show": True, "content": name.upper(), "position": "top-left", "font_size": 14, "color": DIM,
+                                  "padding": {"left": 8, "top": 6}},
+                         "value": {"content": "{entity.state}", "position": "bottom-right", "font_size": 26,
+                                   "font_weight": "bold", "color": colour, "padding": {"right": 8, "bottom": 4}}},
+                "tap_action": {"action": "more-info"}}
+
+    green = "#88CC88"
+    col = "clamp(96px, 6vw, 140px)"
+    channels = grid('"h h h h" "r g b ." "lr lg lb ." "note note note note"', f"{col} {col} {col} 1fr",
+                    "clamp(30px, 4.2vh, 54px) 1fr clamp(56px, 7vh, 80px) clamp(30px, 4vh, 48px)", [
+        at(header("Channels", BUTTERSCOTCH), "h"),
+        at(channel("red", RED), "r"), at(channel("green", green), "g"), at(channel("blue", BLUEY), "b"),
+        at(channel_label("red", RED), "lr"), at(channel_label("green", green), "lg"),
+        at(channel_label("blue", BLUEY), "lb"),
+        at({"type": "custom:lcards-button", "preset": "text-only", "interactive": False,
+            "text": {"n": {"content": "Setting levels enters manual override · Automation → Schedule resumes",
+                           "position": "center-left", "font_size": 17, "color": LILAC,
+                           "text_transform": "uppercase"}}}, "note"),
+    ], gap="10px 30px")
+
+    def profile(label, levels, colour, icon):
+        return action_btn(label, colour, {"action": "call-service", "service": "aquarium_light_control.set_override",
+                                          "service_data": {"levels": levels}}, icon=icon)
+
+    profiles = column([
+        ("h", header("Profiles", ROSE)),
+        ("p", profile("Fire", {"red": 50, "green": 13, "blue": 0}, BUTTERSCOTCH, "mdi:fire")),
+        ("p", profile("Chill", {"red": 0, "green": 13, "blue": 50}, ICE, "mdi:snowflake")),
+        ("p", action_btn("Resume schedule", OK, {"action": "call-service", "service": "switch.turn_on",
+                                                  "target": {"entity_id": LIGHT_AUTO}}, icon="mdi:calendar-clock")),
+    ])
+    return grid('"a b c"', "1fr 1.3fr 0.9fr", "1fr", [at(state, "a"), at(channels, "b"), at(profiles, "c")],
+                gap="0 18px")
+
+
+def dosing_content():
+    cols = []
+    for label, slug, bottle in DOSE_CHANNELS:
+        status = f"sensor.dose_{slug}_status"
+        fill = f"number.dose_{slug}_fill_level"
+        level_colour = {"below:50": RED, "default": ICE}
+        gauge = {"type": "custom:lcards-slider", "entity": fill, "preset": "pills-basic",
+                 "control": {"min": 0, "max": bottle, "locked": True},
+                 "style": {"track": {"orientation": "vertical",
+                                     "segments": {"count": 20, "gap": 4, "shape": {"radius": 3},
+                                                  "gradient": {"start": level_colour, "end": level_colour},
+                                                  "appearance": {"unfilled": {"opacity": 0.15}}}}},
+                 "view_layout_hint": None}
+        gauge.pop("view_layout_hint")
+        level_js = ("[[[ const v = parseFloat(entity.state); if (isNaN(v)) return '–'; "
+                    f"return Math.round(v / {bottle} * 100) + ' %'; ]]]")
+        readouts = grid('"f" "b" "p" "." "r"', "1fr",
+                        "clamp(36px, 5vh, 60px) clamp(36px, 5vh, 60px) clamp(36px, 5vh, 60px) 1fr clamp(36px, 5vh, 60px)", [
+            at(info("Fill", "{entity.state}", fill, ICE), "f"),
+            at(info("Bottle", f"{bottle} ml", None, LILAC), "b"),
+            at(row(fill, "Level", level_colour, level_js), "p"),
+            at(action_btn("Hold · refilled", ALMOND,
+                          {"action": "call-service", "service": "number.set_value",
+                           "target": {"entity_id": fill}, "service_data": {"value": bottle}}, hold=True), "r"),
+        ], gap="clamp(6px, 0.9vh, 12px)")
+        lower = grid('"g x"', "clamp(56px, 4.5vw, 84px) 1fr", "1fr",
+                     [at(gauge, "g"), at(readouts, "x")], gap="0 18px")
+        items = [
+            ("h", header(label, BLUEY)),
+            ("r", info("Status", "[[[ return entity.state; ]]]", status, PERI)),
+            ("r", pill(f"switch.dose_{slug}_schedule", "Schedule",
+                       {"on": ("On", "", OK), "off": ("Off", "", OFF)}, tap="toggle")),
+            ("r", info("Dose", "[[[ const a = entity.attributes; if (!a.configured_ml) return '–'; "
+                               "return a.configured_ml + ' ml · ' + a.time; ]]]", status, LILAC)),
+            ("r", info("Next", "[[[ const t = entity.attributes.next_dose_at; if (!t) return '–'; "
+                               "const d = new Date(t); return d.toLocaleDateString('de-DE', {weekday: 'short'}) "
+                               "+ ' ' + d.toLocaleTimeString('de-DE', {hour: '2-digit', minute: '2-digit'}); ]]]",
+                       status, LILAC)),
+            ("g", lower),
+        ]
+        names, rows, cards = [], [], []
+        for i, (kind, card) in enumerate(items):
+            names.append(f'"i{i}"')
+            rows.append({"h": "clamp(30px, 4.2vh, 54px)", "g": "1fr"}.get(kind, "clamp(36px, 5vh, 60px)"))
+            cards.append(at(card, f"i{i}"))
+        cols.append(grid(" ".join(names), "1fr", " ".join(rows), cards, gap="clamp(6px, 0.9vh, 12px)"))
+    names = ["a", "b", "c", "d"]
+    return grid('"a b c d"', "1fr 1fr 1fr 1fr", "1fr", [at(c, n) for c, n in zip(cols, names)], gap="0 36px")
+
+
+def power_content():
+    chart = {"type": "custom:lcards-chart", "chart_type": "line", "xaxis_type": "datetime",
+             "data_sources": {"total": {"entity": POWER, "history": {"hours": 24}},
+                              "pump": {"entity": PUMP_POWER, "history": {"hours": 24}},
+                              "co2": {"entity": CO2_POWER, "history": {"hours": 24}}},
+             "sources": [{"datasource": "total", "buffer": "main", "name": "Total"},
+                         {"datasource": "pump", "buffer": "main", "name": "Pump"},
+                         {"datasource": "co2", "buffer": "main", "name": "CO²"}],
+             "series_names": ["Total", "Pump", "CO²"],
+             "style": {"colors": {"series": [ORANGE, ICE, LILAC]},
+                       "stroke": {"curve": "stepline", "width": 3}, "legend": {"show": True},
+                       "yaxis": {"decimals": 0},
+                       "formatters": {"yaxis_label": "{value} W", "xaxis_label": "HH:mm"}}}
+    side = column([
+        ("h", header("Power grid", ALMOND)),
+        ("p", info("Total", "{entity.state}", POWER, ORANGE)),
+        ("p", info("Pump", "{entity.state}", PUMP_POWER, ICE)),
+        ("p", info("CO² valve", "{entity.state}", CO2_POWER, LILAC)),
+    ])
+    return grid('"chart side"', "2.6fr 1fr", "1fr", [at(chart, "chart"), at(side, "side")], gap="0 18px")
+
+
+# ── Shared helpers for the non-aquarium sections ─────────────────────────────────
+WEATHER = "weather.forecast_home"
+TODO = "todo.zuhause_2"
+NINA = [f"binary_sensor.warning_home_{i}" for i in range(1, 6)]
+OSMO = {"switch": "switch.osmoseanlage", "mode": "sensor.osmoseanlage_mode", "fw": "update.osmoseanlage_firmware",
+        "energy": "sensor.osmoseanlage_energie", "power": "sensor.osmoseanlage_leistung",
+        "countdown": "sensor.osmoseanlage_auto_off_countdown"}
+WASH = {"switch": "switch.waschmaschine", "power": "sensor.waschmaschine_leistung",
+        "energy": "sensor.waschmaschine_energie"}
+WASH_PROTECT = [("Overheat", "binary_sensor.waschmaschine_uberhitzung"), ("Overload", "binary_sensor.waschmaschine_uberlast"),
+                ("Overvoltage", "binary_sensor.waschmaschine_uberspannung"),
+                ("Overcurrent", "binary_sensor.waschmaschine_uberstrom")]
+BINS = [("Restmüll", "sensor.mullabfuhr_restmull", "#AAAACC"), ("Biotonne", "sensor.mullabfuhr_biotonne", ALMOND),
+        ("Gelbe Tonne", "sensor.mullabfuhr_gelbe_tonne", SUNFLOWER),
+        ("Papiertonne", "sensor.mullabfuhr_papiertonne", ICE)]
+NEXT_PICKUP = "sensor.mullabfuhr_nachste_abholung"
+HAZMAT = {"date": "sensor.schadstoffmobil", "window": "sensor.schadstoffmobil_zeitfenster",
+          "place": "sensor.schadstoffmobil_standort"}
+WASTE_CALS = ["calendar.mullabfuhr_restmull", "calendar.mullabfuhr_biotonne", "calendar.mullabfuhr_gelbe_tonne",
+              "calendar.mullabfuhr_papiertonne", "calendar.schadstoffmobil"]
+ALL_CALS = WASTE_CALS + ["calendar.telephone", "calendar.personal", "calendar.geburtstage",
+                         "calendar.deutschland_rp", "calendar.feiertage_in_frankreich"]
+
+# JS: relative-day wording for a Date `d` (German, uppercase via text_transform)
+REL = ("const t0 = new Date(); t0.setHours(0,0,0,0); const d0 = new Date(d); d0.setHours(0,0,0,0); "
+       "const n = Math.round((d0 - t0) / 86400000); "
+       "const rel = n === 0 ? 'heute' : n === 1 ? 'morgen' : n < 0 ? 'vorbei' : 'in ' + n + ' Tagen'; "
+       "const wd = d.toLocaleDateString('de-DE', {weekday: 'short'}); "
+       "const dm = d.toLocaleDateString('de-DE', {day: '2-digit', month: '2-digit'}); ")
+
+WEATHER_NAMES = {"clear-night": "Clear night", "cloudy": "Cloudy", "exceptional": "Exceptional", "fog": "Fog",
+                 "hail": "Hail", "lightning": "Lightning", "lightning-rainy": "Thunderstorm",
+                 "partlycloudy": "Partly cloudy", "pouring": "Pouring", "rainy": "Rain", "snowy": "Snow",
+                 "snowy-rainy": "Sleet", "sunny": "Sunny", "windy": "Windy", "windy-variant": "Windy"}
+
+
+def js_de_date(expr):
+    """JS for a 'dd.mm.yyyy' string -> 'Fr 25.09. · morgen'."""
+    return ("[[[ const m = String(" + expr + ").match(/(\\d\\d)\\.(\\d\\d)\\.(\\d{4})/); if (!m) return '–'; "
+            "const d = new Date(+m[3], +m[2] - 1, +m[1]); " + REL + "return wd + ' ' + dm + ' · ' + rel; ]]]")
+
+
+def js_iso_date(expr):
+    return ("[[[ const s = String(" + expr + "); if (!/^\\d{4}-\\d{2}-\\d{2}/.test(s)) return '–'; "
+            "const d = new Date(s.slice(0, 10) + 'T00:00:00'); " + REL + "return wd + ' ' + dm + ' · ' + rel; ]]]")
+
+
+def js_events(cals):
+    """JS prelude: `ev` = next event per calendar, soonest first."""
+    return ("const ids = " + json.dumps(cals) + "; "
+            "const ev = ids.map((id) => states[id]).filter((x) => x && x.attributes.start_time)"
+            ".map((x) => ({d: new Date(x.attributes.start_time.replace(' ', 'T')), m: x.attributes.message || '?', "
+            "all: x.attributes.all_day})).filter((e) => !isNaN(e.d)).sort((a, b) => a.d - b.d); ")
+
+
+def agenda_row(cals, i, colour):
+    label = "[[[ " + js_events(cals) + "const e = ev[" + str(i) + "]; if (!e) return '—'; " \
+            "return e.m.length > 30 ? e.m.slice(0, 29) + '…' : e.m; ]]]"
+    value = "[[[ " + js_events(cals) + "const e = ev[" + str(i) + "]; if (!e) return ''; const d = e.d; " + REL + \
+            "return wd + ' ' + dm + (e.all ? '' : ' ' + d.toLocaleTimeString('de-DE', {hour: '2-digit', minute: '2-digit'})) " \
+            "+ ' · ' + rel; ]]]"
+    card = row(None, "", {"default": colour}, value, label_js=label, interactive=False)
+    card["triggers_update"] = cals
+    return card
+
+
+# Foreign cards that have no LCARdS equivalent get an LCARS skin via UIX
+LCARS_SKIN = (":host { --primary-color: #FF9900; --accent-color: #FF9900; --primary-text-color: #FFCC99; "
+              "--secondary-text-color: #9999CC; --text-primary-color: #000; --divider-color: #2a2a3a; "
+              "--secondary-background-color: #0d0d16; --card-background-color: #000; --ha-card-background: #000; "
+              "--mdc-theme-primary: #FF9900; --state-icon-color: #99CCFF; } "
+              "ha-card { background: #000 !important; border: none !important; border-radius: 0 !important; "
+              "box-shadow: none !important; font-family: Antonio, sans-serif !important; }")
+
+
+def skinned(card):
+    card = json.loads(json.dumps(card))
+    card["uix"] = {"style": LCARS_SKIN}
+    return card
+
+
+def power_chart(series):
+    """series: [(entity, name, colour)] -> 24 h stepline chart."""
+    return {"type": "custom:lcards-chart", "chart_type": "line", "xaxis_type": "datetime",
+            "data_sources": {f"s{i}": {"entity": e, "history": {"hours": 24}} for i, (e, _, _) in enumerate(series)},
+            "sources": [{"datasource": f"s{i}", "buffer": "main", "name": n} for i, (_, n, _) in enumerate(series)],
+            "series_names": [n for _, n, _ in series],
+            "style": {"colors": {"series": [c for _, _, c in series]}, "stroke": {"curve": "stepline", "width": 3},
+                      "legend": {"show": len(series) > 1}, "yaxis": {"decimals": 0},
+                      "formatters": {"yaxis_label": "{value} W", "xaxis_label": "HH:mm"}}}
+
+
+def framed(title, colour, card, head_rows="clamp(30px, 4.2vh, 54px)"):
+    """LCARS section header above an embedded card that fills the rest."""
+    return grid('"h" "c"', "1fr", f"{head_rows} 1fr", [at(header(title, colour), "h"),
+                                                       at(card, "c", overflow="auto")], gap="8px")
+
+
+def cols(*items, widths=None, gap="0 22px"):
+    names = [f"k{i}" for i in range(len(items))]
+    widths = widths or ["1fr"] * len(items)
+    return grid('"' + " ".join(names) + '"', " ".join(widths), "1fr",
+                [at(c, n) for c, n in zip(items, names)], gap=gap)
+
+
+def on_off(entity, label, on=("On", OK), off=("Off", OFF), tap="more-info", hold=None):
+    card = pill(entity, label, {"on": (on[0], "", on[1]), "off": (off[0], "", off[1])}, tap=tap)
+    if hold:
+        card["hold_action"] = hold
+    return card
+
+
+# ── Header readouts per section ─────────────────────────────────────────────────
+def section_readouts(section):
+    if section == "aquarium":
+        return [
+            readout(POWER, "Total power", "{entity.state}"),
+            readout(PUMP, "Circulation", js_map(PUMP_STATES),
+                    {k: v[2] for k, v in PUMP_STATES.items()} | {"default": PEACH}),
+            readout(PHASE, "Illumination", js_map(PHASE_STATES),
+                    {k: v[2] for k, v in PHASE_STATES.items()} | {"default": PEACH}),
+            readout(CO2, "CO² injection", js_map(CO2_STATES),
+                    {k: v[2] for k, v in CO2_STATES.items()} | {"default": PEACH}),
+        ]
+    if section == "home":
+        return [
+            readout("sensor.time", "Local time", "{entity.state}"),
+            readout(WEATHER, "Outside", "[[[ return entity.attributes.temperature + ' °C'; ]]]", ICE),
+            readout(WEATHER, "Condition", js_map({k: (v, "", "") for k, v in WEATHER_NAMES.items()}), SUNFLOWER),
+            readout(TODO, "Open tasks", "{entity.state}", LILAC),
+        ]
+    if section == "osmose":
+        return [
+            readout(OSMO["switch"], "RO unit", "[[[ return entity.state === 'on' ? 'Online' : 'Offline'; ]]]",
+                    {"on": ICE, "default": GRAY}),
+            readout(OSMO["mode"], "Mode", "{entity.state}", PEACH),
+            readout(OSMO["power"], "Power", "{entity.state}", ORANGE),
+            readout(OSMO["energy"], "Energy", "{entity.state}", LILAC),
+        ]
+    if section == "waschen":
+        return [
+            readout(WASH["power"], "Cycle", "[[[ return parseFloat(entity.state) > 3 ? 'Running' : 'Idle'; ]]]", ICE),
+            readout(WASH["power"], "Power", "{entity.state}", ORANGE),
+            readout(WASH["energy"], "Energy", "{entity.state}", LILAC),
+            readout(WASH["switch"], "Supply", "[[[ return entity.state === 'on' ? 'On' : 'Off'; ]]]",
+                    {"on": ICE, "default": GRAY}),
+        ]
+    if section == "muell":
+        return [
+            readout(NEXT_PICKUP, "Next pickup", "[[[ return String(entity.state).split(' am ')[0]; ]]]", ORANGE),
+            readout(NEXT_PICKUP, "Date", js_de_date("entity.state"), PEACH),
+            readout(HAZMAT["date"], "Schadstoffmobil", js_iso_date("entity.state"), RED),
+            readout("sensor.time", "Local time", "{entity.state}"),
+        ]
+    if section == "kalender":
+        nxt = "[[[ " + js_events(ALL_CALS) + "const e = ev[0]; return e ? e.m : '—'; ]]]"
+        when = "[[[ " + js_events(ALL_CALS) + "const e = ev[0]; if (!e) return '—'; const d = e.d; " + REL + \
+               "return wd + ' ' + dm + ' · ' + rel; ]]]"
+        today = "[[[ " + js_events(ALL_CALS) + "const t = new Date().toDateString(); " \
+                "return ev.filter((e) => e.d.toDateString() === t).length; ]]]"
+        cards = [readout("sensor.time", "Next event", nxt, ORANGE), readout("sensor.time", "When", when, PEACH),
+                 readout("sensor.time", "Today", today, ICE), readout("sensor.time", "Local time", "{entity.state}")]
+        for c in cards[:3]:
+            c["triggers_update"] = ALL_CALS
+        return cards
+    raise KeyError(section)
+
+
+# ── Native section content ──────────────────────────────────────────────────────
+def home_content():
+    w = WEATHER
+    atmos = column([
+        ("h", header("Atmosphere", ICE)),
+        ("p", info("Condition", js_map({k: (v, "", "") for k, v in WEATHER_NAMES.items()}), w, SUNFLOWER)),
+        ("p", info("Temperature", "[[[ return entity.attributes.temperature + ' °C'; ]]]", w, ICE)),
+        ("p", info("Humidity", "[[[ return entity.attributes.humidity + ' %'; ]]]", w, PERI)),
+        ("p", info("Pressure", "[[[ return Math.round(entity.attributes.pressure) + ' hPa'; ]]]", w, LILAC)),
+        ("p", info("Wind", "[[[ const a = entity.attributes; return Math.round(a.wind_speed) + ' km/h · ' + "
+                           "Math.round(a.wind_bearing) + '°'; ]]]", w, PERI)),
+        ("p", info("Clouds", "[[[ return Math.round(entity.attributes.cloud_coverage) + ' %'; ]]]", w, LILAC)),
+        ("h", header("Sol", SUNFLOWER)),
+        ("p", info("Sunrise", "[[[ return new Date(entity.attributes.next_rising).toLocaleTimeString('de-DE', "
+                              "{hour: '2-digit', minute: '2-digit'}); ]]]", "sun.sun", SUNFLOWER)),
+        ("p", info("Sunset", "[[[ return new Date(entity.attributes.next_setting).toLocaleTimeString('de-DE', "
+                             "{hour: '2-digit', minute: '2-digit'}); ]]]", "sun.sun", BUTTERSCOTCH)),
+    ])
+    alerts = [("h", header("Alerts · NINA", RED))]
+    for i, e in enumerate(NINA, 1):
+        alerts.append(("p", pill(e, f"Channel {i}", {"on": ("Warning", "", RED), "off": ("Clear", "", OFF)},
+                                 label_js=f"[[[ return entity.state === 'on' ? (entity.attributes.headline || "
+                                          f"'Warning {i}') : 'Channel {i}'; ]]]")))
+    left = cols(atmos, column(alerts))
+    todo = framed("Tasks · Zuhause", LILAC, skinned({"type": "todo-list", "entity": TODO, "hide_completed": True,
+                                                    "display_order": "none"}))
+    radar = framed("Precipitation radar", BLUEY, skinned({
+        "type": "iframe", "url": "https://radar.wo-cloud.com/mobile/rr/interactive?wrx=50.00,8.00&wrm=8&wry=50.00,8.00",
+        "aspect_ratio": "56%", "hide_background": True}))
+    forecast = framed("Forecast", ICE, skinned({"type": "weather-forecast", "entity": w, "show_current": False,
+                                                "show_forecast": True, "forecast_type": "hourly",
+                                                "forecast_slots": 12}))
+    right = grid('"r" "f"', "1fr", "1fr clamp(150px, 20vh, 220px)", [at(radar, "r"), at(forecast, "f")], gap="14px")
+    return cols(left, grid('"t" "."', "1fr", "1fr 0fr", [at(todo, "t")]), right, widths=["2fr", "1fr", "2fr"])
+
+
+def osmose_content():
+    o = OSMO
+    control = column([
+        ("h", header("RO control", ICE)),
+        ("p", on_off(o["switch"], "RO unit", on=("Online", OK), off=("Offline", OFF), tap="toggle")),
+        ("p", info("Mode", "{entity.state}", o["mode"], PEACH)),
+        ("p", info("Power", "{entity.state}", o["power"], ORANGE)),
+        ("p", info("Energy", "{entity.state}", o["energy"], LILAC)),
+        ("p", info("Auto-off", "[[[ const s = parseInt(entity.state); return s > 0 ? Math.ceil(s / 60) + ' min' : '–'; ]]]",
+                   o["countdown"], PERI)),
+        ("p", info("Firmware", "[[[ const a = entity.attributes; return a.installed_version + "
+                               "(entity.state === 'on' ? ' → ' + a.latest_version : ' · current'); ]]]", o["fw"], PERI)),
+    ])
+    trace = framed("Power trace · 24 h", ORANGE, power_chart([(o["power"], "RO unit", ICE)]))
+    return cols(control, trace, widths=["1fr", "2fr"])
+
+
+def waschen_content():
+    wsh = WASH
+    unit = column([
+        ("h", header("Laundry unit", LILAC)),
+        ("p", info("Cycle", "[[[ return parseFloat(entity.state) > 3 ? 'Running' : 'Idle'; ]]]", wsh["power"], ICE)),
+        ("p", info("Power", "{entity.state}", wsh["power"], ORANGE)),
+        ("p", info("Energy", "{entity.state}", wsh["energy"], LILAC)),
+        ("p", on_off(wsh["switch"], "Supply · hold to switch", tap="more-info",
+                     hold={"action": "toggle"})),
+        ("h", header("Protection", RED)),
+        *[("p", on_off(e, label, on=("Alert", CRIT), off=("Nominal", OK))) for label, e in WASH_PROTECT],
+    ])
+    trace = framed("Power trace · 24 h", ORANGE, power_chart([(wsh["power"], "Waschmaschine", ORANGE)]))
+    return cols(unit, trace, widths=["1fr", "2fr"])
+
+
+def muell_content():
+    nxt = column([
+        ("h", header("Next collection", ORANGE)),
+        ("p", info("[[[ return String(entity.state).split(' am ')[0]; ]]]", js_de_date("entity.state"),
+                   NEXT_PICKUP, ORANGE)),
+        ("h", header("All bins", PEACH)),
+        *[("p", info(label, js_de_date("entity.state"), e, colour)) for label, e, colour in BINS],
+    ])
+    # info() puts the first arg into the label; a JS label needs label_js
+    nxt["cards"][1]["text"]["label"]["content"] = "[[[ return String(entity.state).split(' am ')[0]; ]]]"
+    hazmat = column([
+        ("h", header("Schadstoffmobil", RED)),
+        ("p", info("Date", js_iso_date("entity.state"), HAZMAT["date"], RED)),
+        ("p", info("Window", "{entity.state}", HAZMAT["window"], PEACH)),
+        ("p", info("Location", "[[[ return String(entity.state).split(',')[0]; ]]]", HAZMAT["place"], LILAC)),
+        ("p", {"type": "custom:lcards-button", "preset": "text-only", "interactive": False,
+               "text": {"n": {"content": "Viermal im Jahr · Termine erscheinen automatisch", "position": "center-left",
+                              "font_size": 16, "color": DIM, "text_transform": "uppercase"}}}),
+    ])
+    upcoming = column([("h", header("Upcoming", BLUEY))] +
+                      [("p", agenda_row(WASTE_CALS, i, [ORANGE, PEACH, LILAC, PERI, ICE][i])) for i in range(5)])
+    return cols(nxt, hazmat, upcoming)
+
+
+def calendar_card(view, days=60, calendars=None):
+    base = foreign_card("dashboard-termine", "kalender") if calendars is None else None
+    card = dict(base) if base else {"type": "custom:global-calendar-card", "calendars": calendars}
+    card.update({"default_view": view, "agenda_days": days})
+    return skinned(card)
+
+
+def muell_calendar_content():
+    src = foreign_card("dashboard-muell", "kalender")
+    card = skinned(dict(src))
+    return framed("Collection calendar", PEACH, card)
+
+
+def termine_content():
+    return framed("Stardate calendar", BLUEY, calendar_card("month_agenda"))
+
+
+def agenda_content():
+    nxt = column([("h", header("Next per calendar", ORANGE))] +
+                 [("p", agenda_row(ALL_CALS, i, [ORANGE, PEACH, LILAC, PERI, ICE][i % 5])) for i in range(10)])
+    return cols(nxt, framed("Agenda · 60 days", BLUEY, calendar_card("agenda")), widths=["1fr", "1.4fr"])
+
+
+VIEWS = [
+    view("aquarium", "status", "LCARS Status", "phishtank-lcars", status_content(), "Systems status · 01-1138"),
+    view("aquarium", "visual", "LCARS Visual", "lcars-visual", visual_content(), "Visual sensor · 02-4712"),
+    view("aquarium", "light", "LCARS Light", "lcars-light", light_content(), "Illumination control · 03-2256"),
+    view("aquarium", "dosing", "LCARS Dosing", "lcars-dosing", dosing_content(), "Nutrient dosing · 04-9031"),
+    view("aquarium", "power", "LCARS Power", "lcars-power", power_content(), "Power distribution · 05-6620"),
+    view("home", "home", "LCARS Home", "lcars-home", home_content(), "Habitat overview · 21-0001"),
+    view("aquarium", "osmose", "LCARS Osmose", "lcars-osmose", osmose_content(), "Water reclamation · 06-2240"),
+    view("waschen", "waschen", "LCARS Waschen", "lcars-waschen", waschen_content(), "Laundry · 41-0001"),
+    view("muell", "muell", "LCARS Müll", "lcars-muell", muell_content(), "Waste disposal · 51-0001"),
+    view("muell", "muell-kalender", "LCARS Müll Kalender", "lcars-muell-kalender", muell_calendar_content(),
+         "Waste schedule · 51-0002"),
+    view("kalender", "termine", "LCARS Kalender", "lcars-termine", termine_content(), "Stardate calendar · 61-0001"),
+    view("kalender", "agenda", "LCARS Agenda", "lcars-termine-agenda", agenda_content(), "Mission agenda · 61-0002"),
+]
+
+CONFIG = {"title": "LCARS",
+          "kiosk_mode": {"hide_header": True, "hide_sidebar": True},
+          "views": VIEWS}
+
+FR = re.compile(r"(?<![\w(,])(\d*\.?\d+)fr")
+
+
+def finalize(node):
+    """minmax(0,Nfr) for every fr track, and no theme min-height on LCARdS cards,
+    so nothing inflates the grid beyond the viewport."""
+    if isinstance(node, dict):
+        lay = node.get("layout")
+        if isinstance(lay, dict):
+            for k in ("grid-template-columns", "grid-template-rows"):
+                if k in lay:
+                    lay[k] = FR.sub(r"minmax(0,\1fr)", lay[k])
+        if node.get("type") in ("custom:lcards-button", "custom:lcards-elbow", "custom:lcards-slider",
+                                "custom:lcards-data-grid", "custom:lcards-chart"):
+            node.setdefault("min_height", 0)
+        for v in node.values():
+            finalize(v)
+    elif isinstance(node, list):
+        for v in node:
+            finalize(v)
+    return node
+
+
+if __name__ == "__main__":
+    finalize(CONFIG)
+    os.makedirs(os.path.dirname(OUT), exist_ok=True)
+    json.dump(CONFIG, open(OUT, "w"), indent=1, ensure_ascii=False)
+    print("views:", len(VIEWS), "bytes:", len(json.dumps(CONFIG)))

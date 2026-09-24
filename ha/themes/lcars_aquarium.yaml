@@ -1,0 +1,66 @@
+# View theme for the LCARS dashboard (/aquarium-lcars). Standalone on purpose:
+# it does NOT extend HA-LCARS (whose card styles paint every standard card
+# lavender), so embedded standard cards (calendar, todo, weather, radar)
+# render flat black in the Voyager palette. LCARdS cards carry their own colours.
+LCARS Aquarium:
+  # Own (empty) UIX theme, so UIX does not fall back to the HA-LCARS card styles
+  uix-theme: LCARS Aquarium
+  card-mod-theme: LCARS Aquarium
+  uix-card-yaml: |
+    .: |
+      ha-card { background: #000 !important; border: none !important; border-radius: 0 !important;
+                box-shadow: none !important; }
+  lcars-font: "Antonio"
+  lcars-fallback-font: "Helvetica, Arial, sans-serif"
+  lcars-text-dark: "#000000"
+  lcars-text-light: "#FFCC99"
+  lcars-ui-primary: "#FFCC99"
+  lcars-ui-secondary: "#CC99CC"
+  lcars-ui-tertiary: "#FF9900"
+  lcars-ui-quaternary: "#666688"
+  lcars-ui-mix-color: "#CC99CC"
+  lcars-ui-primary-text: "#000000"
+  lcars-ui-secondary-text: "#000000"
+  lcars-ui-quaternary-text: "#FFCC99"
+  lcars-ui-config-button: "#FF9900"
+  lcars-primary-text: "#FFCC99"
+  lcars-secondary-text: "#9999CC"
+  lcars-text-gray: "#9999AA"
+  lcars-background-color: "#000000"
+  lcars-black: "#000000"
+  lcars-card-top-color: "#9999FF"
+  lcars-card-top-text: "#000000"
+  lcars-orange: "#FF9900"
+  lcars-sunflower: "#FFCC66"
+  lcars-blue: "#8899FF"
+  lcars-green: "#99CC99"
+  lcars-gray: "#666688"
+  primary-font-family: "Antonio, Helvetica, Arial, sans-serif"
+  paper-font-common-base_-_font-family: "Antonio, Helvetica, Arial, sans-serif"
+  ha-font-family-body: "Antonio, Helvetica, Arial, sans-serif"
+  ha-font-family-heading: "Antonio, Helvetica, Arial, sans-serif"
+  primary-background-color: "#000000"
+  secondary-background-color: "#0d0d16"
+  lovelace-background: "#000000"
+  card-background-color: "#000000"
+  ha-card-background: "#000000"
+  ha-card-border-width: "0px"
+  ha-card-border-radius: "0px"
+  ha-card-box-shadow: "none"
+  primary-color: "#FF9900"
+  accent-color: "#FF9900"
+  primary-text-color: "#FFCC99"
+  secondary-text-color: "#9999CC"
+  text-primary-color: "#000000"
+  disabled-text-color: "#666688"
+  divider-color: "#2a2a3a"
+  state-icon-color: "#99CCFF"
+  mdc-theme-primary: "#FF9900"
+  error-color: "#DD4444"
+  warning-color: "#FFCC66"
+  success-color: "#99CCFF"
+  info-color: "#CC99FF"
+  input-fill-color: "#0d0d16"
+  modes:
+    dark: {}
+    light: {}
