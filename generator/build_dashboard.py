@@ -751,7 +751,6 @@ def power_content():
 
 # ── Shared helpers for the non-aquarium sections ─────────────────────────────────
 WEATHER = "weather.forecast_home"
-TODO = "todo.zuhause_2"
 NINA = [f"binary_sensor.warning_home_{i}" for i in range(1, 6)]
 OSMO = {"switch": "switch.osmoseanlage", "mode": "sensor.osmoseanlage_mode", "fw": "update.osmoseanlage_firmware",
         "energy": "sensor.osmoseanlage_energie", "power": "sensor.osmoseanlage_leistung",
@@ -895,10 +894,10 @@ def section_readouts(section):
         ]
     if section == "home":
         return [
-            readout("sensor.time", "Local time", "{entity.state}"),
             readout(WEATHER, "Outside", "[[[ return entity.attributes.temperature + ' °C'; ]]]", ICE),
             readout(WEATHER, "Condition", js_map({k: (v, "", "") for k, v in WEATHER_NAMES.items()}), SUNFLOWER),
-            readout(TODO, "Open tasks", "{entity.state}", LILAC),
+            number_columns(),
+            (header_buttons("home"), "wide"),
         ]
     if section == "osmosis":
         return [
@@ -940,39 +939,56 @@ def section_readouts(section):
 
 
 # ── Native section content ──────────────────────────────────────────────────────
+JS_COMPASS = ("const dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW']; "
+              "const compass = (b) => dirs[Math.round(b / 22.5) % 16]; ")
+JS_HHMM = "const hhmm = (t) => new Date(t).toLocaleTimeString('en-GB', {hour: '2-digit', minute: '2-digit'}); "
+
+
+ATMOS_LABEL_W = 150      # "Temperature" needs more than DATA_LABEL_W next to its code
+
+
 def home_content():
+    """OPS in the waste page's language: framed groups, label blocks as pillars, a graphic next to
+    every value, light custom cards for the bars."""
     w = WEATHER
-    atmos = column([
-        ("h", header("Atmosphere", ICE)),
-        ("p", info("Sky", js_map({k: (v, "", "") for k, v in WEATHER_NAMES.items()}), w, SUNFLOWER)),
-        ("p", info("Temperature", "[[[ return entity.attributes.temperature + ' °C'; ]]]", w, ICE)),
-        ("p", info("Humidity", "[[[ return entity.attributes.humidity + ' %'; ]]]", w, PERI)),
-        ("p", info("Pressure", "[[[ return Math.round(entity.attributes.pressure) + ' hPa'; ]]]", w, LILAC)),
-        ("p", info("Wind", "[[[ const a = entity.attributes; return Math.round(a.wind_speed) + ' km/h · ' + "
-                           "Math.round(a.wind_bearing) + '°'; ]]]", w, PERI)),
-        ("p", info("Clouds", "[[[ return Math.round(entity.attributes.cloud_coverage) + ' %'; ]]]", w, LILAC)),
-        ("h", header("Sol", SUNFLOWER)),
-        ("p", info("Sunrise", "[[[ return new Date(entity.attributes.next_rising).toLocaleTimeString('en-GB', "
-                              "{hour: '2-digit', minute: '2-digit'}); ]]]", "sun.sun", SUNFLOWER)),
-        ("p", info("Sunset", "[[[ return new Date(entity.attributes.next_setting).toLocaleTimeString('en-GB', "
-                             "{hour: '2-digit', minute: '2-digit'}); ]]]", "sun.sun", BUTTERSCOTCH)),
-    ])
-    alerts = [("h", header("Alerts · NINA", RED))]
-    for i, e in enumerate(NINA, 1):
-        alerts.append(("p", pill(e, f"Channel {i}", {"on": ("Warning", "", RED), "off": ("Clear", "", OFF)},
-                                 label_js=f"[[[ return entity.state === 'on' ? (entity.attributes.headline || "
-                                          f"'Warning {i}') : 'Channel {i}'; ]]]")))
-    left = cols(atmos, column(alerts))
-    todo = framed("Tasks · Home", LILAC, skinned({"type": "todo-list", "entity": TODO, "hide_completed": True,
-                                                    "display_order": "none"}))
-    radar = framed("Precipitation radar", BLUEY, skinned({
+    atmosphere = panel("Atmosphere", ICE, pillar=ATMOS_LABEL_W, content=pillar_rows([
+        ("Temperature", PEACH, lcars_code("ops/temperature"),
+         with_bar(value_text("[[[ return entity.attributes.temperature + ' °C'; ]]]", w),
+                  level_bar(w, PEACH, "temperature", -10, 35), "left")),
+        ("Humidity", ICE, lcars_code("ops/humidity"),
+         with_bar(value_text("[[[ return Math.round(entity.attributes.humidity) + ' %'; ]]]", w),
+                  level_bar(w, ICE, "humidity", 0, 100), "left")),
+        ("Pressure", LILAC, lcars_code("ops/pressure"),
+         with_bar(value_text("[[[ return Math.round(entity.attributes.pressure) + ' hPa'; ]]]", w),
+                  level_bar(w, LILAC, "pressure", 970, 1050), "left")),
+        ("Wind", PERI, lcars_code("ops/wind"),
+         with_bar(value_text("[[[ " + JS_COMPASS + "const a = entity.attributes; "
+                             "return Math.round(a.wind_speed) + ' km/h · ' + compass(a.wind_bearing); ]]]", w),
+                  level_bar(w, PERI, "wind_speed", 0, 60), "left")),
+        ("Daylight", SUNFLOWER, lcars_code("ops/daylight"),
+         with_bar(value_text("[[[ " + JS_HHMM + "const a = entity.attributes; "
+                             "return hhmm(a.next_rising) + ' – ' + hhmm(a.next_setting); ]]]", "sun.sun"),
+                  span_bar("sun.sun", SUNFLOWER, "next_rising", "next_setting"), "left")),
+    ], filler=ICE, label_w=ATMOS_LABEL_W))
+    # the two lower frames (NINA, forecast) face each other: pillars meet, open at the bottom
+    nina = panel("Alerts · NINA", RED, side="right", pillar=DATA_LABEL_W, bottom=False, content=pillar_rows([
+        (f"Channel {i}", BONE, lcars_code(f"ops/nina/{i}"),
+         value_text("[[[ if (entity.state !== 'on') return 'Clear'; const h = entity.attributes.headline || "
+                    "'Warning'; return h.length > 26 ? h.slice(0, 25) + '…' : h; ]]]", e, "right",
+                    {"on": RED, "default": PERI}))
+        for i, e in enumerate(NINA, 1)], side="right"))
+    radar = panel("Precipitation radar", BLUEY, side="right", content=skinned({
         "type": "iframe", "url": "https://radar.wo-cloud.com/mobile/rr/interactive?wrx=50.00,8.00&wrm=8&wry=50.00,8.00",
         "aspect_ratio": "56%", "hide_background": True}))
-    forecast = framed("Forecast", ICE, skinned({"type": "weather-forecast", "entity": w, "show_current": False,
-                                                "show_forecast": True, "forecast_type": "hourly",
-                                                "forecast_slots": 12}))
-    right = grid('"r" "f"', "1fr", "1fr clamp(150px, 20vh, 220px)", [at(radar, "r"), at(forecast, "f")], gap="14px")
-    return cols(left, grid('"t" "."', "1fr", "1fr 0fr", [at(todo, "t")]), right, widths=["2fr", "1fr", "2fr"])
+    forecast = panel("Forecast", ICE, bottom=False, content=skinned(
+        {"type": "weather-forecast", "entity": w, "show_current": False, "show_forecast": True,
+         "forecast_type": "hourly", "forecast_slots": 12}))
+    # sized like the waste page: fits the 1280x800 tablet, the rest of the page stays black
+    top_h = data_panel_height(5)
+    bottom_h = f"calc({data_panel_height(5)} - {PANEL_CORNER}px)"
+    return grid('"atm atm radar" "nina fc fc" ". . ."', "1fr 1fr 1.4fr", f"{top_h} {bottom_h} 1fr",
+                [at(atmosphere, "atm"), at(nina, "nina"), at(radar, "radar"), at(forecast, "fc")],
+                gap="clamp(12px, 2vh, 24px) 8px")
 
 
 def osmosis_content():
@@ -1113,7 +1129,7 @@ def collection_timeline():
     return grid(" ".join(areas), f"{TIMELINE_LABEL_W}px 1fr", " ".join(track_rows), cards, gap=gap)
 
 
-def pillar_rows(items, side="left", filler=None):
+def pillar_rows(items, side="left", filler=None, label_w=DATA_LABEL_W):
     """Rows of (label, colour, code, value card): the label blocks stack up as the frame's pillar on
     `side` (use with panel(pillar=DATA_LABEL_W)), each value sits next to its block. A filler colour
     continues the pillar below the last row down to the shoulder."""
@@ -1126,15 +1142,15 @@ def pillar_rows(items, side="left", filler=None):
         areas.append('". f"' if side == "right" else '"f ."')
         cards.append(at(block(filler), "f"))
         rows.append("1fr")
-    widths = f"1fr {DATA_LABEL_W}px" if side == "right" else f"{DATA_LABEL_W}px 1fr"
+    widths = f"1fr {label_w}px" if side == "right" else f"{label_w}px 1fr"
     return grid(" ".join(areas), widths, " ".join(rows), cards, gap=f"{DATA_GAP}px 16px")
 
 
-def value_text(value_js, entity, align="left"):
-    """Just the value of a data row, in peri, aligned towards its label block."""
+def value_text(value_js, entity, align="left", colour=PERI):
+    """Just the value of a data row, aligned towards its label block. colour may be a state map."""
     return {"type": "custom:lcards-button", "entity": entity, "preset": "text-only", "show_icon": False,
             "tap_action": {"action": "more-info"},
-            "text": {"value": {"content": value_js, "position": f"center-{align}", "color": PERI,
+            "text": {"value": {"content": value_js, "position": f"center-{align}", "color": colour,
                                "text_transform": "uppercase", "font_size": "var(--lcars-data-size)",
                                "font_weight": "bold", "padding": {align: 4}}}}
 
@@ -1151,14 +1167,14 @@ BARS_HELPER = "input_boolean.lcars_bars"
 BARS_VISIBLE = [{"condition": "state", "entity": BARS_HELPER, "state": "on"}]
 
 
-def data_bar(entity, colour, mode, segments, side):
+def data_bar(entity, colour, mode, segments, side, **extra):
     """Segmented bar as one light custom card (ha/www/lcars-bar.js): segment 0 sits next to the value
     (towards the pillar on `side`); lit segments flash white briefly at random rates fixed here."""
     bar = {"type": "custom:lcars-bar", "entity": entity, "mode": mode, "segments": segments,
            "days_per_segment": 28 // BAR_SEGMENTS, "side": side, "colour": colour, "off": BAR_OFF,
            # cycle 8-24 s per segment, flashing white for 2.5 % of it (0.2-0.6 s)
            "blink": [_BLINK.randrange(8000, 24000, 500) for _ in range(segments)], "off_fraction": 0.025,
-           "flash": "#FFFFFF", "gap": 3}
+           "flash": "#FFFFFF", "gap": 3, **extra}
     bar["visibility"] = BARS_VISIBLE
     return bar
 
@@ -1171,6 +1187,16 @@ def countdown_bar(entity, colour, side):
 def window_bar(entity, colour, side):
     """24 h scale, one segment per hour, the hours of the time window in entity.state lit."""
     return data_bar(entity, colour, "window", 24, side)
+
+
+def level_bar(entity, colour, attribute, lo, hi, side="left"):
+    """A number (entity attribute) on a lo..hi scale, 14 segments."""
+    return data_bar(entity, colour, "level", BAR_SEGMENTS, side, attribute=attribute, min=lo, max=hi)
+
+
+def span_bar(entity, colour, start_attr, end_attr, side="left"):
+    """24 h scale with the hours between two ISO timestamps (attributes) lit, e.g. daylight."""
+    return data_bar(entity, colour, "span", 24, side, start_attr=start_attr, end_attr=end_attr)
 
 
 def with_bar(value, bar, side):

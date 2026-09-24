@@ -10,6 +10,11 @@
 //   mode: countdown          # days until the date in the state ('dd.mm.yyyy' or 'yyyy-mm-dd'),
 //                            #   days_per_segment days per lit segment, at least one lit while >= 0
 //         window             # 'HH:MM - HH:MM', one segment per hour, the hours of the window lit
+//         level              # a number (state, or `attribute`) on a min..max scale
+//         span               # one segment per hour, lit between the times of day in the ISO timestamps
+//                            #   `start_attr` and `end_attr` (e.g. sun.sun next_rising / next_setting)
+//   attribute: temperature   # level: read this attribute instead of the state
+//   min: -10, max: 35        # level: scale
 //   segments: 14
 //   days_per_segment: 2
 //   side: right | left       # segment 0 (next to the value / pillar) is on this side
@@ -30,10 +35,10 @@ class LcarsBar extends HTMLElement {
     this._hass = hass;
     const st = hass.states[this._config.entity];
     const now = new Date();
-    const key = (st ? st.state : "-") + "|" + now.toDateString();
+    const key = (st ? st.last_updated : "-") + "|" + now.toDateString();
     if (key !== this._key) {
       this._key = key;
-      this._render(st ? String(st.state) : "");
+      this._render(st);
     }
   }
 
@@ -48,10 +53,21 @@ class LcarsBar extends HTMLElement {
     return Math.round((d - t0) / 86400000);
   }
 
-  _lit(state) {
+  _lit(st) {
     const c = this._config;
+    const state = st ? String(st.state) : "";
     const lit = [];
-    if (c.mode === "window") {
+    if (c.mode === "level") {
+      const v = parseFloat(c.attribute ? (st && st.attributes[c.attribute]) : state);
+      const f = isNaN(v) ? 0 : Math.min(1, Math.max(0, (v - c.min) / (c.max - c.min)));
+      const count = isNaN(v) ? 0 : Math.max(1, Math.round(f * c.segments));
+      for (let j = 0; j < c.segments; j++) lit.push(j < count);
+    } else if (c.mode === "span") {
+      const hour = (iso) => { const d = new Date(iso); return d.getHours() + d.getMinutes() / 60; };
+      const a = st && st.attributes[c.start_attr];
+      const b = st && st.attributes[c.end_attr];
+      for (let h = 0; h < c.segments; h++) lit.push(!!a && !!b && h + 1 > hour(a) && h < hour(b));
+    } else if (c.mode === "window") {
       const m = state.match(/(\d+):(\d+)\s*-\s*(\d+):(\d+)/);
       for (let h = 0; h < c.segments; h++) {
         lit.push(!!m && h < +m[3] + m[4] / 60 && h + 1 > +m[1] + m[2] / 60);
@@ -64,11 +80,11 @@ class LcarsBar extends HTMLElement {
     return lit;
   }
 
-  _render(state) {
+  _render(st) {
     const c = this._config;
     let motion = true;
     try { motion = localStorage.getItem("lcars-motion") !== "off"; } catch (e) { /* default on */ }
-    const lit = this._lit(state);
+    const lit = this._lit(st);
     const segs = lit.map((on, j) => {
       if (!on) return `<div style="background:${c.off}"></div>`;
       const ms = (c.blink && c.blink[j % c.blink.length]) || 1000;

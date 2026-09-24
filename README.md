@@ -10,7 +10,7 @@ A full-screen LCARS dashboard (Voyager palette, Titan.DS-style layout) built fro
 | Section  | Sub-views |
 |----------|-----------|
 | Aquarium | Status, Visual, Light, Dosing, Power, Osmosis |
-| OPS      | OPS (weather, NINA, tasks, radar) |
+| OPS      | OPS (atmosphere, radar, NINA alerts, forecast) |
 | Laundry  | Laundry |
 | Waste    | Overview, Calendar |
 | Calendar | Calendar, Agenda |
