@@ -66,7 +66,7 @@
   hPa, wind 0..60 km/h, daylight hours on a 24 h scale); **DWD precipitation
   radar** (`lcars-radar.js`: composite + nowcast, −60..+90 min in 10-min
   frames, black map with county/state borders, LCARS buttons Play/Pause, Back,
-  Next in its pillar). Like the waste page, the top frames are open at the
+  Next, Now in its pillar). Page title "Operations" (menu label stays "OPS"). Like the waste page, the top frames are open at the
   bottom and the lower ones close the page. Below, facing frames whose
   shoulders meet in the middle:
   "Next 7 days" (yellow, `lcars-week.js`, pillar right: only calendars with

@@ -12,7 +12,7 @@
 //   past_min: 60, future_min: 90, step_min: 10, lag_min: 10   # frames relative to the latest analysis
 //   frame_ms: 500, hold_ms: 1600                              # loop speed, pause on "now" and at the end
 //   borders: [{d: "M lon -lat L ...", colour, width, opacity}]
-//   pillar: {width, gap, blocks: [{colour, code}], filler, ink}   # blocks: play/pause, back, next
+//   pillar: {width, gap, blocks: [{colour, code}], filler, ink}   # blocks: play/pause, back, next, now
 //   colours: {past, now, future, text, dim, home}
 //   font: "Antonio, sans-serif"
 const WMS = "https://maps.dwd.de/geoserver/dwd/wms";
@@ -75,7 +75,7 @@ class LcarsRadar extends HTMLElement {
           <div class="label"></div><div class="frames"></div></div>
         <div class="pillar">${blocks}<div style="background:${p.filler}"></div></div>
       </div>`;
-    const actions = [() => this._toggle(), () => this._step(-1), () => this._step(1)];
+    const actions = [() => this._toggle(), () => this._step(-1), () => this._step(1), () => this._jumpNow()];
     this.shadowRoot.querySelectorAll(".blk").forEach((el) =>
       el.addEventListener("click", () => actions[+el.dataset.i] && actions[+el.dataset.i]()));
     this._playing = this._motion();
@@ -83,7 +83,7 @@ class LcarsRadar extends HTMLElement {
   }
 
   _updateButtons() {
-    const labels = [this._playing ? "Pause" : "Play", "Back", "Next"];
+    const labels = [this._playing ? "Pause" : "Play", "Back", "Next", "Now"];
     this.shadowRoot.querySelectorAll(".blk span").forEach((el, i) => { el.textContent = labels[i] || ""; });
   }
 
@@ -167,6 +167,13 @@ class LcarsRadar extends HTMLElement {
     this._playing = !this._playing;
     this._updateButtons();
     if (this._playing) this._schedule(); else clearTimeout(this._playTimer);
+  }
+
+  _jumpNow() {
+    if (!this._frames) return;
+    if (this._playing) this._toggle();
+    this._index = this._now;
+    this._show();
   }
 
   _step(d) {

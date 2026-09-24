@@ -365,6 +365,8 @@ SECTIONS = [
 ]
 
 
+SECTION_TITLES = {"home": "Operations"}   # page title where it differs from the menu label
+
 NAV_ORDER = ["home", "aquarium", "laundry", "waste", "calendar"]
 NAV_H = 38          # height of the header frame bar, which doubles as the section menu
 
@@ -443,7 +445,7 @@ def header_buttons(section, colours=(PERI, ALMOND, LILAC, ROSE)):
 
 
 def frame(section, active, content, subtitle):
-    section_label = next(sec[1] for sec in SECTIONS if sec[0] == section).upper()
+    section_label = SECTION_TITLES.get(section, next(sec[1] for sec in SECTIONS if sec[0] == section)).upper()
     title = {"type": "custom:lcards-button", "entity": PUMP, "preset": "text-only", "show_icon": False,
              "text": {"title": {"content": pump_title_js % section_label, "position": "top-right", "font_size": 60,
                                 "color": {"Critical": RED, "Warning": SUNFLOWER, "Off": SUNFLOWER, "default": ORANGE},
@@ -1053,7 +1055,7 @@ def radar_card():
                          "opacity": 0.8}],
             "pillar": {"width": DECOR_PILLAR_W, "gap": PANEL_GAP, "filler": BLUEY, "ink": INK,
                        "blocks": [{"colour": c, "code": lcars_code(f"ops/radar/{i}")}
-                                  for i, c in enumerate([PERI, ICE, LILAC])]},
+                                  for i, c in enumerate([PERI, ICE, LILAC, ORANGE])]},   # play, back, next, now
             "colours": {"past": PERI, "now": ORANGE, "future": LILAC, "text": PERI, "dim": GRAY, "home": ORANGE},
             "font": "Antonio, sans-serif"}
 
@@ -1365,7 +1367,7 @@ VIEWS = [
     view("aquarium", "light", "LCARS Light", "aquarium-light", light_content(), "Illumination control"),
     view("aquarium", "dosing", "LCARS Dosing", "aquarium-dosing", dosing_content(), "Nutrient dosing"),
     view("aquarium", "power", "LCARS Power", "aquarium-power", power_content(), "Power distribution"),
-    view("home", "home", "LCARS OPS", "ops", home_content(), "Operations · habitat overview"),
+    view("home", "home", "LCARS OPS", "ops", home_content(), "Habitat overview"),
     view("aquarium", "osmosis", "LCARS Osmosis", "aquarium-osmosis", osmosis_content(), "Water reclamation"),
     view("laundry", "laundry", "LCARS Laundry", "laundry", laundry_content(), "Laundry"),
     view("waste", "waste", "LCARS Waste", "waste", waste_content(), "Waste disposal"),
