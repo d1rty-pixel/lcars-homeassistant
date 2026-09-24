@@ -64,7 +64,7 @@ Dashboard config backups are written by `tools/deploy.py` to `build/backups/`
 - **Agenda "Next per calendar"** shows only the *next* event of each calendar,
   because HA calendar entities expose just one upcoming event in their state.
   The full list comes from the embedded calendar card next to it.
-- **Osmose**: the original dashboard's RO-controller card and picture-elements
+- **Osmosis**: the original dashboard's RO-controller card and picture-elements
   image were dropped. The RO card's `binary_sensor.osmose_*` entities no longer
   exist.
 - **Hold-to-act** on purpose:
@@ -76,6 +76,13 @@ Dashboard config backups are written by `tools/deploy.py` to `build/backups/`
   - light automation
   - the four dosing schedules
   - the RO unit (`switch.osmoseanlage`)
+- **Calendar card text is German.** `/local/global-calendar-card.js` (not in
+  this repo, shared with the classic dashboards) hardcodes its UI text
+  ("Heute", "Keine Termine …"). Only its calendar labels are translated.
+- **Renamed URLs (2026-09-24)**: `waschen` → `laundry`, `muell` → `waste`,
+  `muell-kalender` → `waste-calendar`, `kalender` → `calendar`,
+  `kalender-agenda` → `calendar-agenda`, `aquarium-osmose` → `aquarium-osmosis`.
+  Old bookmarks break; the tablet start URL `aquarium-status` is unchanged.
 - **Rebuild needed** when the source dashboards' calendar cards change. They are
   copied from `dashboard-muell` / `dashboard-termine` at build time.
 - **LCARdS updates**: run `tools/gen_registry_fix.py`, then

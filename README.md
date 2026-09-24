@@ -4,16 +4,16 @@ A full-screen LCARS dashboard (Voyager palette, Titan.DS-style layout) built fro
 [LCARdS](https://lcards.unimatrix01.ca) cards. It lives in the HA dashboard
 `lcars-bridge` (sidebar title **LCARS**), e.g. `/lcars-bridge/aquarium-power`.
 
-- The **header frame bar is the section menu**: OPS, Aquarium, Waschen, Müll, Kalender.
+- The **header frame bar is the section menu**: OPS, Aquarium, Laundry, Waste, Calendar.
 - **Sidebar** lists the active section's sub-views plus **Classic**, a link to the original dashboard.
 
 | Section  | Sub-views |
 |----------|-----------|
-| Aquarium | Status, Visual, Light, Dosing, Power, Osmose |
+| Aquarium | Status, Visual, Light, Dosing, Power, Osmosis |
 | OPS      | OPS (weather, NINA, tasks, radar) |
-| Waschen  | Waschen |
-| Müll     | Übersicht, Kalender |
-| Kalender | Kalender, Agenda |
+| Laundry  | Laundry |
+| Waste    | Overview, Calendar |
+| Calendar | Calendar, Agenda |
 
 Every view fills the viewport exactly, so pages never scroll. Header readouts
 change per section. On every page, a pump failure in the aquarium replaces the
@@ -50,7 +50,7 @@ Credentials: `~/.config/homeassistant/token` (long-lived access token) and SSH
 as `hassio@homeassistant.local`. Neither is stored in this repo. Override the host with
 `HA_HOST` / `HA_SSH`.
 
-**Rebuild after changing the source dashboards.** The Müll and Kalender calendar
+**Rebuild after changing the source dashboards.** The Waste and Calendar calendar
 cards are copied from the live `dashboard-muell` / `dashboard-termine` configs at
 build time.
 

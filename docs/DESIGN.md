@@ -19,7 +19,7 @@
   - The sidebar blocks are the vertical pillar and list the active section's
     sub-views, plus **Classic** (link to the original dashboard).
   - The header frame bar *is* the section menu, in the order **OPS, Aquarium,
-    Waschen, Müll, Kalender**. The active item is orange with "◂".
+    Laundry, Waste, Calendar**. The active item is orange with "◂".
 - **No decorative animation**: no blinking lights, no flowing textures, no
   cascading number columns. The only animation left is the title blinking on a
   *critical* pump alert.
@@ -33,6 +33,12 @@
   hourly forecast. The view theme restyles them.
 - **Colours stay semantic**: ice = OK/running, sunflower = warning/manual, red =
   critical, grey = off.
+- **All UI text is English.** Sensor states and calendar event titles arrive in
+  German; bin names are mapped (`BIN_NAMES`, `CAL_LABELS`), other event titles
+  are shown as they are. Dates use `en-GB` ("Fri 25/09 · tomorrow").
+- **Waste page rows** use the bin colour for stripe and background tint, value
+  text in peach. Upcoming and next pickup pick the colour at runtime (JS style
+  templates, see `docs/NOTES.md`).
 - **Aquarium power chart is mirrored**: zero axis in the middle, total above,
   consumers (pump, CO²) below, log scale, filled areas with smooth curves (no
   steps, no bars). Its header has the cap on the right, facing "Power grid".
@@ -75,7 +81,7 @@ Do the above, then also:
 - HA dashboard paths **must contain a hyphen**; HA rejects `lcars` ("Url path
   needs to contain a hyphen"). Hence `lcars-bridge`.
 - A view path is a **single segment** (`/lcars-bridge/<view>`), so views are
-  named `<section>-<view>`: `aquarium-power`, `muell-kalender`, `kalender-agenda`.
+  named `<section>-<view>`: `aquarium-power`, `waste-calendar`, `calendar-agenda`.
 - A dashboard's path can't be renamed. Moving means creating a new dashboard.
   The old `aquarium-lcars` still exists, hidden from the sidebar as
   "LCARS (alt)", until the user decides to delete it.

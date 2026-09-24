@@ -121,6 +121,11 @@ def main(path):
                 for e in jsonschema.Draft7Validator(schemas[t]).iter_errors(inst):
                     if "is not one of []" in e.message:  # known schema generator bug
                         continue
+                    # Schema gap: colour patterns reject JS templates, but buttons pre-evaluate every
+                    # template string under `style` (_preEvaluateStyleTemplates in LCARdSButton).
+                    if (list(e.absolute_path)[:1] == ["style"] and isinstance(e.instance, str)
+                            and e.instance.startswith("[[[")):
+                        continue
                     problems.append(f"{where} {list(e.absolute_path)} {e.message[:160]}")
                 found = []
                 unknown_keys(inst, schemas[t], [], found)

@@ -73,8 +73,8 @@ CO2_POWER = "sensor.co2_anlage_leistung"
 CAMERA = "camera.esphome_esp32_aquarium_webcam_aquarium_webcam"
 
 DOSE_CHANNELS = [  # (label, slug, bottle_ml)
-    ("Nitrat", "nitrat", 500), ("Phosphat", "phosphat", 500),
-    ("Eisen", "eisen", 500), ("GH Boost N", "gh_boost_n", 500),
+    ("Nitrate", "nitrat", 500), ("Phosphate", "phosphat", 500),
+    ("Iron", "eisen", 500), ("GH Boost N", "gh_boost_n", 500),
 ]
 
 PHASE_STATES = {
@@ -171,6 +171,11 @@ def legend_readout(entity, label, colour):
 DIM = "#B4B4CC"      # row label colour (dimmed lavender)
 
 
+def rgba(hex_color, alpha):
+    h = hex_color.lstrip("#")
+    return "rgba(%d, %d, %d, %s)" % (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16), alpha)
+
+
 def tint(color, alpha=0.16):
     return f"alpha({color}, {alpha})"
 
@@ -261,26 +266,26 @@ SECTIONS = [
         ("light", "Light", "03-2256", SUNFLOWER, "aquarium-light"),
         ("dosing", "Dosing", "04-9031", BLUEY, "aquarium-dosing"),
         ("power", "Power", "05-6620", ALMOND, "aquarium-power"),
-        ("osmose", "Osmose", "06-2240", ICE, "aquarium-osmose"),
+        ("osmosis", "Osmosis", "06-2240", ICE, "aquarium-osmosis"),
     ]),
     ("home", "OPS", "11-1701", ROSE, "/lovelace/home", [
         ("home", "OPS", "21-0001", ROSE, "ops"),
     ]),
-    ("waschen", "Waschen", "13-5519", LILAC, "/lovelace/waschen", [
-        ("waschen", "Waschen", "41-0001", LILAC, "waschen"),
+    ("laundry", "Laundry", "13-5519", LILAC, "/lovelace/waschen", [
+        ("laundry", "Laundry", "41-0001", LILAC, "laundry"),
     ]),
-    ("muell", "Müll", "14-0815", PEACH, "/dashboard-muell/muell", [
-        ("muell", "Übersicht", "51-0001", PEACH, "muell"),
-        ("muell-kalender", "Kalender", "51-0002", BUTTERSCOTCH, "muell-kalender"),
+    ("waste", "Waste", "14-0815", PEACH, "/dashboard-muell/muell", [
+        ("waste", "Overview", "51-0001", PEACH, "waste"),
+        ("waste-calendar", "Calendar", "51-0002", BUTTERSCOTCH, "waste-calendar"),
     ]),
-    ("kalender", "Kalender", "15-3301", BLUEY, "/dashboard-termine/kalender", [
-        ("termine", "Kalender", "61-0001", BLUEY, "kalender"),
-        ("agenda", "Agenda", "61-0002", PERI, "kalender-agenda"),
+    ("calendar", "Calendar", "15-3301", BLUEY, "/dashboard-termine/kalender", [
+        ("calendar", "Calendar", "61-0001", BLUEY, "calendar"),
+        ("agenda", "Agenda", "61-0002", PERI, "calendar-agenda"),
     ]),
 ]
 
 
-NAV_ORDER = ["home", "aquarium", "waschen", "muell", "kalender"]
+NAV_ORDER = ["home", "aquarium", "laundry", "waste", "calendar"]
 NAV_H = 38          # height of the header frame bar, which doubles as the section menu
 
 
@@ -340,7 +345,7 @@ def frame(section, active, content, subtitle):
                              "check_on_load": True, "preset": "blink", "loop": True}],
              "tap_action": {"action": "more-info"}}
     readouts = grid('"p c l d t"', "1fr 1fr 1fr 1fr 2.4fr", "1fr", [
-        *[at(card, area) for card, area in zip(section_readouts(section), ["p", "c", "l", "d"])],
+        *[at(card, area) for card, area in zip(section_readouts(section), ["p", "c", "l", "d"]) if card],
         at(title, "t"),
     ], gap="6px 16px")
     top = grid('"elbow data" "elbow nav"', f"{ELBOW_W}px 1fr", f"1fr {NAV_H}px", [
@@ -383,7 +388,7 @@ def status_content():
         ("p", pill("switch.aquarium_feeding_mode", "Feeding",
                    {"on": ("Active", "mdi:food-drumstick", OK), "off": ("Off", "mdi:food-drumstick-off", OFF)},
                    label_js="[[[ const r = entity.attributes.resume_at; if (!r) return 'Feeding'; "
-                            "return 'Feeding · until ' + new Date(r).toLocaleTimeString('de-DE', "
+                            "return 'Feeding · until ' + new Date(r).toLocaleTimeString('en-GB', "
                             "{hour: '2-digit', minute: '2-digit'}); ]]]", tap="toggle")),
         ("p", pill("switch.aquarium_water_change_mode", "Water change",
                    {"on": ("Active", "mdi:water-sync", CRIT), "off": ("Off", "mdi:water-off-outline", OFF)},
@@ -411,7 +416,7 @@ def status_content():
                    tap="toggle")),
         ("p", pill(PHASE, "Light", PHASE_STATES,
                    label_js="[[[ const a = entity.attributes; if (!a.next_change) return 'Light'; "
-                            "const t = new Date(a.next_change).toLocaleTimeString('de-DE', "
+                            "const t = new Date(a.next_change).toLocaleTimeString('en-GB', "
                             "{hour: '2-digit', minute: '2-digit'}); return '→ ' + (a.next_phase || '?') + ' ' + t; ]]]")),
         ("h", header("Water change", ICE)),
         ("p", pill(WC, "Status",
@@ -421,11 +426,11 @@ def status_content():
                             "return d + (d === 1 ? ' day' : ' days') + ' since'; ]]]")),
         ("p", info("Last change",
                    "[[[ const t = entity.attributes.last_water_change_at; if (!t) return '–'; const d = new Date(t); "
-                   "return d.toLocaleDateString('de-DE', {day: '2-digit', month: '2-digit'}) + ' ' + "
-                   "d.toLocaleTimeString('de-DE', {hour: '2-digit', minute: '2-digit'}); ]]]", WC)),
+                   "return d.toLocaleDateString('en-GB', {day: '2-digit', month: '2-digit'}) + ' ' + "
+                   "d.toLocaleTimeString('en-GB', {hour: '2-digit', minute: '2-digit'}); ]]]", WC)),
         ("p", info("Next due",
                    "[[[ const t = entity.attributes.next_due_at; if (!t) return '–'; "
-                   "return new Date(t + 'T00:00:00').toLocaleDateString('de-DE', "
+                   "return new Date(t + 'T00:00:00').toLocaleDateString('en-GB', "
                    "{day: '2-digit', month: '2-digit', year: 'numeric'}); ]]]", WC)),
     ])
     return grid('"a b c"', "1fr 1fr 1fr", "1fr", [at(modes, "a"), at(equipment, "b"), at(life, "c")], gap="0 18px")
@@ -457,7 +462,7 @@ def light_content():
         ("p", info("Scheduled", "[[[ return entity.attributes.scheduled_phase || '–'; ]]]", PHASE, PERI)),
         ("p", info("Next", "[[[ const a = entity.attributes; if (!a.next_change) return '–'; "
                            "return (a.next_phase || '?') + ' · ' + new Date(a.next_change).toLocaleTimeString("
-                           "'de-DE', {hour: '2-digit', minute: '2-digit'}); ]]]", PHASE, PERI)),
+                           "'en-GB', {hour: '2-digit', minute: '2-digit'}); ]]]", PHASE, PERI)),
         ("p", info("Ramp", "[[[ const a = entity.attributes; const f = a.ramp_fraction; "
                            "if (f == null || !a.ramp_direction) return '–'; "
                            "return a.ramp_direction + ' ' + Math.round(f * 100) + ' %'; ]]]", PHASE, PERI)),
@@ -548,8 +553,8 @@ def dosing_content():
             ("r", info("Dose", "[[[ const a = entity.attributes; if (!a.configured_ml) return '–'; "
                                "return a.configured_ml + ' ml · ' + a.time; ]]]", status, LILAC)),
             ("r", info("Next", "[[[ const t = entity.attributes.next_dose_at; if (!t) return '–'; "
-                               "const d = new Date(t); return d.toLocaleDateString('de-DE', {weekday: 'short'}) "
-                               "+ ' ' + d.toLocaleTimeString('de-DE', {hour: '2-digit', minute: '2-digit'}); ]]]",
+                               "const d = new Date(t); return d.toLocaleDateString('en-GB', {weekday: 'short'}) "
+                               "+ ' ' + d.toLocaleTimeString('en-GB', {hour: '2-digit', minute: '2-digit'}); ]]]",
                        status, LILAC)),
             ("g", lower),
         ]
@@ -632,23 +637,32 @@ WASH = {"switch": "switch.waschmaschine", "power": "sensor.waschmaschine_leistun
 WASH_PROTECT = [("Overheat", "binary_sensor.waschmaschine_uberhitzung"), ("Overload", "binary_sensor.waschmaschine_uberlast"),
                 ("Overvoltage", "binary_sensor.waschmaschine_uberspannung"),
                 ("Overcurrent", "binary_sensor.waschmaschine_uberstrom")]
-BINS = [("Restmüll", "sensor.mullabfuhr_restmull", "#AAAACC"), ("Biotonne", "sensor.mullabfuhr_biotonne", ALMOND),
-        ("Gelbe Tonne", "sensor.mullabfuhr_gelbe_tonne", SUNFLOWER),
-        ("Papiertonne", "sensor.mullabfuhr_papiertonne", ICE)]
+BINS = [("Residual", "sensor.mullabfuhr_restmull", "#AAAACC"), ("Organic", "sensor.mullabfuhr_biotonne", ALMOND),
+        ("Recycling", "sensor.mullabfuhr_gelbe_tonne", SUNFLOWER),
+        ("Paper", "sensor.mullabfuhr_papiertonne", ICE)]
+# German bin names in the collection sensors' states and event titles -> short labels (rows are narrow)
+BIN_NAMES = {"Restmüll": "Residual", "Biotonne": "Organic", "Gelbe Tonne": "Recycling",
+             "Papiertonne": "Paper", "Schadstoffmobil": "Hazmat"}
+# Calendar labels in the copied calendar cards
+CAL_LABELS = {"Restmüll": "Residual waste", "Biotonne": "Organic waste", "Gelbe Tonne": "Recycling",
+              "Papiertonne": "Paper", "Schadstoffmobil": "Hazmat collection", "Privat": "Private",
+              "Geburtstage": "Birthdays", "Feiertage RLP": "Holidays RLP", "Feiertage Frankreich": "Holidays France"}
 NEXT_PICKUP = "sensor.mullabfuhr_nachste_abholung"
 HAZMAT = {"date": "sensor.schadstoffmobil", "window": "sensor.schadstoffmobil_zeitfenster",
           "place": "sensor.schadstoffmobil_standort"}
 WASTE_CALS = ["calendar.mullabfuhr_restmull", "calendar.mullabfuhr_biotonne", "calendar.mullabfuhr_gelbe_tonne",
               "calendar.mullabfuhr_papiertonne", "calendar.schadstoffmobil"]
+# Waste calendar -> the bin's colour from BINS (hazmat in red)
+WASTE_COLOURS = dict(zip(WASTE_CALS, [c for _, _, c in BINS] + [RED]))
 ALL_CALS = WASTE_CALS + ["calendar.telephone", "calendar.personal", "calendar.geburtstage",
                          "calendar.deutschland_rp", "calendar.feiertage_in_frankreich"]
 
-# JS: relative-day wording for a Date `d` (German, uppercase via text_transform)
+# JS: relative-day wording for a Date `d` (uppercase via text_transform)
 REL = ("const t0 = new Date(); t0.setHours(0,0,0,0); const d0 = new Date(d); d0.setHours(0,0,0,0); "
        "const n = Math.round((d0 - t0) / 86400000); "
-       "const rel = n === 0 ? 'heute' : n === 1 ? 'morgen' : n < 0 ? 'vorbei' : 'in ' + n + ' Tagen'; "
-       "const wd = d.toLocaleDateString('de-DE', {weekday: 'short'}); "
-       "const dm = d.toLocaleDateString('de-DE', {day: '2-digit', month: '2-digit'}); ")
+       "const rel = n === 0 ? 'today' : n === 1 ? 'tomorrow' : n < 0 ? 'past' : 'in ' + n + ' days'; "
+       "const wd = d.toLocaleDateString('en-GB', {weekday: 'short'}); "
+       "const dm = d.toLocaleDateString('en-GB', {day: '2-digit', month: '2-digit'}); ")
 
 WEATHER_NAMES = {"clear-night": "Clear night", "cloudy": "Cloudy", "exceptional": "Exceptional", "fog": "Fog",
                  "hail": "Hail", "lightning": "Lightning", "lightning-rainy": "Thunderstorm",
@@ -656,8 +670,13 @@ WEATHER_NAMES = {"clear-night": "Clear night", "cloudy": "Cloudy", "exceptional"
                  "snowy-rainy": "Sleet", "sunny": "Sunny", "windy": "Windy", "windy-variant": "Windy"}
 
 
+# JS: bin name from the next-pickup sensor ("Biotonne am 25.09.2026"), in English
+JS_NEXT_BIN = ("[[[ const m = " + json.dumps(BIN_NAMES, ensure_ascii=False) + "; "
+               "const n = String(entity.state).split(' am ')[0]; return m[n] || n; ]]]")
+
+
 def js_de_date(expr):
-    """JS for a 'dd.mm.yyyy' string -> 'Fr 25.09. · morgen'."""
+    """JS for a 'dd.mm.yyyy' string -> 'Fri 25/09 · tomorrow'."""
     return ("[[[ const m = String(" + expr + ").match(/(\\d\\d)\\.(\\d\\d)\\.(\\d{4})/); if (!m) return '–'; "
             "const d = new Date(+m[3], +m[2] - 1, +m[1]); " + REL + "return wd + ' ' + dm + ' · ' + rel; ]]]")
 
@@ -672,16 +691,29 @@ def js_events(cals):
     return ("const ids = " + json.dumps(cals) + "; "
             "const ev = ids.map((id) => states[id]).filter((x) => x && x.attributes.start_time)"
             ".map((x) => ({d: new Date(x.attributes.start_time.replace(' ', 'T')), m: x.attributes.message || '?', "
-            "all: x.attributes.all_day})).filter((e) => !isNaN(e.d)).sort((a, b) => a.d - b.d); ")
+            "all: x.attributes.all_day, id: x.entity_id})).filter((e) => !isNaN(e.d)).sort((a, b) => a.d - b.d); ")
 
 
-def agenda_row(cals, i, colour):
+def agenda_row(cals, i, colour, colours=None, names=None):
+    """Row i of the next-event-per-calendar list. colours: {calendar: colour} colours the row by its
+    calendar's colour
+    (background and stripe via JS style templates, `colour` as fallback and value text colour); names: {title: display title}."""
+    title = "(" + json.dumps(names, ensure_ascii=False) + "[e.m] || e.m)" if names else "e.m"
     label = "[[[ " + js_events(cals) + "const e = ev[" + str(i) + "]; if (!e) return '—'; " \
-            "return e.m.length > 30 ? e.m.slice(0, 29) + '…' : e.m; ]]]"
+            "const m = " + title + "; return m.length > 30 ? m.slice(0, 29) + '…' : m; ]]]"
     value = "[[[ " + js_events(cals) + "const e = ev[" + str(i) + "]; if (!e) return ''; const d = e.d; " + REL + \
-            "return wd + ' ' + dm + (e.all ? '' : ' ' + d.toLocaleTimeString('de-DE', {hour: '2-digit', minute: '2-digit'})) " \
+            "return wd + ' ' + dm + (e.all ? '' : ' ' + d.toLocaleTimeString('en-GB', {hour: '2-digit', minute: '2-digit'})) " \
             "+ ' · ' + rel; ]]]"
     card = row(None, "", {"default": colour}, value, label_js=label, interactive=False)
+    if colours:
+        # Templates are evaluated under `style` only (not `text`), and after alpha() resolution,
+        # so the background tint is precomputed as rgba().
+        def pick(m, default):
+            return ("[[[ " + js_events(cals) + "const e = ev[" + str(i) + "]; return e && " + json.dumps(m) +
+                    "[e.id] || '" + default + "'; ]]]")
+        card["style"]["border"]["color"] = pick(colours, colour)
+        card["style"]["card"]["color"]["background"] = pick({k: rgba(c, 0.16) for k, c in colours.items()},
+                                                            rgba(colour, 0.16))
     card["triggers_update"] = cals
     return card
 
@@ -756,7 +788,7 @@ def section_readouts(section):
             readout(WEATHER, "Condition", js_map({k: (v, "", "") for k, v in WEATHER_NAMES.items()}), SUNFLOWER),
             readout(TODO, "Open tasks", "{entity.state}", LILAC),
         ]
-    if section == "osmose":
+    if section == "osmosis":
         return [
             readout(OSMO["switch"], "RO unit", "[[[ return entity.state === 'on' ? 'Online' : 'Offline'; ]]]",
                     {"on": ICE, "default": GRAY}),
@@ -764,7 +796,7 @@ def section_readouts(section):
             readout(OSMO["power"], "Power", "{entity.state}", ORANGE),
             readout(OSMO["energy"], "Energy", "{entity.state}", LILAC),
         ]
-    if section == "waschen":
+    if section == "laundry":
         return [
             readout(WASH["power"], "Cycle", "[[[ return parseFloat(entity.state) > 3 ? 'Running' : 'Idle'; ]]]", ICE),
             readout(WASH["power"], "Power", "{entity.state}", ORANGE),
@@ -772,17 +804,18 @@ def section_readouts(section):
             readout(WASH["switch"], "Supply", "[[[ return entity.state === 'on' ? 'On' : 'Off'; ]]]",
                     {"on": ICE, "default": GRAY}),
         ]
-    if section == "muell":
+    if section == "waste":
         return [
-            readout(NEXT_PICKUP, "Next pickup", "[[[ return String(entity.state).split(' am ')[0]; ]]]", ORANGE),
+            readout(NEXT_PICKUP, "Next pickup", JS_NEXT_BIN, ORANGE),
             readout(NEXT_PICKUP, "Date", js_de_date("entity.state"), PEACH),
-            readout(HAZMAT["date"], "Schadstoffmobil", js_iso_date("entity.state"), RED),
+            None,                               # keep the slot free: the date is wide
             readout("sensor.time", "Local time", "{entity.state}"),
         ]
-    if section == "kalender":
-        nxt = "[[[ " + js_events(ALL_CALS) + "const e = ev[0]; return e ? e.m : '—'; ]]]"
+    if section == "calendar":
+        nxt = "[[[ " + js_events(ALL_CALS) + "const e = ev[0]; if (!e) return '—'; const n = " + \
+              json.dumps(BIN_NAMES, ensure_ascii=False) + "; return n[e.m] || e.m; ]]]"
         when = "[[[ " + js_events(ALL_CALS) + "const e = ev[0]; if (!e) return '—'; const d = e.d; " + REL + \
-               "return wd + ' ' + dm + ' · ' + rel; ]]]"
+               "return dm + ' · ' + rel; ]]]"   # no weekday: the slot is narrow
         today = "[[[ " + js_events(ALL_CALS) + "const t = new Date().toDateString(); " \
                 "return ev.filter((e) => e.d.toDateString() === t).length; ]]]"
         cards = [readout("sensor.time", "Next event", nxt, ORANGE), readout("sensor.time", "When", when, PEACH),
@@ -806,9 +839,9 @@ def home_content():
                            "Math.round(a.wind_bearing) + '°'; ]]]", w, PERI)),
         ("p", info("Clouds", "[[[ return Math.round(entity.attributes.cloud_coverage) + ' %'; ]]]", w, LILAC)),
         ("h", header("Sol", SUNFLOWER)),
-        ("p", info("Sunrise", "[[[ return new Date(entity.attributes.next_rising).toLocaleTimeString('de-DE', "
+        ("p", info("Sunrise", "[[[ return new Date(entity.attributes.next_rising).toLocaleTimeString('en-GB', "
                               "{hour: '2-digit', minute: '2-digit'}); ]]]", "sun.sun", SUNFLOWER)),
-        ("p", info("Sunset", "[[[ return new Date(entity.attributes.next_setting).toLocaleTimeString('de-DE', "
+        ("p", info("Sunset", "[[[ return new Date(entity.attributes.next_setting).toLocaleTimeString('en-GB', "
                              "{hour: '2-digit', minute: '2-digit'}); ]]]", "sun.sun", BUTTERSCOTCH)),
     ])
     alerts = [("h", header("Alerts · NINA", RED))]
@@ -817,7 +850,7 @@ def home_content():
                                  label_js=f"[[[ return entity.state === 'on' ? (entity.attributes.headline || "
                                           f"'Warning {i}') : 'Channel {i}'; ]]]")))
     left = cols(atmos, column(alerts))
-    todo = framed("Tasks · Zuhause", LILAC, skinned({"type": "todo-list", "entity": TODO, "hide_completed": True,
+    todo = framed("Tasks · Home", LILAC, skinned({"type": "todo-list", "entity": TODO, "hide_completed": True,
                                                     "display_order": "none"}))
     radar = framed("Precipitation radar", BLUEY, skinned({
         "type": "iframe", "url": "https://radar.wo-cloud.com/mobile/rr/interactive?wrx=50.00,8.00&wrm=8&wry=50.00,8.00",
@@ -829,7 +862,7 @@ def home_content():
     return cols(left, grid('"t" "."', "1fr", "1fr 0fr", [at(todo, "t")]), right, widths=["2fr", "1fr", "2fr"])
 
 
-def osmose_content():
+def osmosis_content():
     o = OSMO
     control = column([
         ("h", header("RO control", ICE)),
@@ -846,7 +879,7 @@ def osmose_content():
     return cols(control, trace, widths=["1fr", "2fr"])
 
 
-def waschen_content():
+def laundry_content():
     wsh = WASH
     unit = column([
         ("h", header("Laundry unit", LILAC)),
@@ -858,55 +891,82 @@ def waschen_content():
         ("h", header("Protection", RED)),
         *[("p", on_off(e, label, on=("Alert", CRIT), off=("Nominal", OK))) for label, e in WASH_PROTECT],
     ])
-    trace = framed("Power trace · 24 h", ORANGE, power_chart([(wsh["power"], "Waschmaschine", ORANGE)]),
+    trace = framed("Power trace · 24 h", ORANGE, power_chart([(wsh["power"], "Washing machine", ORANGE)]),
                    overflow="hidden")
     return cols(unit, trace, widths=["1fr", "2fr"])
 
 
-def muell_content():
+def bin_style(card, stripe, background):
+    """Waste-page row look: stripe and tint in the bin colour, value in peach."""
+    card["style"]["border"]["color"] = stripe
+    card["style"]["card"]["color"]["background"] = background
+    card["text"]["value"]["color"] = PEACH
+    return card
+
+
+def bin_row(label, value_js, entity, colour):
+    return bin_style(info(label, value_js, entity), colour, rgba(colour, 0.16))
+
+
+def waste_content():
+    # Next pickup: colour follows the bin named in the sensor state (JS style templates)
+    by_name = {de: next(c for label, _, c in BINS if label == en) for de, en in BIN_NAMES.items() if en != "Hazmat"}
+    def pick(m, default):
+        return ("[[[ const m = " + json.dumps(m, ensure_ascii=False) + "; "
+                "return m[String(entity.state).split(' am ')[0]] || '" + default + "'; ]]]")
+    next_row = bin_style(info("", js_de_date("entity.state"), NEXT_PICKUP), pick(by_name, PEACH),
+                         pick({k: rgba(c, 0.16) for k, c in by_name.items()}, rgba(PEACH, 0.16)))
+    next_row["text"]["label"]["content"] = JS_NEXT_BIN
     nxt = column([
         ("h", header("Next collection", ORANGE)),
-        ("p", info("[[[ return String(entity.state).split(' am ')[0]; ]]]", js_de_date("entity.state"),
-                   NEXT_PICKUP, ORANGE)),
+        ("p", next_row),
         ("h", header("All bins", PEACH)),
-        *[("p", info(label, js_de_date("entity.state"), e, colour)) for label, e, colour in BINS],
+        *[("p", bin_row(label, js_de_date("entity.state"), e, colour)) for label, e, colour in BINS],
     ])
-    # info() puts the first arg into the label; a JS label needs label_js
-    nxt["cards"][1]["text"]["label"]["content"] = "[[[ return String(entity.state).split(' am ')[0]; ]]]"
     hazmat = column([
-        ("h", header("Schadstoffmobil", RED)),
-        ("p", info("Date", js_iso_date("entity.state"), HAZMAT["date"], RED)),
-        ("p", info("Window", "{entity.state}", HAZMAT["window"], PEACH)),
-        ("p", info("Location", "[[[ return String(entity.state).split(',')[0]; ]]]", HAZMAT["place"], LILAC)),
+        ("h", header("Hazmat collection", RED)),
+        ("p", bin_row("Date", js_iso_date("entity.state"), HAZMAT["date"], RED)),
+        ("p", bin_row("Window", "[[[ return String(entity.state).replace(/\\s*Uhr$/, ''); ]]]", HAZMAT["window"], RED)),
+        ("p", bin_row("Location", "[[[ const s = String(entity.state).split(',')[0]; "
+                                  "return s.length > 18 ? s.slice(0, 17) + '…' : s; ]]]", HAZMAT["place"], RED)),
         ("p", {"type": "custom:lcards-button", "preset": "text-only", "interactive": False,
-               "text": {"n": {"content": "Viermal im Jahr · Termine erscheinen automatisch", "position": "center-left",
+               "text": {"n": {"content": "Four times a year · dates appear automatically", "position": "center-left",
                               "font_size": 16, "color": DIM, "text_transform": "uppercase"}}}),
     ])
     upcoming = column([("h", header("Upcoming", BLUEY))] +
-                      [("p", agenda_row(WASTE_CALS, i, [ORANGE, PEACH, LILAC, PERI, ICE][i])) for i in range(5)])
-    return cols(nxt, hazmat, upcoming)
+                      [("p", agenda_row(WASTE_CALS, i, PEACH, WASTE_COLOURS, BIN_NAMES)) for i in range(5)])
+    return cols(nxt, upcoming, hazmat)
+
+
+def english_labels(card):
+    """Copy of a calendar card with its calendar labels in English."""
+    card = json.loads(json.dumps(card))
+    for c in card.get("calendars", []):
+        c["label"] = CAL_LABELS.get(c.get("label"), c.get("label"))
+    return card
 
 
 def calendar_card(view, days=60, calendars=None):
     base = foreign_card("dashboard-termine", "kalender") if calendars is None else None
-    card = dict(base) if base else {"type": "custom:global-calendar-card", "calendars": calendars}
+    card = english_labels(base) if base else {"type": "custom:global-calendar-card", "calendars": calendars}
     card.update({"default_view": view, "agenda_days": days})
     return skinned(card)
 
 
-def muell_calendar_content():
+def waste_calendar_content():
     src = foreign_card("dashboard-muell", "kalender")
-    card = skinned(dict(src))
+    card = skinned(english_labels(src))
     return framed("Collection calendar", PEACH, card)
 
 
-def termine_content():
+def calendar_content():
     return framed("Stardate calendar", BLUEY, calendar_card("month_agenda"))
 
 
 def agenda_content():
     nxt = column([("h", header("Next per calendar", ORANGE))] +
-                 [("p", agenda_row(ALL_CALS, i, [ORANGE, PEACH, LILAC, PERI, ICE][i % 5])) for i in range(10)])
+                 [("p", agenda_row(ALL_CALS, i, [ORANGE, PEACH, LILAC, PERI, ICE][i % 5], names=BIN_NAMES))
+                  for i in range(10)])
     return cols(nxt, framed("Agenda · 60 days", BLUEY, calendar_card("agenda")), widths=["1fr", "1.4fr"])
 
 
@@ -917,13 +977,13 @@ VIEWS = [
     view("aquarium", "dosing", "LCARS Dosing", "aquarium-dosing", dosing_content(), "Nutrient dosing · 04-9031"),
     view("aquarium", "power", "LCARS Power", "aquarium-power", power_content(), "Power distribution · 05-6620"),
     view("home", "home", "LCARS OPS", "ops", home_content(), "Operations · habitat overview · 21-0001"),
-    view("aquarium", "osmose", "LCARS Osmose", "aquarium-osmose", osmose_content(), "Water reclamation · 06-2240"),
-    view("waschen", "waschen", "LCARS Waschen", "waschen", waschen_content(), "Laundry · 41-0001"),
-    view("muell", "muell", "LCARS Müll", "muell", muell_content(), "Waste disposal · 51-0001"),
-    view("muell", "muell-kalender", "LCARS Müll Kalender", "muell-kalender", muell_calendar_content(),
+    view("aquarium", "osmosis", "LCARS Osmosis", "aquarium-osmosis", osmosis_content(), "Water reclamation · 06-2240"),
+    view("laundry", "laundry", "LCARS Laundry", "laundry", laundry_content(), "Laundry · 41-0001"),
+    view("waste", "waste", "LCARS Waste", "waste", waste_content(), "Waste disposal · 51-0001"),
+    view("waste", "waste-calendar", "LCARS Waste Calendar", "waste-calendar", waste_calendar_content(),
          "Waste schedule · 51-0002"),
-    view("kalender", "termine", "LCARS Kalender", "kalender", termine_content(), "Stardate calendar · 61-0001"),
-    view("kalender", "agenda", "LCARS Agenda", "kalender-agenda", agenda_content(), "Mission agenda · 61-0002"),
+    view("calendar", "calendar", "LCARS Calendar", "calendar", calendar_content(), "Stardate calendar · 61-0001"),
+    view("calendar", "agenda", "LCARS Agenda", "calendar-agenda", agenda_content(), "Mission agenda · 61-0002"),
 ]
 
 CONFIG = {"title": "LCARS",

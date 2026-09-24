@@ -85,3 +85,13 @@ This is not reported upstream yet.
 Screenshots from an automated, backgrounded Chrome tab often show stale or
 half-rendered frames, because rAF is throttled. Query the DOM or wait inside the
 page before capturing. Missing cards in a screenshot are usually not real.
+
+## JS templates in colours
+
+- Buttons pre-evaluate `[[[ ]]]` / Jinja templates only under `style`
+  (`_preEvaluateStyleTemplates(config.style)` in LCARdSButton). A template in
+  `text.*.color` is not evaluated.
+- The result is substituted *after* token resolution, so a template must return
+  a final colour: `rgba(...)`, not `alpha(#hex, 0.16)`.
+- The official schema's colour pattern rejects template strings; `tools/validate.py`
+  skips that error for strings under `style` starting with `[[[`.
