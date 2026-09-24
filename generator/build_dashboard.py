@@ -1186,7 +1186,7 @@ def bar_segment(entity, colour, lit_js):
            "style": {"card": {"color": {"background": "[[[ " + lit_js + " ? '" + colour + "' : 'transparent'; ]]]"}},
                      "border": {"width": 0, "radius": 0}},
            "animations": [{"trigger": "on_load", "preset": "blink",
-                           "params": {"duration": _BLINK.randrange(300, 1400, 50), "min_opacity": 0.35,
+                           "params": {"duration": _BLINK.randrange(600, 2800, 100), "min_opacity": 0.35,
                                       "max_opacity": 1, "ease": "steps(1)"}}]}
     return base, lit
 
