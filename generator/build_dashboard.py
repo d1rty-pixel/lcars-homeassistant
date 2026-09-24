@@ -411,6 +411,22 @@ pump_title_js = (
 )
 
 
+WIDE_MIN = 1600      # header decoration that only fits on wide screens (not the 1280 px tablet)
+WIDE_W = 290
+
+
+def header_buttons(section, colours=(PERI, ALMOND, LILAC, ROSE)):
+    """2x2 LCARS pill buttons with auto-generated numbers and no function (header decoration)."""
+    names = ["a", "b", "c", "d"]
+    cards = []
+    for i, (n, c) in enumerate(zip(names, colours)):
+        pill = block(c, lcars_code(f"header-button/{section}/{i}"), size=15)
+        pill["style"]["border"] = {"width": 0, "radius": 40}
+        pill["text"]["label"]["padding"] = {"right": 18, "bottom": 4}
+        cards.append(at(pill, n))
+    return grid('"a b" "c d"', "1fr 1fr", "1fr 1fr", cards, gap="10px 12px")
+
+
 def frame(section, active, content, subtitle):
     section_label = next(sec[1] for sec in SECTIONS if sec[0] == section).upper()
     title = {"type": "custom:lcards-button", "entity": PUMP, "preset": "text-only", "show_icon": False,
@@ -422,15 +438,26 @@ def frame(section, active, content, subtitle):
              "animations": [{"trigger": "on_entity_change", "entity": PUMP, "to_state": "Critical",
                              "check_on_load": True, "preset": "blink", "loop": True}],
              "tap_action": {"action": "more-info"}}
-    # Four readout slots; an entry (card, n) spans n slots
-    slots, cards = [], []
+    # Four readout slots. An entry (card, n) spans n slots; (card, "wide") gets a column that is 0 px
+    # below WIDE_MIN window width and WIDE_W above (pure CSS; LCARdS layout cards have no media queries),
+    # the slot before it is widened a little.
+    slots, cards, widths = [], [], []
     for i, item in enumerate(section_readouts(section)):
         card, span = item if isinstance(item, tuple) else (item, 1)
         name = f"s{i}"
-        slots += [name if card else "."] * span
+        n = 1 if span == "wide" else span
+        slots += [name if card else "."] * n
+        if span == "wide":
+            widths[-1] = "1.6fr"
+            widths.append(f"clamp(0px, calc((100vw - {WIDE_MIN}px) * 100), {WIDE_W}px)")
+        else:
+            widths += ["1fr"] * n
         if card:
-            cards.append(at(card, name, **({"margin": "0 0 0 clamp(16px, 2vw, 40px)"} if span > 1 else {})))
-    readouts = grid('"' + " ".join(slots) + ' t"', "1fr 1fr 1fr 1fr 1.7fr", "1fr", [*cards, at(title, "t")],
+            extra = {"overflow": "hidden"} if span == "wide" else {}
+            if card.get("type") == "custom:lcards-data-grid":
+                extra["margin"] = "0 0 0 clamp(16px, 2vw, 40px)"
+            cards.append(at(card, name, **extra))
+    readouts = grid('"' + " ".join(slots) + ' t"', " ".join(widths + ["1.7fr"]), "1fr", [*cards, at(title, "t")],
                     gap="6px 16px")
     top = grid('"elbow data" "elbow nav"', f"{ELBOW_W}px 1fr", f"1fr {NAV_H}px", [
         at(elbow("footer-left", LILAC, {"code": {"content": "LCARS 47174", "position": "top-left", "font_size": 14,
@@ -880,7 +907,8 @@ def section_readouts(section):
         return [
             readout(NEXT_PICKUP, "Next pickup", JS_NEXT_BIN, ORANGE),
             readout(NEXT_PICKUP, "Date", js_de_date("entity.state", weekday=False), PEACH),
-            (number_columns(), 2),
+            number_columns(),
+            (header_buttons("waste"), "wide"),
 
         ]
     if section == "calendar":
@@ -1137,22 +1165,37 @@ JS_IN_WINDOW = ("const m = String(entity.state).match(/(\\d+):(\\d+)\\s*-\\s*(\\
                 "const on = !!m && h < +m[3] + m[4] / 60 && h + 1 > +m[1] + m[2] / 60; ")
 
 
+_BLINK = random.Random(1701)
+BAR_OFF = rgba(PERI, 0.18)   # inactive bar segment
+
+
 def bar_segment(entity, colour, lit_js):
-    """One segment of a data bar: lit in `colour` when lit_js (JS, may use entity) is true."""
-    return {"type": "custom:lcards-button", "entity": entity, "preset": "barrel", "show_icon": False,
-            "interactive": False, "tap_action": {"action": "none"}, "hold_action": {"action": "none"},
-            "triggers_update": ["sensor.time"],
-            "style": {"card": {"color": {"background": "[[[ " + lit_js + " ? '" + colour + "' : '" +
-                                                       rgba(PERI, 0.1) + "'; ]]]"}},
-                      "border": {"width": 0, "radius": 0}}}
+    """One segment of a data bar, as two stacked cards: a static inactive segment underneath and, on
+    top, the lit segment (transparent unless lit_js is true) blinking hard on/off (steps(1), no fade)
+    at its own random rate fixed at build time. Only lit segments blink; animations act on a whole
+    card, hence the two layers."""
+    base = {"type": "custom:lcards-button", "preset": "barrel", "show_icon": False, "interactive": False,
+            "tap_action": {"action": "none"},
+            "style": {"card": {"color": {"background": BAR_OFF}}, "border": {"width": 0, "radius": 0}}}
+    lit = {"type": "custom:lcards-button", "entity": entity, "preset": "barrel", "show_icon": False,
+           "interactive": False, "tap_action": {"action": "none"}, "hold_action": {"action": "none"},
+           "triggers_update": ["sensor.time"],
+           "style": {"card": {"color": {"background": "[[[ " + lit_js + " ? '" + colour + "' : 'transparent'; ]]]"}},
+                     "border": {"width": 0, "radius": 0}},
+           "animations": [{"trigger": "on_load", "preset": "blink",
+                           "params": {"duration": _BLINK.randrange(300, 1400, 50), "min_opacity": 0.35,
+                                      "max_opacity": 1, "ease": "steps(1)"}}]}
+    return base, lit
 
 
 def data_bar(entity, colour, lit_js_for, count, side):
     """Segmented bar; segment j = 0 sits next to the value (towards the pillar on `side`)."""
     names = [f"b{j}" for j in range(count)]
     order = list(reversed(names)) if side == "right" else names
-    return grid('"' + " ".join(order) + '"', " ".join(["1fr"] * count), "1fr",
-                [at(bar_segment(entity, colour, lit_js_for(j)), n) for j, n in enumerate(names)], gap="0 3px")
+    cards = []
+    for j, n in enumerate(names):
+        cards += [at(layer, n) for layer in bar_segment(entity, colour, lit_js_for(j))]
+    return grid('"' + " ".join(order) + '"', " ".join(["1fr"] * count), "1fr", cards, gap="0 3px")
 
 
 def countdown_bar(entity, colour, side):

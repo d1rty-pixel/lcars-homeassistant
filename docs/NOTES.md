@@ -109,3 +109,13 @@ LCARdS `font_size` takes px or `var(--…)`, and `font_size_percent` scales with
 the card *height* only. For text that must shrink with the viewport *width*
 (header readouts on the 1280 px tablet), the view theme defines
 `lcars-readout-size: clamp(…vw…)` and the cards use `var(--lcars-readout-size)`.
+
+## Things LCARdS layout cards can't do
+
+- **Media queries**: `layout.mediaquery` exists only on the *view*
+  (`lcards-layout-view`) and is applied on change events, not on first render.
+  For width-dependent columns use CSS in the track, e.g.
+  `clamp(0px, calc((100vw - 1600px) * 100), 290px)`.
+- **Per-state animations**: an animation acts on the whole card. To animate
+  only a "lit" state, stack two cards in the same grid area (static base, and
+  an animated top layer that is transparent unless lit).
