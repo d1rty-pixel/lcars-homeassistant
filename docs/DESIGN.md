@@ -26,6 +26,13 @@ older row style and should move towards the reference when they are reworked.
   sidebar blocks list the active section's sub-views and, at the bottom, the
   per-device **Motion** switch. **Classic** (link to the section's original
   dashboard) is the top piece of the header frame's pillar, above its elbow.
+- **Foot bar**: as thick as its text (`FOOT_FONT`; the bar `FOOT_T` and the foot
+  row follow from it). It ends in the local date/time (orange, as tall as the
+  bar, in a gap of the bar like a panel caption, `clock()`) and a square peach
+  **stardate** block (`stardate_block()`). Both re-render every minute through
+  `sensor.time`. Stardate: TNG form, 1000 units per year, one decimal (≈ 53 min),
+  anchored so that 1987 (TNG's first season, 41xxx) is 41000–41999, so 2026 is
+  80000–80999.9.
 - **Frame corners**: the mid and foot elbows of the page frame share one outer
   radius (the frame row height); all corners around the content share one inner
   radius.
@@ -92,7 +99,7 @@ next to values, restrained colour.
 - On screens ≥ 1600 px a **2×2 block of LCARS pills** (auto numbers, no
   function) right of the number columns; the column is 0 px below that (CSS
   `clamp()`, layout cards have no media queries).
-- No local time in the reference pages. Readout values scale with the viewport
+- No local time in the header (it sits in the foot bar). Readout values scale with the viewport
   width (theme variable `lcars-readout-size`), titles can differ from the menu
   label (`SECTION_TITLES`, e.g. "Operations" for OPS).
 
@@ -123,7 +130,8 @@ next to values, restrained colour.
   "Laundry unit" (lilac, full width, pillar left: Cycle as a status bar, Power
   on a 0..2000 W level bar, Energy total and Supply without a bar; holding the
   Supply block or value switches the supply). Below, "Power trace" (closed
-  frame, chart as high as the waste timeline): drawn like the aquarium power
+  frame, chart as high as the waste timeline, less where the page is too short,
+  e.g. on the tablet): drawn like the aquarium power
   chart (log scale, smooth filled area, W lines 1–1000, no legend) by
   `lcars-power.js`; its pillar holds the range buttons **24H / 7D / 28D**
   (active one orange with "◂", stored per device), peak per 5 min (24 h) or
@@ -158,6 +166,7 @@ registers it as a resource with `?v=<timestamp>`.
 |------|------------|
 | Palette, entity constants, `lcars_code()` | colours, entity IDs, the number registry |
 | `block`, `segments`, `elbow` | frame primitives |
+| `clock`, `stardate_block` | foot bar: local date/time, stardate (`FOOT_FONT` sets the bar's size) |
 | `header`, `row`, `pill`, `info`, `action_btn`, `column` | older content primitives |
 | `panel`, `pillar_rows`, `value_text`, `with_bar`, `with_decor_pillar` | reference-style frames and rows |
 | `data_bar`, `countdown_bar`, `window_bar`, `level_bar`, `span_bar`, `state_bar` | segment bar configs (`lcars-bar.js`) |

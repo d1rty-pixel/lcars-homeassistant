@@ -7,6 +7,7 @@ A full-screen LCARS dashboard (Voyager palette, Titan.DS-style layout) built fro
 - The **header frame bar is the section menu**: OPS, Aquarium, Laundry, Waste, Calendar.
 - **Sidebar** lists the active section's sub-views. **Classic**, a link to the original dashboard,
   sits on top of the header frame's pillar.
+- The **foot frame bar** ends in the local date/time and a **stardate** block.
 
 | Section  | Sub-views |
 |----------|-----------|

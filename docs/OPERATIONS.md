@@ -5,7 +5,7 @@
 | What | Detail | Reversible via |
 |------|--------|----------------|
 | LCARdS config entry | Created (the integration was only downloaded). Log level `warn`; it was temporarily `debug` while debugging. | integration options |
-| Time & Date | Config entry with `sensor.time` | integration |
+| Time & Date | Config entry with `sensor.time` (re-renders the foot bar's clock and stardate every minute, and the Calendar readouts) | integration |
 | HA-LCARS helpers | `input_boolean.lcars_sound`, `input_boolean.lcars_texture`, `input_number.lcars_vertical`, `input_number.lcars_horizontal` | helpers UI |
 | LCARdS sound helpers | `input_boolean.lcards_sound_enabled/_cards/_ui/_alerts`, `input_number.lcards_sound_volume`, `input_select.lcards_sound_scheme` | helpers UI |
 | Lovelace resources | Antonio font (css), HA-LCARS `lcars.js`, `/local/lcards-registry-fix.js?v=<timestamp>` | dashboards → resources |

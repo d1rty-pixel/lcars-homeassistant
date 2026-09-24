@@ -12,7 +12,7 @@ custom:lcards-layout-view view type:
     mid   : main-frame elbow (header-left), segmented bar
     side  : stacked navigation blocks (shared across views, active one highlighted)
     main  : the view's own content
-    foot  : footer elbow, segmented bar
+    foot  : footer elbow, segmented bar as thick as its text, local date/time, stardate block
 """
 import json
 import math
@@ -188,7 +188,7 @@ def segments(colors_fr, position):
     return grid(areas, cols, rows, [at(block(c), n) for (c, _), n in zip(colors_fr, names)], gap="0 6px")
 
 
-FRAME_H = 34        # height of the frame rows above and below the sidebar/content
+FRAME_H = 34        # height of the frame row above the sidebar/content (the foot row: FOOT_H)
 INNER_CURVE = FRAME_H - BAR   # one inner radius for every corner around the content
 
 
@@ -444,6 +444,37 @@ def header_buttons(section, colours=(PERI, ALMOND, LILAC, ROSE)):
     return grid('"a b" "c d"', "1fr 1fr", "1fr 1fr", cards, gap="10px 12px")
 
 
+FOOT_FONT = 20                    # text in the foot bar; the bar's thickness and the foot row follow it
+FOOT_T = FOOT_FONT + 6            # foot bar thickness = height of the clock and the stardate block
+FOOT_H = FOOT_T + INNER_CURVE     # foot row: the bar plus the inner curve above it
+CLOCK_W = int(22 * FOOT_T * 0.37) + 24   # "FRI 25/09/2026 · 14:32" at bar height (Antonio digits ~0.37 em)
+STARDATE_W = int(16 * FOOT_FONT * 0.44) + 80   # label plus room for the code on the left
+CLOCK_JS = ("[[[ const d = new Date(), p = (n) => String(n).padStart(2, '0'); "
+            "return d.toLocaleDateString('en-GB', {weekday: 'short'}) + ' ' + p(d.getDate()) + '/' "
+            "+ p(d.getMonth() + 1) + '/' + d.getFullYear() + ' · ' + p(d.getHours()) + ':' + p(d.getMinutes()); ]]]")
+# Stardate in the TNG form (1000 units per year, one decimal ≈ 53 min), anchored so that 1987, the
+# year TNG started with stardate 41xxx, is 41000-41999: 2026 runs from 80000 to 80999.9.
+STARDATE_JS = ("[[[ const d = new Date(), y = d.getFullYear(), a = new Date(y, 0, 1), b = new Date(y + 1, 0, 1); "
+               "const sd = 41000 + (y - 1987) * 1000 + 1000 * (d - a) / (b - a); "
+               "return 'Stardate ' + (Math.floor(sd * 10) / 10).toFixed(1); ]]]")
+
+
+def clock():
+    """Local date and time, re-rendered by the minute through sensor.time."""
+    return {"type": "custom:lcards-button", "entity": "sensor.time", "preset": "text-only", "show_icon": False,
+            "interactive": False, "tap_action": {"action": "none"},
+            "text": {"t": {"content": CLOCK_JS, "position": "center-left", "font_size": FOOT_T,
+                           "color": ORANGE, "text_transform": "uppercase", "padding": {"left": 4}}}}
+
+
+def stardate_block():
+    card = block(PEACH, STARDATE_JS, lcars_code("stardate"), align="center-right", size=FOOT_FONT)
+    card["entity"] = "sensor.time"
+    card["text"]["code"]["font_size"] = 10
+    card["text"]["code"]["padding"] = {"left": 6, "top": 2}
+    return card
+
+
 def frame(section, active, content, subtitle):
     section_label = SECTION_TITLES.get(section, next(sec[1] for sec in SECTIONS if sec[0] == section)).upper()
     title = {"type": "custom:lcards-button", "entity": PUMP, "preset": "text-only", "show_icon": False,
@@ -492,9 +523,17 @@ def frame(section, active, content, subtitle):
         at(segments([(PEACH, 1), (ROSE, 4), (BLUEY, 2), (ORANGE, 1)], "top"), "bars"),
     ], gap="0 6px")
     side = sidebar(section, active)
-    foot = grid('"elbow bars"', f"{ELBOW_W}px 1fr", "1fr", [
-        at(elbow("footer-left", BLUEY), "elbow"),
-        at(segments([(BLUEY, 3), (LILAC, 1), (ORANGE, 5), (PEACH, 1)], "bottom"), "bars"),
+    # the foot bar is as thick as its text and ends in the local date/time (in a gap of the bar, like a
+    # panel caption) and the stardate block; the elbow keeps the page frame's outer and inner radius
+    foot = grid('"elbow . . . ." "elbow bars cap clock sd"', f"{ELBOW_W}px 1fr 14px {CLOCK_W}px {STARDATE_W}px",
+                f"1fr {FOOT_T}px", [
+        at(elbow("footer-left", BLUEY, bar_height=FOOT_T), "elbow"),
+        at(grid('"a b c"', "3fr 1fr 5fr", "1fr", [at(block(c), n) for c, n in ((BLUEY, "a"), (LILAC, "b"),
+                                                                                (ORANGE, "c"))], gap="0 6px"),
+           "bars"),
+        at(block(ORANGE), "cap"),
+        at(clock(), "clock"),
+        at(stardate_block(), "sd"),
     ], gap="0 6px")
     return [at(top, "top"), at(mid, "mid"), at(side, "side"), at(content, "main", margin="4px 0 4px 18px"),
             at(foot, "foot")]
@@ -503,7 +542,7 @@ def frame(section, active, content, subtitle):
 def view(section, key, title, path, content, subtitle):
     return {"title": title, "path": path, "type": "custom:lcards-layout-view", "theme": THEME,
             "layout": {"grid-template-columns": f"{PILLAR}px 1fr",
-                       "grid-template-rows": f"clamp(140px, 17vh, 176px) {FRAME_H}px 1fr {FRAME_H}px",
+                       "grid-template-rows": f"clamp(140px, 17vh, 176px) {FRAME_H}px 1fr {FOOT_H}px",
                        "grid-template-areas": '"top top" "mid mid" "side main" "foot foot"',
                        "grid-gap": "6px 0", "height": "calc(100dvh - 16px)", "padding": "8px"},
             "cards": frame(section, key, content, f"{subtitle} · {lcars_code(f'view/{key}')}")}
@@ -1360,10 +1399,11 @@ def laundry_content():
         ("Energy", BONE, lcars_code("laundry/energy"), value_text("{entity.state}", wsh["energy"])),
         (supply_block, PERI, None, supply),
     ], filler=LILAC))
-    # the chart as high as the waste page's timeline, plus the bottom shoulder; what's left stays black
+    # the chart as high as the waste page's timeline, plus the bottom shoulder (less where the page is too
+    # short, e.g. the tablet); what's left stays black
     n = len(BINS) + 1
     trace_h = f"calc({2 * PANEL_CORNER}px + {TL_HEAD} + {n} * {TL_ROW} + {TL_AXIS} + {(n + 2) * TL_GAP}px)"
-    return grid('"u" "t" "."', "1fr", f"{data_panel_height(4)} {trace_h} 1fr",
+    return grid('"u" "t" "."', "1fr", f"{data_panel_height(4)} minmax(0, {trace_h}) 1fr",
                 [at(trace, "t"), at(unit, "u")], gap="clamp(12px, 2vh, 24px) 8px")
 
 
