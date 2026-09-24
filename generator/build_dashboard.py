@@ -1125,6 +1125,57 @@ def value_text(value_js, entity, align="left"):
                                "font_weight": "bold", "padding": {align: 4}}}}
 
 
+VALUE_W = "clamp(190px, 15vw, 290px)"   # value column next to a countdown bar
+BAR_SEGMENTS = 14                        # countdown bars: one segment per 2 days, 0-28 days like the timeline
+# JS: `n` = days from today to the date in entity.state ('dd.mm.yyyy' or 'yyyy-mm-dd'), null if none
+JS_DAYS = ("const s = String(entity.state); let d = null; let m = s.match(/(\\d\\d)\\.(\\d\\d)\\.(\\d{4})/); "
+           "if (m) d = new Date(+m[3], +m[2] - 1, +m[1]); else if ((m = s.match(/^(\\d{4})-(\\d\\d)-(\\d\\d)/))) "
+           "d = new Date(+m[1], +m[2] - 1, +m[3]); const t0 = new Date(); t0.setHours(0,0,0,0); "
+           "const n = d ? Math.round((d - t0) / 86400000) : null; ")
+# JS: is hour `h` inside the window in entity.state ('14:30 - 15:00 Uhr')
+JS_IN_WINDOW = ("const m = String(entity.state).match(/(\\d+):(\\d+)\\s*-\\s*(\\d+):(\\d+)/); "
+                "const on = !!m && h < +m[3] + m[4] / 60 && h + 1 > +m[1] + m[2] / 60; ")
+
+
+def bar_segment(entity, colour, lit_js):
+    """One segment of a data bar: lit in `colour` when lit_js (JS, may use entity) is true."""
+    return {"type": "custom:lcards-button", "entity": entity, "preset": "barrel", "show_icon": False,
+            "interactive": False, "tap_action": {"action": "none"}, "hold_action": {"action": "none"},
+            "triggers_update": ["sensor.time"],
+            "style": {"card": {"color": {"background": "[[[ " + lit_js + " ? '" + colour + "' : '" +
+                                                       rgba(PERI, 0.1) + "'; ]]]"}},
+                      "border": {"width": 0, "radius": 0}}}
+
+
+def data_bar(entity, colour, lit_js_for, count, side):
+    """Segmented bar; segment j = 0 sits next to the value (towards the pillar on `side`)."""
+    names = [f"b{j}" for j in range(count)]
+    order = list(reversed(names)) if side == "right" else names
+    return grid('"' + " ".join(order) + '"', " ".join(["1fr"] * count), "1fr",
+                [at(bar_segment(entity, colour, lit_js_for(j)), n) for j, n in enumerate(names)], gap="0 3px")
+
+
+def countdown_bar(entity, colour, side):
+    """Days until the date in entity.state, 2 days per segment, growing away from the pillar."""
+    return data_bar(entity, colour, lambda j: JS_DAYS + f"return n != null && n >= 0 && {j} < Math.max(1, "
+                                              f"Math.ceil(n / {28 // BAR_SEGMENTS}))",
+                    BAR_SEGMENTS, side)
+
+
+def window_bar(entity, colour, side):
+    """24 h scale, one segment per hour, the hours of the time window in entity.state lit."""
+    return data_bar(entity, colour, lambda j: f"const h = {j}; " + JS_IN_WINDOW + "return on", 24, side)
+
+
+def with_bar(value, bar, side):
+    """Value next to the pillar, its bar filling the rest of the row."""
+    if side == "right":
+        return grid('"b v"', f"1fr {VALUE_W}", "1fr", [at(bar, "b", margin="clamp(6px, 1vh, 10px) 0"),
+                                                         at(value, "v")], gap="0 14px")
+    return grid('"v b"', f"{VALUE_W} 1fr", "1fr", [at(value, "v"), at(bar, "b", margin="clamp(6px, 1vh, 10px) 0")],
+                gap="0 14px")
+
+
 def data_panel_height(n):
     """Height of a panel with top and bottom bars around n data rows: rows, the gaps between them and
     to both shoulders, and a short filler piece of pillar."""
@@ -1136,12 +1187,16 @@ def waste_content():
                      pillar=TIMELINE_LABEL_W, bottom=False)
     # The two lower frames face each other: pillars meet in the middle, labels next to them
     schedule = panel("Next per bin", PEACH, side="right", pillar=DATA_LABEL_W, content=pillar_rows(
-        [(label, colour, lcars_code(f"next-per-bin/{label}"), value_text(js_de_date("entity.state"), e, "right"))
+        [(label, colour, lcars_code(f"next-per-bin/{label}"),
+          with_bar(value_text(js_de_date("entity.state"), e, "right"), countdown_bar(e, colour, "right"), "right"))
          for label, e, colour in BINS], side="right", filler=PEACH))
     hazmat = panel("Hazmat collection", RED, pillar=DATA_LABEL_W, content=pillar_rows([
-        ("Date", BONE, lcars_code("hazmat/date"), value_text(js_iso_date("entity.state"), HAZMAT["date"])),
+        ("Date", BONE, lcars_code("hazmat/date"),
+         with_bar(value_text(js_iso_date("entity.state"), HAZMAT["date"]),
+                  countdown_bar(HAZMAT["date"], RED, "left"), "left")),
         ("Window", BONE, lcars_code("hazmat/window"),
-         value_text("[[[ return String(entity.state).replace(/\\s*Uhr$/, ''); ]]]", HAZMAT["window"])),
+         with_bar(value_text("[[[ return String(entity.state).replace(/\\s*Uhr$/, ''); ]]]", HAZMAT["window"]),
+                  window_bar(HAZMAT["window"], RED, "left"), "left")),
         ("Location", BONE, lcars_code("hazmat/location"),
          value_text("[[[ return String(entity.state).split(',')[0]; ]]]", HAZMAT["place"])),
     ], filler=RED))

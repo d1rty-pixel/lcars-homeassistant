@@ -47,6 +47,10 @@
     are the pillars (bin colours / bone), labels vertically centred on the
     right, values next to them in peri. A filler piece runs into the bottom
     shoulder without a gap.
+  - The space beside each value carries a graphic, never plain black (LCARS
+    frames aren't half empty): countdown bars (2 days per segment, 0-28 days,
+    growing away from the pillar) for the bins and the hazmat date, a 24 h
+    scale with the time window lit for the hazmat window.
   - Frames hug their content; the rest of the page stays black.
   - Header: next pickup, date, then LCARS number columns in the free space:
     20 real sensors (power/energy meters first, see `number_sensors()`), each
