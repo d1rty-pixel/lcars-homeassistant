@@ -17,20 +17,28 @@
 | Registry workaround | `/config/www/lcards-registry-fix.js` | remove resource + file |
 | Sounds | `/media/lcars/thelcars_beep1..4.mp3` (thelcars.com, no licence stated, so **not** in git) | delete files |
 | Dashboards | `lcars-bridge` (live). `aquarium-lcars` hidden as "LCARS (alt)". | dashboards UI |
-| Profile theme | Admin user's profile theme set to "LCARS Default" | profile |
+| Profile theme | Admin user's profile theme was set to "LCARS Default", **reset to default** the same day: profile themes are stored per user (synced to all devices) and restyled every classic dashboard. The LCARS dashboard doesn't need it (view theme + kiosk mode). | profile |
 
 Dashboard config backups are written by `tools/deploy.py` to `build/backups/`
 (git-ignored). Restore one with `tools/deploy.py --restore <file>`.
 
-## Aquarium tablet (Fully Kiosk Browser, HA user `aquarium`)
+## Users and devices
 
-- There is **no Fully Kiosk integration** in HA, and the `aquarium` user has no
-  per-user frontend settings. What the tablet shows is Fully's on-device
-  **Start URL**.
-- Set it on the tablet under **Settings → Web Content Settings → Start URL**:
-  - `https://ha.example.org/lcars-bridge/aquarium-status`
-  - or, on the LAN, `http://homeassistant.local:8123/lcars-bridge/aquarium-status`
-- The dashboard isn't admin-only. Kiosk mode and the view theme apply to every user.
+- `admin` (admin): default HA look on classic dashboards, LCARS via the sidebar.
+- `kiosk`, `lcars` (non-admin): meant for LCARS screens. Nothing per-user is
+  needed for LCARdS to work; the dashboard isn't admin-only and every view
+  carries its own theme. Pick the start page per device: the profile's
+  default dashboard (set while logged in as that user) or the kiosk browser's
+  Start URL, e.g. `https://ha.example.org/lcars-bridge/aquarium-status`.
+- Do **not** set an LCARS profile theme for a user who also uses classic dashboards.
+- The old `aquarium` user was deleted.
+
+## Kiosk tablets (Fully Kiosk Browser)
+
+- There is **no Fully Kiosk integration** in HA. What a tablet shows is Fully's
+  on-device **Start URL** (Settings → Web Content Settings → Start URL), on the
+  LAN also `http://homeassistant.local:8123/lcars-bridge/aquarium-status`.
+- Kiosk mode and the view theme apply to every user.
 - Sounds play after the first touch. If the tablet stays silent, allow media
   playback in Fully's web content settings.
 - The layout was tuned on a 2560×1271 desktop viewport. Row heights and most
