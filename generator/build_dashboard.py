@@ -952,7 +952,8 @@ def home_content():
     """OPS in the waste page's language: framed groups, label blocks as pillars, a graphic next to
     every value, light custom cards for the bars."""
     w = WEATHER
-    atmosphere = panel("Atmosphere", ICE, pillar=ATMOS_LABEL_W, content=pillar_rows([
+    # like the waste page: the top frames stay open at the bottom, the lower ones close the page
+    atmosphere = panel("Atmosphere", ICE, pillar=ATMOS_LABEL_W, bottom=False, content=pillar_rows([
         ("Temperature", PEACH, lcars_code("ops/temperature"),
          with_bar(value_text("[[[ return entity.attributes.temperature + ' °C'; ]]]", w),
                   level_bar(w, PEACH, "temperature", -10, 35), "left")),
@@ -971,17 +972,18 @@ def home_content():
                              "return hhmm(a.next_rising) + ' – ' + hhmm(a.next_setting); ]]]", "sun.sun"),
                   span_bar("sun.sun", SUNFLOWER, "next_rising", "next_setting"), "left")),
     ], filler=ICE, label_w=ATMOS_LABEL_W))
-    radar = panel("Precipitation radar · DWD", BLUEY, side="right", pillar=DECOR_PILLAR_W, content=radar_card())
-    forecast = panel("Forecast", LILAC, bottom=False, pillar=DECOR_PILLAR_W, content=with_decor_pillar(
+    radar = panel("Precipitation radar", BLUEY, side="right", pillar=DECOR_PILLAR_W, bottom=False,
+                  content=radar_card())
+    forecast = panel("Forecast", LILAC, pillar=DECOR_PILLAR_W, content=with_decor_pillar(
         {"type": "custom:lcars-forecast", "entity": w, "hours": 12, "segments": 8, "font": "Antonio, sans-serif",
          "colours": {"temp": PEACH, "rain": ICE, "off": rgba(PERI, 0.18), "text": PERI, "dim": GRAY, "flash": "#FFFFFF"},
          "blink": [8000, 24000], "off_fraction": 0.025},
-        "ops/forecast", [BONE, PERI, ICE], side="left"))
+        "ops/forecast", [BONE, PERI, ICE], side="left", filler=LILAC))
     # the lower frames face each other: their shoulders meet in the middle
-    week = panel("Next 7 days", SUNFLOWER, side="right", pillar=ATMOS_LABEL_W, bottom=False, content=week_calendar())
+    week = panel("Next 7 days", SUNFLOWER, side="right", pillar=ATMOS_LABEL_W, content=week_calendar())
     # sized like the waste page: fits the 1280x800 tablet, the rest of the page stays black
-    top_h = data_panel_height(5)
-    bottom_h = f"calc({data_panel_height(5)} - {PANEL_CORNER}px)"
+    top_h = f"calc({data_panel_height(5)} - {PANEL_CORNER}px)"
+    bottom_h = data_panel_height(5)
     lower = grid('"week fc"', "1.15fr 1fr", "1fr", [at(week, "week"), at(forecast, "fc")], gap="0 8px")
     return grid('"atm atm radar" "low low low" ". . ."', "1fr 1fr 1.4fr", f"{top_h} {bottom_h} 1fr",
                 [at(atmosphere, "atm"), at(radar, "radar"), at(lower, "low")],
