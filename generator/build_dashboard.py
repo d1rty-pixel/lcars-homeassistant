@@ -969,12 +969,15 @@ def home_content():
                              "return hhmm(a.next_rising) + ' – ' + hhmm(a.next_setting); ]]]", "sun.sun"),
                   span_bar("sun.sun", SUNFLOWER, "next_rising", "next_setting"), "left")),
     ], filler=ICE, label_w=ATMOS_LABEL_W))
-    radar = panel("Precipitation radar", BLUEY, side="right", content=skinned({
-        "type": "iframe", "url": "https://radar.wo-cloud.com/mobile/rr/interactive?wrx=50.00,8.00&wrm=8&wry=50.00,8.00",
-        "hide_background": True}, extra=RADAR_FIT))
-    forecast = panel("Forecast", ICE, side="right", bottom=False, content={
-        "type": "custom:lcars-forecast", "entity": w, "hours": 12, "segments": 8, "font": "Antonio, sans-serif",
-        "colours": {"temp": PEACH, "rain": ICE, "off": rgba(PERI, 0.18), "text": PERI, "dim": GRAY}})
+    radar = panel("Precipitation radar", BLUEY, side="right", pillar=DECOR_PILLAR_W, content=with_decor_pillar(
+        skinned({"type": "iframe", "hide_background": True,
+                 "url": "https://radar.wo-cloud.com/mobile/rr/interactive?wrx=50.00,8.00&wrm=8&wry=50.00,8.00"},
+                extra=RADAR_FIT),
+        "ops/radar", [PERI, ICE, LILAC], filler=BLUEY))
+    forecast = panel("Forecast", ICE, side="right", bottom=False, pillar=DECOR_PILLAR_W, content=with_decor_pillar(
+        {"type": "custom:lcars-forecast", "entity": w, "hours": 12, "segments": 8, "font": "Antonio, sans-serif",
+         "colours": {"temp": PEACH, "rain": ICE, "off": rgba(PERI, 0.18), "text": PERI, "dim": GRAY}},
+        "ops/forecast", [BONE, PERI, ICE]))
     week = panel("Next 7 days", BLUEY, pillar=ATMOS_LABEL_W, bottom=False, content=week_calendar())
     # sized like the waste page: fits the 1280x800 tablet, the rest of the page stays black
     top_h = data_panel_height(5)
@@ -982,6 +985,22 @@ def home_content():
     return grid('"atm atm radar" "week week fc" ". . ."', "1fr 1fr 1.4fr", f"{top_h} {bottom_h} 1fr",
                 [at(atmosphere, "atm"), at(radar, "radar"), at(week, "week"), at(forecast, "fc")],
                 gap="clamp(12px, 2vh, 24px) 8px")
+
+
+DECOR_PILLAR_W = 90      # pillar of decorative blocks next to embedded content (radar, forecast)
+
+
+def with_decor_pillar(content, key, colours, side="right", filler=None):
+    """Content next to a pillar of LCARS blocks with auto numbers and no function (use with
+    panel(pillar=DECOR_PILLAR_W)). A filler piece in the frame colour runs into the bottom shoulder."""
+    names = [f"p{i}" for i in range(len(colours))] + (["pf"] if filler else [])
+    blocks = [at(block(c, None, lcars_code(f"{key}/{i}")), n) for i, (c, n) in enumerate(zip(colours, names))]
+    if filler:
+        blocks.append(at(block(filler), "pf"))
+    rows = " ".join(["1fr"] * len(colours) + (["14px"] if filler else []))
+    pillar = grid(" ".join(f'"{n}"' for n in names), "1fr", rows, blocks, gap=f"{PANEL_GAP}px")
+    areas, widths = ('"c p"', f"1fr {DECOR_PILLAR_W}px") if side == "right" else ('"p c"', f"{DECOR_PILLAR_W}px 1fr")
+    return grid(areas, widths, "1fr", [at(content, "c", overflow="hidden"), at(pillar, "p")], gap="0 16px")
 
 
 # The radar iframe fills its frame (no fixed aspect ratio) and renders at 80 %, so more map fits
