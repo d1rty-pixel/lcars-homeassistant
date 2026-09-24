@@ -13,8 +13,13 @@
 //         level              # a number (state, or `attribute`) on a min..max scale
 //         span               # one segment per hour, lit between the times of day in the ISO timestamps
 //                            #   `start_attr` and `end_attr` (e.g. sun.sun next_rising / next_setting)
+//         state              # a status: every segment lit in states[state] (e.g. {on: ice}), none if
+//                            #   the state isn't listed; with `threshold`, a number above it is "on",
+//                            #   else "off"
 //   attribute: temperature   # level: read this attribute instead of the state
 //   min: -10, max: 35        # level: scale
+//   states: {on: "#99CCFF"}  # state: colour per state
+//   threshold: 3             # state: numeric state -> "on" / "off"
 //   segments: 14
 //   days_per_segment: 2
 //   side: right | left       # segment 0 (next to the value / pillar) is on this side
@@ -57,10 +62,15 @@ class LcarsBar extends HTMLElement {
     const c = this._config;
     const state = st ? String(st.state) : "";
     const lit = [];
-    if (c.mode === "level") {
+    if (c.mode === "state") {
+      let s = state;
+      if (c.threshold != null) s = parseFloat(state) > c.threshold ? "on" : "off";
+      const colour = c.states && c.states[s];
+      for (let j = 0; j < c.segments; j++) lit.push(colour || false);
+    } else if (c.mode === "level") {
       const v = parseFloat(c.attribute ? (st && st.attributes[c.attribute]) : state);
       const f = isNaN(v) ? 0 : Math.min(1, Math.max(0, (v - c.min) / (c.max - c.min)));
-      const count = isNaN(v) ? 0 : Math.max(1, Math.round(f * c.segments));
+      const count = isNaN(v) || f <= 0 ? 0 : Math.max(1, Math.round(f * c.segments));   // nothing lit at min
       for (let j = 0; j < c.segments; j++) lit.push(j < count);
     } else if (c.mode === "span") {
       const hour = (iso) => { const d = new Date(iso); return d.getHours() + d.getMinutes() / 60; };
@@ -88,9 +98,10 @@ class LcarsBar extends HTMLElement {
     const segs = lit.map((on, j) => {
       if (!on) return `<div style="background:${c.off}"></div>`;
       const ms = (c.blink && c.blink[j % c.blink.length]) || 1000;
+      const colour = typeof on === "string" ? on : c.colour;   // state mode: the state's colour
       // mostly in its colour, briefly flashing at the end of each cycle; step-end jumps, no fade
       const anim = motion ? `animation:blink ${ms}ms step-end infinite` : "";
-      return `<div style="--c:${c.colour};background:${c.colour};${anim}"></div>`;
+      return `<div style="--c:${colour};background:${colour};${anim}"></div>`;
     });
     if (c.side === "right") segs.reverse();
     this.shadowRoot.innerHTML = `

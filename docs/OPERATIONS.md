@@ -14,7 +14,7 @@
 | card-mod | **Removed** (HACS). Required by UIX and broken by HA 2026.x. The Müll dashboard's `card_mod:` keys still work through UIX (checked before and after). | reinstall via HACS |
 | Old theme copies | Stale 2024 manual copy moved to `/config/themes_backup/lcars-2024-manual-copy.yaml`; 4.0.2 version with appended profiles in `/config/themes_backup/lcars-4.0.2-with-lcards-profiles.yaml`; plus `/config/themes/lcars.yaml.bak-20260924` (ignored by HA, not `.yaml`) | copy back |
 | View theme | `/config/themes/lcars_aquarium.yaml` ("LCARS Aquarium") | delete file, reload themes |
-| Our scripts | every `ha/www/*.js` in `/config/www/`, each a Lovelace module resource `/local/<file>?v=<unix timestamp>`: registry workaround, motion switch, day grid, bar, week, forecast and radar cards. `tools/deploy_ha_files.sh` copies them and creates/updates the resources (`tools/bump_resources.py`). | remove resources + files |
+| Our scripts | every `ha/www/*.js` in `/config/www/`, each a Lovelace module resource `/local/<file>?v=<unix timestamp>`: registry workaround, motion switch, day grid, bar, week, forecast, radar and power-chart cards. `tools/deploy_ha_files.sh` copies them and creates/updates the resources (`tools/bump_resources.py`). | remove resources + files |
 | Bars helper | `input_boolean.lcars_bars` ("LCARS bars", on): segment bars visible (global emergency switch) | helpers UI |
 | Sounds | `/media/lcars/thelcars_beep1..4.mp3` (thelcars.com, no licence stated, so **not** in git) | delete files |
 | Dashboards | `lcars-bridge` (live). `aquarium-lcars` hidden as "LCARS (alt)". | dashboards UI |
@@ -101,7 +101,7 @@ Check both target sizes after every layout change; for seams, clip a region at
   exist.
 - **Hold-to-act** on purpose:
   - dosing "refilled" (sets fill level to bottle size)
-  - washing-machine supply switch (tap opens more-info)
+  - washing-machine supply switch (Supply block or value on the laundry page; tap opens more-info)
 - **Toggle on a single tap**, as on the original dashboards:
   - aquarium auto/maintenance/feeding/water-change modes
   - CO² coupling

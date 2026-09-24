@@ -73,6 +73,10 @@ This is not reported upstream yet.
   ignores parent resizes while it animates. Frame charts with `overflow: hidden`:
   the Apex canvas sticks out ~24 px below the SVG, and the scrollbars from
   `overflow: auto` shrink the container.
+- Chart history is capped: the data source preloads `history.hours` clamped to
+  1–168 (7 days), from hourly *mean* statistics. Longer ranges (the laundry
+  page's 28 d) need a custom card (`ha/www/lcars-power.js` reads
+  `recorder/statistics_during_period` itself).
 - Chart legend names come from the `data_sources` key on live updates
   (`series_names` only applies to the first render), so key sources by display name.
 - ApexCharts' log y-axis rejects negatives. The mirrored power chart maps values
@@ -129,6 +133,11 @@ CSS grid (`ha/www/lcars-day-grid.js`, `ha/www/lcars-bar.js`); keep LCARdS for
 the frame and the things people interact with. Custom cards that animate must
 honour the motion switch themselves (localStorage `lcars-motion`), since it only
 pauses anime.js. Waste page: 444 → 60 LCARdS buttons.
+
+Custom cards get no click sounds for free: LCARdS plays them in its own action
+handler. Buttons in `ha/www/` cards call
+`window.lcards.core.soundManager.play("card_tap")` themselves (radar, power
+chart); the sound helpers still apply.
 
 ## DWD radar (maps.dwd.de)
 

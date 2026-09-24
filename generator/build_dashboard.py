@@ -390,16 +390,15 @@ def dashboard_nav(active_section):
 
 
 def sidebar(section_key, active_view):
-    _, _, _, _, classic, subviews = next(sec for sec in SECTIONS if sec[0] == section_key)
+    _, _, _, _, _, subviews = next(sec for sec in SECTIONS if sec[0] == section_key)
     items = [(k, label, code, colour, BASE + path) for k, label, code, colour, path in subviews]
-    items.append(("classic", "Classic", lcars_code(f"classic/{section_key}"), VIOLET, classic))
     cards, areas, rows = [], [], []
     for key, label, code, colour, path in items:
         is_active = key == active_view
         cards.append(at(block(ORANGE if is_active else colour, label + (" ◂" if is_active else ""), code,
                               None if is_active else path), key))
         areas.append(f'"{key}"')
-        rows.append("clamp(48px, 8vh, 110px)")   # 7 blocks + motion switch fit the 800 px tablet
+        rows.append("clamp(48px, 8vh, 110px)")   # 6 blocks + motion switch fit the 800 px tablet
     cards.append(at(block(GRAY, None, lcars_code(f"sidebar-filler/{section_key}")), "filler"))
     here = next(BASE + path for k, _, _, _, path in subviews if k == active_view)
     cards.append(at(motion_switch(section_key, here), "motion"))
@@ -428,6 +427,7 @@ pump_title_js = (
 )
 
 
+CLASSIC_H = "clamp(42px, 5.4vh, 58px)"   # Classic block on top of the header frame's pillar
 WIDE_MIN = 1600      # header decoration that only fits on wide screens (not the 1280 px tablet)
 WIDE_W = 290
 
@@ -476,7 +476,11 @@ def frame(section, active, content, subtitle):
             cards.append(at(card, name, **extra))
     readouts = grid('"' + " ".join(slots) + ' t"', " ".join(widths + ["1.7fr"]), "1fr", [*cards, at(title, "t")],
                     gap="6px 16px")
-    top = grid('"elbow data" "elbow nav"', f"{ELBOW_W}px 1fr", f"1fr {NAV_H}px", [
+    # the header frame's pillar starts with the link to the section's original dashboard
+    _, _, _, _, classic_url, _ = next(sec for sec in SECTIONS if sec[0] == section)
+    classic = block(VIOLET, "Classic", lcars_code(f"classic/{section}"), classic_url, size=18)
+    top = grid('"cl data" "elbow data" "elbow nav"', f"{ELBOW_W}px 1fr", f"{CLASSIC_H} 1fr {NAV_H}px", [
+        at(classic, "cl", margin=f"0 {ELBOW_W - PILLAR}px {PANEL_GAP + 2}px 0"),
         at(elbow("footer-left", LILAC, {"code": {"content": "LCARS 47174", "position": "top-left", "font_size": 14,
                                                  "color": INK, "padding": {"left": 8, "top": 6}}},
                  bar_height=NAV_H, outer_curve=PILLAR // 2), "elbow"),
@@ -760,9 +764,6 @@ OSMO = {"switch": "switch.osmoseanlage", "mode": "sensor.osmoseanlage_mode", "fw
         "countdown": "sensor.osmoseanlage_auto_off_countdown"}
 WASH = {"switch": "switch.waschmaschine", "power": "sensor.waschmaschine_leistung",
         "energy": "sensor.waschmaschine_energie"}
-WASH_PROTECT = [("Overheat", "binary_sensor.waschmaschine_uberhitzung"), ("Overload", "binary_sensor.waschmaschine_uberlast"),
-                ("Overvoltage", "binary_sensor.waschmaschine_uberspannung"),
-                ("Overcurrent", "binary_sensor.waschmaschine_uberstrom")]
 BINS = [("Residual", "sensor.mullabfuhr_restmull", "#AAAACC"), ("Organic", "sensor.mullabfuhr_biotonne", ALMOND),
         ("Recycling", "sensor.mullabfuhr_gelbe_tonne", SUNFLOWER),
         ("Paper", "sensor.mullabfuhr_papiertonne", ICE)]
@@ -912,11 +913,11 @@ def section_readouts(section):
         ]
     if section == "laundry":
         return [
-            readout(WASH["power"], "Cycle", "[[[ return parseFloat(entity.state) > 3 ? 'Running' : 'Idle'; ]]]", ICE),
+            readout(WASH["power"], "Cycle", f"[[[ return parseFloat(entity.state) > {WASH_RUNNING} ? 'Running' : "
+                                            "'Idle'; ]]]", ICE),
             readout(WASH["power"], "Power", "{entity.state}", ORANGE),
-            readout(WASH["energy"], "Energy", "{entity.state}", LILAC),
-            readout(WASH["switch"], "Supply", "[[[ return entity.state === 'on' ? 'On' : 'Off'; ]]]",
-                    {"on": ICE, "default": GRAY}),
+            number_columns(),
+            (header_buttons("laundry"), "wide"),
         ]
     if section == "waste":
         return [
@@ -1096,23 +1097,6 @@ def osmosis_content():
     return cols(control, trace, widths=["1fr", "2fr"])
 
 
-def laundry_content():
-    wsh = WASH
-    unit = column([
-        ("h", header("Laundry unit", LILAC)),
-        ("p", info("Cycle", "[[[ return parseFloat(entity.state) > 3 ? 'Running' : 'Idle'; ]]]", wsh["power"], ICE)),
-        ("p", info("Power", "{entity.state}", wsh["power"], ORANGE)),
-        ("p", info("Energy", "{entity.state}", wsh["energy"], LILAC)),
-        ("p", on_off(wsh["switch"], "Supply · hold to switch", tap="more-info",
-                     hold={"action": "toggle"})),
-        ("h", header("Protection", RED)),
-        *[("p", on_off(e, label, on=("Alert", CRIT), off=("Nominal", OK))) for label, e in WASH_PROTECT],
-    ])
-    trace = framed("Power trace · 24 h", ORANGE, power_chart([(wsh["power"], "Washing machine", ORANGE)]),
-                   overflow="hidden")
-    return cols(unit, trace, widths=["1fr", "2fr"])
-
-
 TIMELINE_DAYS = 28
 TIMELINE_LABEL_W = 150   # label column = the timeline panel's left pillar
 # Fixed row heights, so the frames hug their content instead of filling the viewport
@@ -1222,11 +1206,13 @@ def collection_timeline():
 def pillar_rows(items, side="left", filler=None, label_w=DATA_LABEL_W):
     """Rows of (label, colour, code, value card): the label blocks stack up as the frame's pillar on
     `side` (use with panel(pillar=DATA_LABEL_W)), each value sits next to its block. A filler colour
-    continues the pillar below the last row down to the shoulder."""
+    continues the pillar below the last row down to the shoulder. label may be a ready block card
+    (e.g. one with an action)."""
     areas, cards = [], []
     for i, (label, colour, code, value) in enumerate(items):
         areas.append(f'"v{i} l{i}"' if side == "right" else f'"l{i} v{i}"')
-        cards += [at(block(colour, label, code, align="center-right", size=17), f"l{i}"), at(value, f"v{i}")]
+        lbl = label if isinstance(label, dict) else block(colour, label, code, align="center-right", size=17)
+        cards += [at(lbl, f"l{i}"), at(value, f"v{i}")]
     rows = [DATA_ROW] * len(items)
     if filler:
         areas.append('". f"' if side == "right" else '"f ."')
@@ -1327,6 +1313,58 @@ def waste_content():
     # Sized to content, not stretched to the viewport; what's left stays black
     return grid('"t t" "s h" ". ."', "1fr 1fr", f"{timeline_h} {data_panel_height(4)} 1fr",
                 [at(timeline, "t"), at(schedule, "s"), at(hazmat, "h")], gap="clamp(12px, 2vh, 24px) 8px")
+
+
+WASH_RUNNING = 3                    # W: above this the machine is running
+WASH_MAX = 2000                     # W: scale of the power bar (peaks ~1.9 kW when heating)
+
+
+def power_card(entity):
+    """Power over 24 h / 7 d / 28 d (ha/www/lcars-power.js), drawn like the aquarium power chart (log scale,
+    filled area, W lines), with its own pillar of range buttons on the left; the active one is orange."""
+    ranges = [("24h", 24, "5minute"), ("7d", 168, "hour"), ("28d", 672, "hour")]
+    return {"type": "custom:lcars-power", "entity": entity,
+            "ranges": [{"label": label, "hours": hours, "period": period} for label, hours, period in ranges],
+            "ticks": [1, 10, 100, 1000], "max": 2500,
+            "pillar": {"width": DECOR_PILLAR_W, "gap": PANEL_GAP, "side": "left", "active": ORANGE, "filler": ORANGE,
+                       "ink": INK, "blocks": [{"colour": c, "code": lcars_code(f"laundry/range/{label}")}
+                                              for c, (label, _, _) in zip([ALMOND, PEACH, BONE], ranges)]},
+            "colours": {"line": ALMOND, "fill_opacity": 0.35, "grid": GRAY, "axis": DIM, "text": DIM},
+            "font": "Antonio, sans-serif"}
+
+
+def state_bar(entity, states, side, threshold=None):
+    """Status as a bar: every segment lit in the colour of the current state (none if it isn't listed)."""
+    extra = {"states": states} | ({"threshold": threshold} if threshold is not None else {})
+    return data_bar(entity, PERI, "state", BAR_SEGMENTS, side, **extra)
+
+
+def laundry_content():
+    """Laundry in the waste page's language: the unit's frame on top (pillar left, like OPS' atmosphere),
+    the power chart with its range buttons below."""
+    wsh = WASH
+    trace = panel("Power trace", ORANGE, pillar=DECOR_PILLAR_W, content=power_card(wsh["power"]))
+    supply = value_text("[[[ return entity.state === 'on' ? 'On' : 'Off'; ]]]", wsh["switch"], "left",
+                        {"off": GRAY, "default": PERI})
+    supply["hold_action"] = {"action": "toggle"}       # hold to switch (on purpose), tap shows more-info
+    supply_block = block(PERI, "Supply", lcars_code("laundry/supply"), align="center-right", size=17)
+    supply_block.update({"interactive": True, "hold_action": {"action": "toggle"}, "entity": wsh["switch"]})
+    unit = panel("Laundry unit", LILAC, pillar=DATA_LABEL_W, content=pillar_rows([
+        ("Cycle", ICE, lcars_code("laundry/cycle"),
+         with_bar(value_text(f"[[[ return parseFloat(entity.state) > {WASH_RUNNING} ? 'Running' : 'Idle'; ]]]",
+                             wsh["power"]),
+                  state_bar(wsh["power"], {"on": ICE}, "left", threshold=WASH_RUNNING), "left")),
+        ("Power", ALMOND, lcars_code("laundry/power"),
+         with_bar(value_text("{entity.state}", wsh["power"]),
+                  data_bar(wsh["power"], ALMOND, "level", BAR_SEGMENTS, "left", min=0, max=WASH_MAX), "left")),
+        ("Energy", BONE, lcars_code("laundry/energy"), value_text("{entity.state}", wsh["energy"])),
+        (supply_block, PERI, None, supply),
+    ], filler=LILAC))
+    # the chart as high as the waste page's timeline, plus the bottom shoulder; what's left stays black
+    n = len(BINS) + 1
+    trace_h = f"calc({2 * PANEL_CORNER}px + {TL_HEAD} + {n} * {TL_ROW} + {TL_AXIS} + {(n + 2) * TL_GAP}px)"
+    return grid('"u" "t" "."', "1fr", f"{data_panel_height(4)} {trace_h} 1fr",
+                [at(trace, "t"), at(unit, "u")], gap="clamp(12px, 2vh, 24px) 8px")
 
 
 def english_labels(card):

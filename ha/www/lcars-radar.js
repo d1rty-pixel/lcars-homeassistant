@@ -17,6 +17,11 @@
 //   font: "Antonio, sans-serif"
 const WMS = "https://maps.dwd.de/geoserver/dwd/wms";
 
+// LCARdS' click sound (its sound manager honours the sound helpers), as on LCARdS buttons
+const lcarsTapSound = () => {
+  try { window.lcards.core.soundManager.play("card_tap"); } catch (e) { /* LCARdS not loaded: silent */ }
+};
+
 class LcarsRadar extends HTMLElement {
   setConfig(config) {
     this._config = config;
@@ -77,7 +82,7 @@ class LcarsRadar extends HTMLElement {
       </div>`;
     const actions = [() => this._toggle(), () => this._step(-1), () => this._step(1), () => this._jumpNow()];
     this.shadowRoot.querySelectorAll(".blk").forEach((el) =>
-      el.addEventListener("click", () => actions[+el.dataset.i] && actions[+el.dataset.i]()));
+      el.addEventListener("click", () => { lcarsTapSound(); if (actions[+el.dataset.i]) actions[+el.dataset.i](); }));
     this._playing = this._motion();
     this._updateButtons();
   }

@@ -5,13 +5,14 @@ A full-screen LCARS dashboard (Voyager palette, Titan.DS-style layout) built fro
 `lcars-bridge` (sidebar title **LCARS**), e.g. `/lcars-bridge/aquarium-power`.
 
 - The **header frame bar is the section menu**: OPS, Aquarium, Laundry, Waste, Calendar.
-- **Sidebar** lists the active section's sub-views plus **Classic**, a link to the original dashboard.
+- **Sidebar** lists the active section's sub-views. **Classic**, a link to the original dashboard,
+  sits on top of the header frame's pillar.
 
 | Section  | Sub-views |
 |----------|-----------|
 | Aquarium | Status, Visual, Light, Dosing, Power, Osmosis |
 | OPS      | OPS (atmosphere, DWD radar, next 7 days, forecast) |
-| Laundry  | Laundry |
+| Laundry  | Laundry (power trace 24 h / 7 d / 28 d, unit) |
 | Waste    | Overview, Calendar |
 | Calendar | Calendar, Agenda |
 
@@ -39,13 +40,14 @@ ha/www/lcars-bar.js            segment bars (countdown, time window, level, span
 ha/www/lcars-week.js           next days of several calendars, timeline style (OPS)
 ha/www/lcars-forecast.js       hourly forecast, LCARS style (OPS)
 ha/www/lcars-radar.js          DWD precipitation radar with LCARS controls (OPS)
+ha/www/lcars-power.js          power chart over 24 h / 7 d / 28 d with range buttons (Laundry)
 docs/DESIGN.md                 design rules (user decisions), generator structure, how to extend, URL rules
 docs/OPERATIONS.md             changes made on the HA host, backups, tablet, sounds, known limitations
 docs/NOTES.md                  root causes and LCARdS gotchas
 ```
 
 **Read `docs/DESIGN.md` before changing the look.** It records decisions the
-user already made and the reference style of the waste and OPS pages (frames,
+user already made and the reference style of the waste, OPS and laundry pages (frames,
 pillars, graphics next to values, restrained animation, both target screens).
 
 ## Usage

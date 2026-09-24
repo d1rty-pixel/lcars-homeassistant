@@ -1,7 +1,7 @@
 # Design rules and how to extend the dashboard
 
 Everything here was decided with the user. Keep it unless the user changes it.
-**The waste and OPS pages are the reference style**; other pages still use the
+**The waste, OPS and laundry pages are the reference style**; other pages still use the
 older row style and should move towards the reference when they are reworked.
 
 ## General decisions
@@ -23,8 +23,9 @@ older row style and should move towards the reference when they are reworked.
   ("Fri 25/09 · tomorrow").
 - **Menus are part of the frame.** The header frame bar is the section menu
   (**OPS, Aquarium, Laundry, Waste, Calendar**, active item orange with "◂"); the
-  sidebar blocks list the active section's sub-views, **Classic** (the original
-  dashboard) and, at the bottom, the per-device **Motion** switch.
+  sidebar blocks list the active section's sub-views and, at the bottom, the
+  per-device **Motion** switch. **Classic** (link to the section's original
+  dashboard) is the top piece of the header frame's pillar, above its elbow.
 - **Frame corners**: the mid and foot elbows of the page frame share one outer
   radius (the frame row height); all corners around the content share one inner
   radius.
@@ -37,7 +38,7 @@ older row style and should move towards the reference when they are reworked.
   small custom cards in `ha/www/` with plain divs/CSS. Hundreds of LCARdS
   buttons crash the tablet's renderer (see `docs/NOTES.md`).
 
-## Reference style (waste and OPS pages)
+## Reference style (waste, OPS and laundry pages)
 
 Inspired by LCARS "exterior overview" / "database" screens (the user's two
 reference images): brackets around groups, label blocks as pillars, graphics
@@ -51,8 +52,9 @@ next to values, restrained colour.
   `PANEL_GAP` 4 px.
 - **Title** in a gap of the top bar, in the frame colour, font as tall as the
   bar. A frame open at the top carries it in the bottom bar instead.
-- **Top row frames are open at the bottom; the lower frames close the page**
-  with bottom shoulders.
+- **Open or closed is per page, not a rule.** A frame can leave out its bottom
+  (or top) bar, e.g. the waste timeline and OPS' top frames are open at the
+  bottom, the laundry page's power trace is closed. Decide by what looks right.
 - **Neighbouring lower frames face each other**: pillars (and shoulders) meet in
   the middle (e.g. Next per bin | Hazmat, Next 7 days | Forecast).
 - **The pillar is made of content**: label blocks (`pillar_rows()`), the
@@ -75,7 +77,9 @@ next to values, restrained colour.
   mostly black inside.
 - **Bars** (`lcars-bar.js`): 14 segments (one per 2 days for countdowns, 24 per
   day for time scales), inactive segments static at 18 % peri, lit segments in
-  the row colour. They grow away from the pillar.
+  the row colour. They grow away from the pillar. A level at its minimum lights
+  nothing. **Status bars** (`state_bar()`, mode `state`) light every segment in
+  the state's colour (e.g. ice = on/running) or none.
 - **Timeline / week grids**: weekday header and day numbers, weekends dimmer,
   today lighter and its labels orange.
 - Bin colours appear only in label blocks, filled cells and bars.
@@ -115,6 +119,16 @@ next to values, restrained colour.
   Now); below, facing frames "Next 7 days" (yellow, pillar right, only calendars
   with events, max 5) and "Forecast" (lilac, pillar left: hour, condition code,
   temperature bar, °C, mm). No tasks, no NINA (user decisions).
+- **Laundry**: header readouts Cycle and Power plus number columns. Top frame
+  "Laundry unit" (lilac, full width, pillar left: Cycle as a status bar, Power
+  on a 0..2000 W level bar, Energy total and Supply without a bar; holding the
+  Supply block or value switches the supply). Below, "Power trace" (closed
+  frame, chart as high as the waste timeline): drawn like the aquarium power
+  chart (log scale, smooth filled area, W lines 1–1000, no legend) by
+  `lcars-power.js`; its pillar holds the range buttons **24H / 7D / 28D**
+  (active one orange with "◂", stored per device), peak per 5 min (24 h) or
+  per hour (7 d, 28 d) from HA's long-term statistics. "Running" means above
+  3 W. No protection sensors (user decision: no real value).
 - **Other pages** (older style): flat dark-tinted rows with a state-coloured
   left stripe, small section headers, flat command blocks. RGB channels and
   dosing levels are vertical segment columns; leave black space around them.
@@ -127,10 +141,11 @@ next to values, restrained colour.
 | Card | Used for |
 |------|----------|
 | `lcars-day-grid.js` | waste collection timeline cells |
-| `lcars-bar.js` | segment bars: `countdown`, `window`, `level`, `span` |
+| `lcars-bar.js` | segment bars: `countdown`, `window`, `level`, `span`, `state` |
 | `lcars-week.js` | next days of all calendars (refreshes HA's calendars first) |
 | `lcars-forecast.js` | hourly forecast (weather/subscribe_forecast) |
 | `lcars-radar.js` | DWD radar with its own control pillar |
+| `lcars-power.js` | power chart with its own range-button pillar (LCARdS charts stop at 168 h) |
 | `lcars-motion.js` | not a card: motion switch, `?lcars_bars=` |
 
 They take their colours and sizes from the generator's config, so the palette
@@ -145,7 +160,8 @@ registers it as a resource with `?v=<timestamp>`.
 | `block`, `segments`, `elbow` | frame primitives |
 | `header`, `row`, `pill`, `info`, `action_btn`, `column` | older content primitives |
 | `panel`, `pillar_rows`, `value_text`, `with_bar`, `with_decor_pillar` | reference-style frames and rows |
-| `data_bar`, `countdown_bar`, `window_bar`, `level_bar`, `span_bar` | segment bar configs (`lcars-bar.js`) |
+| `data_bar`, `countdown_bar`, `window_bar`, `level_bar`, `span_bar`, `state_bar` | segment bar configs (`lcars-bar.js`) |
+| `power_card` | power chart with range buttons (`lcars-power.js`) |
 | `number_columns`, `number_sensors`, `header_buttons` | header decoration |
 | `SECTIONS`, `SECTION_TITLES`, `NAV_ORDER` | sections, sub-views, menu order, titles |
 | `section_readouts(section)` | header slots: a card, `(card, n)` spanning n slots, or `(card, "wide")` for ≥ 1600 px only |
