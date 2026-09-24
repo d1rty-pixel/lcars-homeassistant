@@ -30,6 +30,7 @@ tools/deploy_ha_files.sh       copy ha/ files to the HA host, reload themes
 tools/gen_registry_fix.py      regenerate the registry workaround after an LCARdS update
 ha/themes/lcars_aquarium.yaml  view theme "LCARS Aquarium"
 ha/www/lcards-registry-fix.js  workaround for the LCARdS/HA load-order race
+ha/www/lcars-motion.js         per-device animation switch (?lcars_motion=off, sidebar "Motion")
 docs/DESIGN.md                 design rules (user decisions), generator structure, how to extend, URL rules
 docs/OPERATIONS.md             changes made on the HA host, backups, tablet, sounds, known limitations
 docs/NOTES.md                  root causes and LCARdS gotchas
@@ -68,6 +69,7 @@ build time.
   - Antonio font (Google Fonts, css)
   - `https://cdn.jsdelivr.net/gh/th3jesta/ha-lcars@js-main/lcars.js` (js)
   - `/local/lcards-registry-fix.js?v=2` (module)
+  - `/local/lcars-motion.js?v=1` (module)
 - **kiosk-mode** hides the HA header and sidebar on this dashboard. Append
   `?disable_km` to the URL to reach edit mode.
 - The view theme `LCARS Aquarium` (from `ha/themes/`) must be installed.

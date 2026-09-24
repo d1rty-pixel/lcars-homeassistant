@@ -395,11 +395,24 @@ def sidebar(section_key, active_view):
         cards.append(at(block(ORANGE if is_active else colour, label + (" ◂" if is_active else ""), code,
                               None if is_active else path), key))
         areas.append(f'"{key}"')
-        rows.append("clamp(56px, 9vh, 110px)")
+        rows.append("clamp(48px, 8vh, 110px)")   # 7 blocks + motion switch fit the 800 px tablet
     cards.append(at(block(GRAY, None, lcars_code(f"sidebar-filler/{section_key}")), "filler"))
-    areas.append('"filler"')
-    rows.append("1fr")
+    here = next(BASE + path for k, _, _, _, path in subviews if k == active_view)
+    cards.append(at(motion_switch(section_key, here), "motion"))
+    areas += ['"filler"', '"motion"']
+    rows += ["1fr", "clamp(36px, 5vh, 60px)"]
     return grid(" ".join(areas), "1fr", " ".join(rows), cards, gap="6px")
+
+
+def motion_switch(section_key, here):
+    """Per-device animation switch, handled by ha/www/lcars-motion.js (state in localStorage): reloads
+    the current view `here` with ?lcars_motion=toggle."""
+    card = block(BLUEY, "[[[ let off = false; try { off = localStorage.getItem('lcars-motion') === 'off'; } "
+                        "catch (e) {} return off ? 'Motion off' : 'Motion on'; ]]]",
+                 lcars_code(f"motion/{section_key}"), size=16)
+    card["interactive"] = True
+    card["tap_action"] = {"action": "navigate", "navigation_path": here + "?lcars_motion=toggle"}
+    return card
 
 
 pump_title_js = (

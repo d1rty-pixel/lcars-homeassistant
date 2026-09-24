@@ -15,6 +15,7 @@
 | Old theme copies | Stale 2024 manual copy moved to `/config/themes_backup/lcars-2024-manual-copy.yaml`; 4.0.2 version with appended profiles in `/config/themes_backup/lcars-4.0.2-with-lcards-profiles.yaml`; plus `/config/themes/lcars.yaml.bak-20260924` (ignored by HA, not `.yaml`) | copy back |
 | View theme | `/config/themes/lcars_aquarium.yaml` ("LCARS Aquarium") | delete file, reload themes |
 | Registry workaround | `/config/www/lcards-registry-fix.js` | remove resource + file |
+| Motion switch | `/config/www/lcars-motion.js`, Lovelace resource `/local/lcars-motion.js?v=1` (module) | remove resource + file |
 | Sounds | `/media/lcars/thelcars_beep1..4.mp3` (thelcars.com, no licence stated, so **not** in git) | delete files |
 | Dashboards | `lcars-bridge` (live). `aquarium-lcars` hidden as "LCARS (alt)". | dashboards UI |
 | Profile theme | Admin user's profile theme was set to "LCARS Default", **reset to default** the same day: profile themes are stored per user (synced to all devices) and restyled every classic dashboard. The LCARS dashboard doesn't need it (view theme + kiosk mode). | profile |
@@ -39,6 +40,11 @@ Dashboard config backups are written by `tools/deploy.py` to `build/backups/`
 - There is **no Fully Kiosk integration** in HA. What a tablet shows is Fully's
   on-device **Start URL** (Settings → Web Content Settings → Start URL), on the
   LAN also `http://homeassistant.local:8123/lcars-bridge/aquarium-status`.
+- **Animations off on the tablet**: Fully's renderer crashed with all LCARdS
+  animations running. Append `?lcars_motion=off` to the start URL, e.g.
+  `…/lcars-bridge/aquarium-status?lcars_motion=off`. The choice is stored per
+  browser (localStorage) and pauses anime.js' global engine. The "Motion" block
+  at the bottom of every sidebar toggles it on any device.
 - Kiosk mode and the view theme apply to every user.
 - Sounds play after the first touch. If the tablet stays silent, allow media
   playback in Fully's web content settings.
