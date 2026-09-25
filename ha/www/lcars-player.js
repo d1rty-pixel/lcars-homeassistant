@@ -61,6 +61,7 @@ const code4 = (s) => {
 // media_player supported_features bits
 const F = {PAUSE: 1, SEEK: 2, VOLUME_SET: 4, PREVIOUS: 16, NEXT: 32, PLAY_MEDIA: 512, SELECT_SOURCE: 2048,
            PLAY: 16384, SHUFFLE: 32768, REPEAT: 262144, BROWSE_MEDIA: 131072};
+const ART_STRIPE = 10;                         // px, the frame-colour stripe left of the cover
 const DEVICE_KEY = "lcars-media-device";      // output device last used in this browser
 const store = {
   get(key) { try { return JSON.parse(localStorage.getItem(key)); } catch (e) { return null; } },
@@ -122,7 +123,12 @@ class LcarsPlayer extends HTMLElement {
   _fitArt() {
     const info = this.shadowRoot.querySelector(".info");
     const r = info.getBoundingClientRect();
-    info.style.gridTemplateColumns = `${Math.floor(Math.min(r.height, r.width * 0.45))}px minmax(0, 1fr)`;
+    // the image area is an exact square (side = the info area's height, at most 45 % of its width); the
+    // stripe sits outside it, so the column is the side plus the stripe
+    const side = Math.max(0, Math.floor(Math.min(r.height, r.width * 0.45 - ART_STRIPE)));
+    const art = this.shadowRoot.querySelector(".art");
+    art.style.width = art.style.height = `${side}px`;
+    info.style.gridTemplateColumns = `${side + ART_STRIPE}px minmax(0, 1fr)`;
   }
 
   _build() {
@@ -149,12 +155,12 @@ class LcarsPlayer extends HTMLElement {
         .blk.na { background: ${k.off} !important; color: ${k.dim}; cursor: default; }
         .body { display: grid; min-height: 0; gap: clamp(8px, 1.6vh, 18px) 0;
                 grid-template-rows: minmax(0, 1fr) auto auto auto; }
-        /* the cover is square: as wide as the info area is high, at most 45 % of its width (_fitArt) */
+        /* the cover area is square (_fitArt), the stripe outside it; the cover is never cropped */
         .info { display: grid; min-height: 0; gap: 0 clamp(14px, 1.6vw, 28px);
                 grid-template-columns: 0 minmax(0, 1fr); }
-        .art { min-height: 0; position: relative;
-               background: ${k.off}; border-left: 10px solid ${k.art}; box-sizing: border-box; overflow: hidden; }
-        .art img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+        .art { position: relative; align-self: center; background: ${k.off}; box-sizing: content-box;
+               border-left: ${ART_STRIPE}px solid ${k.art}; overflow: hidden; }
+        .art img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
         .art span { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
                     color: ${k.dim}; font-size: 18px; letter-spacing: 2px; }
         .meta { display: grid; min-height: 0; align-content: center; gap: clamp(4px, 1vh, 12px) 0; overflow: hidden; }
