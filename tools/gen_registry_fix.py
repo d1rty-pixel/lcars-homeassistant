@@ -6,11 +6,14 @@ knows, so new LCARdS elements would otherwise hit the load race again.
 import json
 import os
 import re
+import sys
 import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 TARGET = os.path.join(HERE, "..", "ha", "www", "lcards-registry-fix.js")
-HA = "http://" + os.environ.get("HA_HOST", "homeassistant.local") + ":8123"
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "generator"))
+from site_config import HA_HOST, HA_PORT  # noqa: E402
+HA = f"http://{HA_HOST}:{HA_PORT}"
 CORE = ["lcards-button", "lcards-elbow", "lcards-chart", "lcards-slider", "lcards-data-grid", "lcards-msd-card",
         "lcards-alert-overlay", "lcards-select-menu", "lcards-layout-card", "lcards-layout-view"]
 

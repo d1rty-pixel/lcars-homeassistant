@@ -1,7 +1,6 @@
 """Minimal Home Assistant WebSocket client (raw RFC6455, stdlib only). Token: ~/.config/homeassistant/token"""
 import socket, os, base64, json, struct
-HOST = os.environ.get("HA_HOST", "homeassistant.local")
-PORT = int(os.environ.get("HA_PORT", "8123"))
+from site_config import HA_HOST as HOST, HA_PORT as PORT  # site.yaml, env HA_HOST / HA_PORT override
 TOKEN = open(os.path.expanduser("~/.config/homeassistant/token")).read().strip()
 
 class Client:

@@ -25,22 +25,22 @@ Dashboard config backups are written by `tools/deploy.py` to `build/backups/`
 
 ## Users and devices
 
-- The personal user (`admin`) keeps the default HA look. LCARS is opened from
+- The personal admin user keeps the default HA look. LCARS is opened from
   the HA sidebar ("LCARS") on any device.
 - `kiosk` (non-admin): meant for LCARS screens. Nothing per-user is
   needed for LCARdS to work; the dashboard isn't admin-only and every view
   carries its own theme. Pick the start page per device: the profile's
   default dashboard (set while logged in as that user) or the kiosk browser's
-  Start URL, e.g. `https://ha.example.org/lcars-bridge/aquarium-status`.
+  Start URL, e.g. `https://<your-ha>/lcars-bridge/aquarium-status`.
 - Do **not** set an LCARS profile theme for a user who also uses classic dashboards.
-- The old `aquarium`, a short-lived `lcars` and `phone-user` users were deleted.
+- Older per-device users (an `aquarium` and a short-lived `lcars` user) were deleted.
 
 ## Kiosk tablets (Fully Kiosk Browser)
 
 - There is **no Fully Kiosk integration** in HA. What a tablet shows is Fully's
   on-device **Start URL** (Settings → Web Content Settings → Start URL).
-  Recommended: `https://ha.example.org/lcars-bridge/aquarium-status?lcars_motion=off`
-  (on the LAN also `http://homeassistant.local:8123/…`).
+  Recommended: `https://<your-ha>/lcars-bridge/aquarium-status?lcars_motion=off`
+  (on the LAN also `http://<ha-ip>:8123/…`).
 - **Animations off on the tablet**: Fully's renderer crashed with all LCARdS
   animations running. Append `?lcars_motion=off` to the start URL, e.g.
   `…/lcars-bridge/aquarium-status?lcars_motion=off`. The choice is stored per

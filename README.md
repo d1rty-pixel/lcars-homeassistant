@@ -27,6 +27,8 @@ title with the alert.
 ```
 generator/build_dashboard.py   the whole dashboard as code -> build/lcars_dashboard.json
 generator/ha_ws.py             stdlib-only HA WebSocket client
+generator/site_config.py       loads site.yaml (host, location, device IDs, calendars)
+site.example.yaml              template for site.yaml (git-ignored)
 tools/validate.py              LCARdS schema + strict unknown-key check
 tools/deploy.py                build -> validate -> back up live config -> save
 tools/deploy_ha_files.sh       copy ha/ files to the HA host, reload themes, ?v=<timestamp> on the scripts
@@ -65,9 +67,12 @@ python3 tools/deploy.py --restore build/backups/X.json
 tools/deploy_ha_files.sh                             # after editing anything in ha/
 ```
 
-Credentials: `~/.config/homeassistant/token` (long-lived access token) and SSH
-as `hassio@homeassistant.local`. Neither is stored in this repo. Override the host with
-`HA_HOST` / `HA_SSH`.
+**Site settings** live in `site.yaml` (git-ignored): HA host and SSH login, the radar's location, the
+device-derived parts of entity IDs, the personal calendars. Start from `cp site.example.yaml site.yaml`.
+`HA_HOST` / `HA_PORT` / `HA_SSH` in the environment override it.
+
+Credentials: `~/.config/homeassistant/token` (long-lived access token) and an SSH key for the login in
+`site.yaml` (sudo without password on the host). Neither is stored in this repo.
 
 **Rebuild after changing the source dashboards or the light schedule.** The Waste and
 Calendar calendar cards are copied from the live `dashboard-muell` / `dashboard-termine`

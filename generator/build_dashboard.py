@@ -30,6 +30,7 @@ import yaml
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import ha_ws  # noqa: E402  (raw websocket client, token from ~/.config/homeassistant/token)
+from site_config import SITE, HA_SSH  # noqa: E402  (site.yaml: host, location, device IDs, calendars)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "..", "build", "lcars_dashboard.json")
@@ -110,16 +111,17 @@ ELBOW_W = PILLAR + 44
 
 THEME = "LCARS Aquarium"
 
-PUMP = "sensor.switch_shellyplugsg3_000000000000_switch_0_status"
-HEATER = "binary_sensor.switch_shellyplugsg3_000000000000_switch_0_heater"
+_PLUG, _LIGHT, _AREA = (SITE["devices"][k] for k in ("pump_plug", "light", "light_area"))
+PUMP = f"sensor.switch_{_PLUG}_switch_0_status"
+HEATER = f"binary_sensor.switch_{_PLUG}_switch_0_heater"
 CO2 = "sensor.switch_co2_anlage_status"
 CO2_COUPLING = "switch.switch_co2_anlage_automatic_coupling"
-LIGHT_AUTO = "switch.chihiros_wrgb2_slim_90_ble_xxxxxxxxxxxxxxxxxx_rgb_automatic_schedule"
-PHASE = "sensor.chihiros_wrgb2_slim_90_ble_xxxxxxxxxxxxxxxxxx_rgb_current_phase"
-CHANNEL = "number.chihiros_wrgb2_slim_90_ble_xxxxxxxxxxxxxxxxxx_rgb_{}_channel"
+LIGHT_AUTO = f"switch.{_LIGHT}_rgb_automatic_schedule"
+PHASE = f"sensor.{_LIGHT}_rgb_current_phase"
+CHANNEL = f"number.{_LIGHT}_rgb_{{}}_channel"
 WC = "sensor.aquarium_water_change_status"
 POWER = "sensor.aquarium_total_power"
-PUMP_POWER = "sensor.shellyplugsg3_000000000000_switch_0_power"
+PUMP_POWER = f"sensor.{_PLUG}_switch_0_power"
 CO2_POWER = "sensor.co2_anlage_leistung"
 CAMERA = "camera.esphome_esp32_aquarium_webcam_aquarium_webcam"
 
@@ -618,8 +620,7 @@ HAZMAT = {"date": "sensor.schadstoffmobil", "window": "sensor.schadstoffmobil_ze
           "place": "sensor.schadstoffmobil_standort"}
 WASTE_CALS = ["calendar.mullabfuhr_restmull", "calendar.mullabfuhr_biotonne", "calendar.mullabfuhr_gelbe_tonne",
               "calendar.mullabfuhr_papiertonne", "calendar.schadstoffmobil"]
-ALL_CALS = WASTE_CALS + ["calendar.telephone", "calendar.personal", "calendar.geburtstage",
-                         "calendar.deutschland_rp", "calendar.feiertage_in_frankreich"]
+ALL_CALS = WASTE_CALS + SITE["calendars"]
 
 # JS: relative-day wording for a Date `d` (uppercase via text_transform)
 REL = ("const t0 = new Date(); t0.setHours(0,0,0,0); const d0 = new Date(d); d0.setHours(0,0,0,0); "
@@ -843,7 +844,8 @@ def with_decor_pillar(content, key, colours, side="right", filler=None):
 
 # Precipitation radar: DWD composite + nowcast (ha/www/lcars-radar.js). Borders come from the DWD WFS at
 # build time (its WMS forbids custom styles), rounded to ~100 m and passed to the card as SVG paths.
-RADAR_CENTER, RADAR_HOME, RADAR_WIDTH_KM = (50.00, 8.00), (50.00, 8.00), 170
+RADAR_CENTER, RADAR_HOME = (tuple(SITE["radar"][k]) for k in ("center", "home"))
+RADAR_WIDTH_KM = SITE["radar"]["width_km"]
 DWD_WFS = "https://maps.dwd.de/geoserver/dwd/ows"
 
 
@@ -1344,7 +1346,6 @@ def transporter_card():
 
 
 LIGHT_CONFIG = "/config/aquarium_light_control.yaml"   # the light schedule (aquarium_light_control)
-HA_SSH = os.environ.get("HA_SSH", "hassio@homeassistant.local")
 
 
 @functools.cache
@@ -1423,8 +1424,8 @@ def s_chain(parts):
 
 
 LIGHT_PLUG = "switch.chihiros_wrgb2_slim_90"      # smart plug powering the light (auto power-cycle)
-LIGHT_ENTITY = "light.esszimmer_chihiros_wrgb2_slim_90_ble_xxxxxxxxxxxxxxxxxx_rgb"
-LIGHT_BLE = "sensor.esszimmer_chihiros_wrgb2_slim_90_ble_xxxxxxxxxxxxxxxxxx_last_notification"
+LIGHT_ENTITY = f"light.{_AREA}_{_LIGHT}_rgb"
+LIGHT_BLE = f"sensor.{_AREA}_{_LIGHT}_last_notification"
 LOG_LEVELS = {"info": PERI, "ok": ICE, "warn": SUNFLOWER, "flap": BUTTERSCOTCH, "error": RED, "ble": GRAY}
 
 

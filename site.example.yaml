@@ -1,0 +1,23 @@
+# Site-specific settings for the generator and tools. Copy to site.yaml (git-ignored) and fill in.
+ha:
+  host: homeassistant.local          # HA host for the WebSocket/REST API (env HA_HOST overrides)
+  port: 8123
+  ssh: hassio@homeassistant.local    # SSH login with passwordless sudo (env HA_SSH overrides)
+
+# DWD precipitation radar (OPS): map centre, the home marker, map width
+radar:
+  center: [50.00, 8.00]
+  home: [50.00, 8.00]
+  width_km: 170
+
+# Parts of entity IDs that HA derived from device serials / names
+devices:
+  pump_plug: shellyplugsg3_000000000000                 # Shelly plug of the circulation pump
+  light: chihiros_wrgb2_slim_90_ble_xxxxxxxxxxxxxxxxxx  # Chihiros light (BLE integration device slug)
+  light_area: livingroom                                # area prefix HA put on the light entity / BLE sensor
+
+# Calendars besides the waste calendars (OPS "Next 7 days", Calendar header)
+calendars:
+  - calendar.personal
+  - calendar.birthdays
+  - calendar.holidays
