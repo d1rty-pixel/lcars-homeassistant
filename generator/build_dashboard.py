@@ -101,7 +101,7 @@ class Len:
     @staticmethod
     def _clamp(s, lo):
         a, b = sorted((s * lo, s))
-        return f"clamp({_num(a)}px, {_num(s * 100 / REF_H)}vh, {_num(b)}px)"
+        return f"clamp({_num(a)}px, {_num(s * 100 / REF_H)}dvh, {_num(b)}px)"
 
     def __str__(self):
         parts = [self._clamp(v, lo) for lo, v in sorted(self.terms.items())]
@@ -145,7 +145,7 @@ NOT_PHONE = f"(min-height: {PHONE_H + 0.02}px)"
 
 def only_below(px, value):
     """CSS: `value` while the viewport is at least `px` high, 0 below (no media query needed)."""
-    return f"min({value}, max(0px, calc((100vh - {px}px) * 1000)))"
+    return f"min({value}, max(0px, calc((100dvh - {px}px) * 1000)))"
 
 
 def number_sensors(n, seed=47174):
@@ -516,12 +516,12 @@ def sidebar(section_key, active_view, here=None):
                               None if is_active else path, size=font(21, SIDEBAR_LO)), key))
         areas.append(f'"{key}"')
         # 6 blocks + motion switch fit the 800 px tablet; on the shortest phones they share what there is
-        rows.append(f"minmax(0, clamp({fl(48)}, 8vh, 110px))")
+        rows.append(f"minmax(0, clamp({fl(48)}, 8dvh, 110px))")
     cards.append(at(block(EARTH, None, lcars_code(f"sidebar-filler/{section_key}")), "filler"))
     here = next((BASE + path for k, _, _, _, path in subviews if k == active_view), here)
     cards.append(at(motion_switch(section_key, here), "motion"))
     areas += ['"filler"', '"motion"']
-    rows += ["1fr", f"clamp({Len(36, lo=0.7)}, 5vh, 60px)"]
+    rows += ["1fr", f"clamp({Len(36, lo=0.7)}, 5dvh, 60px)"]
     return grid(" ".join(areas), "1fr", " ".join(rows), cards, gap="6px")
 
 
@@ -545,7 +545,7 @@ pump_title_js = (
 )
 
 
-CLASSIC_H = f"clamp({fl(42)}, 5.4vh, 58px)"   # Classic block on top of the header frame's pillar
+CLASSIC_H = f"clamp({fl(42)}, 5.4dvh, 58px)"   # Classic block on top of the header frame's pillar
 WIDE_MIN = 1600      # header decoration that only fits on wide screens (not the 1280 px tablet)
 WIDE_W = 290
 
@@ -723,7 +723,7 @@ def view(section, key, title, path, content, subtitle, **frame_opts):
     return {"title": title, "path": path, "type": "custom:lcards-layout-view", "theme": THEME,
             # the header's row is 0 px high on a phone (its card isn't rendered there, see frame())
             "layout": {"grid-template-columns": f"{PILLAR} 1fr",
-                       "grid-template-rows": f"{only_below(PHONE_H, 'clamp(140px, 17vh, 176px)')} {mid_h} 1fr {FOOT_H}",
+                       "grid-template-rows": f"{only_below(PHONE_H, 'clamp(140px, 17dvh, 176px)')} {mid_h} 1fr {FOOT_H}",
                        "grid-template-areas": '"top top" "mid mid" "side main" "foot foot"',
                        # HA pads the view by the safe areas (notch, home indicator): the height leaves them out
                        "grid-gap": "6px 0", "padding": "8px",
@@ -918,7 +918,7 @@ ATMOS_LABEL_W = Len(150, lo=LABEL_LO)     # "Temperature" needs more than DATA_L
 # (top shoulder with the title; its pillar is the label column).
 OPS_COLUMNS = ["1.5fr", "1fr"]     # top row: the label column's sections | Radar
 OPS_ATMOS, OPS_RADAR = ORANGE, ALMOND
-SECTION_GAP = f"clamp({fl(10)}, 1.6vh, 18px)"     # between the sections of the label column
+SECTION_GAP = f"clamp({fl(10)}, 1.6dvh, 18px)"     # between the sections of the label column
 OPS_FORECAST = (LILAC, [VIOLET, LILAC])         # every section a frame of its own family: bar, label blocks
 OPS_WEEK = (BLUEY, PERI)                        # bar, the week column's head piece and filler
 OPS_FORECAST_TOGGLE = PERI                      # the Hourly / Daily switch in the forecast's label column
@@ -1152,9 +1152,9 @@ TIMELINE_LABEL_W = Len(150, lo=LABEL_LO)  # label column = the timeline panel's 
 # Fixed row heights, so the frames hug their content instead of filling the viewport
 # Budget at 1280x800 (tablet): the content area is ~550 px high, timeline + data panels must fit
 # Rows: their full size from the tablet up, growing with taller screens, shrinking (to 80 %) on phones
-TL_HEAD, TL_ROW, TL_AXIS, TL_GAP = (f"clamp({Len(22, lo=0.8)}, 2.8vh, 30px)", f"clamp({Len(24, lo=0.8)}, 3.4vh, 40px)",
-                                    f"clamp({Len(24, lo=0.8)}, 3vh, 32px)", 4)
-DATA_ROW, DATA_GAP = f"clamp({Len(28, lo=0.8)}, 3.8vh, 46px)", TL_GAP
+TL_HEAD, TL_ROW, TL_AXIS, TL_GAP = (f"clamp({Len(22, lo=0.8)}, 2.8dvh, 30px)", f"clamp({Len(24, lo=0.8)}, 3.4dvh, 40px)",
+                                    f"clamp({Len(24, lo=0.8)}, 3dvh, 32px)", 4)
+DATA_ROW, DATA_GAP = f"clamp({Len(28, lo=0.8)}, 3.8dvh, 46px)", TL_GAP
 DATA_LABEL_W = Len(130, lo=LABEL_LO)     # label blocks = pillar of the data panels
 
 PANEL_T = fl(26)        # bar thickness of a panel frame; the title sits in it, so it must fit the font
@@ -1332,9 +1332,9 @@ def span_bar(entity, colour, start_attr, end_attr, side="left"):
 def with_bar(value, bar, side, width=VALUE_W):
     """Value next to the pillar, its bar filling the rest of the row."""
     if side == "right":
-        return grid('"b v"', f"1fr {width}", "1fr", [at(bar, "b", margin="clamp(6px, 1vh, 10px) 0"),
+        return grid('"b v"', f"1fr {width}", "1fr", [at(bar, "b", margin="clamp(6px, 1dvh, 10px) 0"),
                                                        at(value, "v")], gap="0 14px")
-    return grid('"v b"', f"{width} 1fr", "1fr", [at(value, "v"), at(bar, "b", margin="clamp(6px, 1vh, 10px) 0")],
+    return grid('"v b"', f"{width} 1fr", "1fr", [at(value, "v"), at(bar, "b", margin="clamp(6px, 1dvh, 10px) 0")],
                 gap="0 14px")
 
 

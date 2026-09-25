@@ -22,7 +22,7 @@
 // viewport height up, shrinking below it: sizes to 60 % (sz), fonts to 80 % (fz; LCARS numbers to 67 %).
 // len(): a size from the config (a number of px or a CSS length) as CSS.
 const REF_H = 720;
-const fluid = (px, lo) => `clamp(${+(px * lo).toFixed(2)}px, ${+(px * 100 / REF_H).toFixed(3)}vh, ${px}px)`;
+const fluid = (px, lo) => `clamp(${+(px * lo).toFixed(2)}px, ${+(px * 100 / REF_H).toFixed(3)}dvh, ${px}px)`;
 const fz = (px, lo = 0.8) => fluid(px, lo);
 const sz = (px) => fluid(px, 0.6);
 const scale = () => Math.min(1, Math.max(0.6, window.innerHeight / REF_H));   // sz(px) = px * scale()

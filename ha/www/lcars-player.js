@@ -55,7 +55,7 @@
 // viewport height up, shrinking below it: sizes to 60 % (sz), fonts to 80 % (fz; LCARS numbers to 67 %).
 // len(): a size from the config (a number of px or a CSS length) as CSS.
 const REF_H = 720;
-const fluid = (px, lo) => `clamp(${+(px * lo).toFixed(2)}px, ${+(px * 100 / REF_H).toFixed(3)}vh, ${px}px)`;
+const fluid = (px, lo) => `clamp(${+(px * lo).toFixed(2)}px, ${+(px * 100 / REF_H).toFixed(3)}dvh, ${px}px)`;
 const fz = (px, lo = 0.8) => fluid(px, lo);
 const sz = (px) => fluid(px, 0.6);
 const scale = () => Math.min(1, Math.max(0.6, window.innerHeight / REF_H));   // sz(px) = px * scale()
@@ -191,7 +191,7 @@ class LcarsPlayer extends HTMLElement {
         .blk:active { filter: brightness(1.3); }
         .blk.na { background: ${k.off} !important; color: ${k.dim}; cursor: default; }
         .blk.err { background: ${k.error || "#DD4444"} !important; }
-        .body { display: grid; min-height: 0; gap: clamp(8px, 1.6vh, 18px) 0;
+        .body { display: grid; min-height: 0; gap: clamp(8px, 1.6dvh, 18px) 0;
                 grid-template-rows: minmax(0, 1fr) auto auto auto; }
         /* the cover area is square (_fitArt), the stripe outside it; the cover is never cropped */
         .info { display: grid; min-height: 0; gap: 0 clamp(14px, 1.6vw, 28px);
@@ -201,17 +201,17 @@ class LcarsPlayer extends HTMLElement {
         .art img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
         .art span { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
                     color: ${k.dim}; font-size: ${fz(18)}; letter-spacing: 2px; }
-        .meta { display: grid; min-height: 0; align-content: center; gap: clamp(4px, 1vh, 12px) 0; overflow: hidden; }
+        .meta { display: grid; min-height: 0; align-content: center; gap: clamp(4px, 1dvh, 12px) 0; overflow: hidden; }
         .meta > div { min-width: 0; }   /* else a long title widens its grid item and the ellipsis never shows */
-        .lbl { color: ${k.dim}; font-size: clamp(12px, 1.5vh, 16px); letter-spacing: 1px; }
+        .lbl { color: ${k.dim}; font-size: clamp(12px, 1.5dvh, 16px); letter-spacing: 1px; }
         .val { color: ${k.value}; font-weight: bold; font-size: var(--lcars-data-size, 24px); white-space: nowrap;
                overflow: hidden; text-overflow: ellipsis; padding-bottom: 2px; }
-        .val.title { color: ${k.accent}; font-size: clamp(26px, 5vh, 56px); }
-        .val.status { font-size: clamp(16px, 2.2vh, 24px); }
+        .val.title { color: ${k.accent}; font-size: clamp(26px, 5dvh, 56px); }
+        .val.status { font-size: clamp(16px, 2.2dvh, 24px); }
         .line { display: grid; align-items: center; gap: 0 14px; grid-template-columns: ${sz(110)} minmax(0, 1fr) ${sz(110)}; }
-        .line .t { color: ${k.text}; font-weight: bold; font-size: clamp(16px, 2.4vh, 26px); }
+        .line .t { color: ${k.text}; font-weight: bold; font-size: clamp(16px, 2.4dvh, 26px); }
         .line .t.r { text-align: right; }
-        .segs { display: grid; gap: ${len(c.gap ?? 3)}; height: clamp(18px, 3vh, 30px); cursor: pointer;
+        .segs { display: grid; gap: ${len(c.gap ?? 3)}; height: clamp(18px, 3dvh, 30px); cursor: pointer;
                 touch-action: none; user-select: none; -webkit-user-select: none; }
         .prog { grid-template-columns: repeat(${c.segments.progress}, minmax(0, 1fr)); }
         .vol { grid-template-columns: repeat(${c.segments.volume}, minmax(0, 1fr)); }
@@ -220,7 +220,7 @@ class LcarsPlayer extends HTMLElement {
         .vol .seg.lit { background: ${k.volume || k.text}; }
         .seg.lit.anim { animation: blink var(--ms) step-end infinite; }
         .na .segs { cursor: default; }
-        .srcs { display: flex; gap: 10px; overflow: hidden; height: clamp(28px, 4vh, 40px); }
+        .srcs { display: flex; gap: 10px; overflow: hidden; height: clamp(28px, 4dvh, 40px); }
         .src { flex: 0 1 auto; min-width: 0; display: flex; align-items: center; padding: 0 20px; border-radius: 40px;
                background: ${k.source}; color: ${k.ink}; font-size: ${fz(17)}; white-space: nowrap; overflow: hidden;
                text-overflow: ellipsis; cursor: pointer; user-select: none; }
@@ -248,8 +248,8 @@ class LcarsPlayer extends HTMLElement {
         .wrap.t-row .pillar, .wrap.t-bottom .pillar { grid-template-rows: minmax(0, 1fr);
                                                         grid-template-columns: repeat(5, minmax(0, 1fr)); }
         .wrap:not(.t-pillar) .pillar > .fill { display: none; }
-        .wrap.t-bottom { grid-template-columns: minmax(0, 1fr); gap: clamp(8px, 1.6vh, 18px) 0;
-                         grid-template-rows: minmax(0, 1fr) ${c.row_h || "clamp(44px, 7vh, 72px)"}; }
+        .wrap.t-bottom { grid-template-columns: minmax(0, 1fr); gap: clamp(8px, 1.6dvh, 18px) 0;
+                         grid-template-rows: minmax(0, 1fr) ${c.row_h || "clamp(44px, 7dvh, 72px)"}; }
         .wrap.t-bottom .pillar { order: 2; }
         .wrap.t-row .blk { font-size: ${fz(16)}; padding: 0 8px 3px; }
         .wrap.t-row .blk em { font-size: ${fz(10, 0.67)}; top: 2px; }
@@ -542,7 +542,7 @@ class LcarsLibrary extends HTMLElement {
         .row b { display: flex; align-items: flex-end; justify-content: flex-end; padding: 0 8px 3px; color: ${k.ink};
                  font-weight: normal; font-size: ${fz(13)}; }
         .row span { display: flex; align-items: center; justify-content: flex-start; color: ${k.text}; font-weight: bold;
-                    font-size: clamp(16px, 2.3vh, 24px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+                    font-size: clamp(16px, 2.3dvh, 24px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
                     padding-right: 2px; }
         .row span i { font-style: normal; color: ${k.dim}; font-weight: normal; margin-right: 10px; }
         .row.head span { color: ${k.dim}; font-weight: normal; }
