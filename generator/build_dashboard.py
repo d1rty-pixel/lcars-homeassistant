@@ -1132,7 +1132,6 @@ AQ_LABEL_W = ATMOS_LABEL_W   # "Maintenance", "CO² coupling" next to their code
 LIGHT_POWER = "sensor.chihiros_wrgb2_slim_90_leistung"
 DOSE_COLOURS = [PEACH, ICE, ALMOND, LILAC]
 DOSE_LOW_ML = 50             # fill level below this: its bar turns red
-SCHEDULE_W = "clamp(240px, 19vw, 360px)"   # value column of the dosing schedule rows
 JS_HHMM_OF = "const hhmm = (t) => new Date(t).toLocaleTimeString('en-GB', {hour: '2-digit', minute: '2-digit'}); "
 
 
@@ -1327,41 +1326,98 @@ def light_content():
                 [at(control, "t"), at(lower, "l")], gap="clamp(12px, 2vh, 24px) 8px")
 
 
-def dosing_content():
-    """Fill level (hold a channel to mark its bottle refilled) and the schedule (tap to switch it,
-    weekdays as a bar), one row per channel in both."""
-    fill_rows, schedule_rows = [], []
-    for (label, slug, bottle), colour in zip(DOSE_CHANNELS, DOSE_COLOURS):
-        status, fill, sw = f"sensor.dose_{slug}_status", f"number.dose_{slug}_fill_level", f"switch.dose_{slug}_schedule"
-        refill = {"action": "call-service", "service": "number.set_value", "target": {"entity_id": fill},
-                  "service_data": {"value": bottle}}
-        value = value_text("[[[ const v = parseFloat(entity.state); if (isNaN(v)) return '–'; "
-                           f"return Math.round(v) + ' ml · ' + Math.round(v / {bottle} * 100) + ' %'; ]]]", fill)
-        blk = block(colour, label, lcars_code(f"dosing/fill/{slug}"), align="center-right", size=17)
-        for card in (value, blk):
-            card.update({"interactive": True, "entity": fill, "tap_action": {"action": "more-info"},
-                         "hold_action": refill})
-        fill_rows.append((blk, colour, None, with_bar(value, data_bar(
-            fill, colour, "level", BAR_SEGMENTS, "left", min=0, max=bottle,
-            alarm={"below": DOSE_LOW_ML, "colour": RED}), "left")))
+TANK_SEGMENTS = 20           # 25 ml each in a 500 ml bottle
 
-        plan = value_text("[[[ const a = entity.attributes; if ((states['" + sw + "'] || {}).state !== 'on' || "
-                          "!a.configured_ml) return 'Off'; const nx = a.next_dose_at ? new Date(a.next_dose_at)"
-                          ".toLocaleDateString('en-GB', {weekday: 'short'}) : '–'; "
-                          "const s = entity.state === 'Idle' ? '' : entity.state + ' · '; "
-                          "return s + a.configured_ml + ' ml · ' + a.time + ' · next ' + nx; ]]]", status, "left",
+
+def tank_card(fill, status, bottle, colour):
+    """A bottle's fill level as a vertical segment stack with a scale and a pointer (ha/www/lcars-tank.js).
+    Tap: more-info."""
+    return {"type": "custom:lcars-tank", "entity": fill, "status": status, "capacity": bottle, "low": DOSE_LOW_ML,
+            "segments": TANK_SEGMENTS, "colour": colour, "alarm": RED, "off": BAR_OFF, "text": PERI, "dim": GRAY,
+            "blink": [_BLINK.randrange(8000, 24000, 500) for _ in range(TANK_SEGMENTS)], "off_fraction": 0.025,
+            "flash": "#FFFFFF", "gap": 3, "font": "Antonio, sans-serif"}
+
+
+def centre_text(value_js, entity, colour=PERI):
+    """A value centred in its channel column."""
+    card = value_text(value_js, entity, colour=colour)
+    card["text"]["value"].update({"position": "center", "padding": {}})
+    return card
+
+
+def dosing_content():
+    """Dosing station: a small frame per channel (thin pillar on alternating sides, open at the bottom, the
+    channel's name in its top bar) with the schedule and refill buttons, the bottle as a tank, remaining
+    supply, dose, next dose and weekdays; the row labels are the outer frame's pillar. Tap a Schedule pill
+    to switch the schedule; hold Refill to mark the bottle refilled."""
+    rows = [("sched", "Schedule", BONE, f"calc({DATA_ROW} * 1.3)"), ("tank", "Reservoir", PERI, "1fr"),
+            ("left", "Remaining", BONE, DATA_ROW), ("dose", "Dose", BONE, DATA_ROW),
+            ("next", "Next", BONE, DATA_ROW), ("days", "Weekdays", BONE, DATA_ROW)]
+    n = len(DOSE_CHANNELS)
+    # the label rows line up with the channel frames' bodies: the pieces above and below them are as high
+    # as the frames' shoulders (less the grid gap, which the frames don't have)
+    shoulder = f"{PANEL_CORNER - DATA_GAP}px"
+    chans = " ".join(f"c{i}" for i in range(n))
+    areas = ['"ph ' + chans + '"'] + [f'"p{key} {chans}"' for key, *_ in rows] + ['"pf ' + chans + '"']
+    cards = [at(block(BLUEY), "ph")]    # runs into the top shoulder (join_top): no number
+    cards += [at(block(colour, label, lcars_code(f"dosing/{key}"), align="center-right", size=17), f"p{key}")
+              for key, label, colour, _ in rows]
+    cards.append(at(block(BLUEY), "pf"))
+    enabled = "(states['{sw}'] || {{}}).state === 'on' && a.configured_ml && (a.weekdays || []).length"
+    for i, ((label, slug, bottle), colour) in enumerate(zip(DOSE_CHANNELS, DOSE_COLOURS)):
+        status, fill, sw = f"sensor.dose_{slug}_status", f"number.dose_{slug}_fill_level", f"switch.dose_{slug}_schedule"
+        on = enabled.format(sw=sw)
+        # days until the bottle is empty at the scheduled rate, and the date
+        remaining = centre_text(
+            "[[[ const a = entity.attributes; const v = parseFloat(states['" + fill + "']?.state); "
+            f"if (!({on}) || isNaN(v)) return '–'; "
+            "const d = Math.floor(v / (a.configured_ml * a.weekdays.length / 7)); "
+            "const e = new Date(Date.now() + d * 86400000); "
+            "return d + ' d · ' + e.toLocaleDateString('en-GB', {day: '2-digit', month: '2-digit'}); ]]]",
+            status, {"default": PERI, "Disabled": GRAY})
+        dose = centre_text(f"[[[ const a = entity.attributes; if (!({on})) return 'Off'; "
+                           "return a.configured_ml + ' ml · ' + a.time; ]]]", status,
+                           {"default": PERI, "Disabled": GRAY, "Error": RED})
+        nxt = centre_text("[[[ const a = entity.attributes; if (a.last_error) return 'Error'; "
+                          f"if (!({on}) || !a.next_dose_at) return '–'; const d = new Date(a.next_dose_at); "
+                          "const t0 = new Date(); t0.setHours(0, 0, 0, 0); const d0 = new Date(d); "
+                          "d0.setHours(0, 0, 0, 0); const k = Math.round((d0 - t0) / 86400000); "
+                          "const day = k === 0 ? 'today' : k === 1 ? 'tomorrow' : "
+                          "d.toLocaleDateString('en-GB', {weekday: 'short'}); "
+                          "return (entity.state === 'Idle' ? '' : entity.state + ' · ') + day; ]]]", status,
                           {"default": PERI, "Disabled": GRAY, "Error": RED})
-        plan["triggers_update"] = [sw]
-        sblk = block(colour, label, lcars_code(f"dosing/schedule/{slug}"), align="center-right", size=17)
-        sblk.update({"interactive": True, "entity": sw, "tap_action": {"action": "toggle"},
-                     "hold_action": {"action": "more-info"}})
-        schedule_rows.append((sblk, colour, None, with_bar(plan, data_bar(status, colour, "days", 7, "left",
-                                                                          attribute="weekdays"), "left",
-                                                           width=SCHEDULE_W)))
-    fill = aq_panel("Fill level · hold to refill", BLUEY, rows=fill_rows)
-    schedule = aq_panel("Schedule · Mon–Sun", PERI, rows=schedule_rows)
-    return grid('"f" "s" "."', "1fr", f"{data_panel_height(4)} {data_panel_height(4)} 1fr",
-                [at(fill, "f"), at(schedule, "s")], gap="clamp(12px, 2vh, 24px) 8px")
+        for card in (remaining, dose, nxt):
+            card["triggers_update"] = [sw, fill]
+        days = data_bar(status, colour, "days", 7, "left", attribute="weekdays",
+                        labels=list("MTWTFSS"), ink=INK, label_colour=GRAY, font="Antonio, sans-serif")
+        pill = mode_button(f"[[[ return entity.state === 'on' ? 'Active' : 'Off'; ]]]", sw, ICE, GRAY,
+                           f"dosing/schedule/{slug}")
+        # hold to mark the bottle refilled (fill level = bottle size), on purpose; tap: more-info
+        refill = mode_button("Refill", fill, colour, colour, f"dosing/refill/{slug}")
+        refill["style"]["card"]["color"]["background"] = colour
+        refill.update({"tap_action": {"action": "more-info"},
+                       "hold_action": {"action": "call-service", "service": "number.set_value",
+                                       "target": {"entity_id": fill}, "service_data": {"value": bottle}}})
+        for card in (pill, refill):      # half a column each: smaller text, the number above the label
+            card["text"]["label"].update({"font_size": 17, "padding": {"right": 16, "bottom": 4}})
+            card["text"]["code"]["padding"] = {"left": 16, "top": 4}
+        buttons = grid('"s r"', "1fr 1fr", "1fr", [at(pill, "s"), at(refill, "r")], gap="0 8px")
+        parts = {"sched": buttons, "tank": tank_card(fill, status, bottle, colour), "days": days,
+                 "left": remaining, "dose": dose, "next": nxt}
+        # open at the bottom: an empty row as high as the label pillar's bottom piece keeps the rows aligned
+        # pillars alternate: Nitrate right, Phosphate left, ...; a spacer column on the open side keeps the
+        # content off the neighbouring frame's
+        right = i % 2 == 0
+        body = grid(" ".join((f'"_ {key}"' if right else f'"{key} _"') for key, *_ in rows) + ' ". ."',
+                    "14px 1fr" if right else "1fr 14px", " ".join([h for *_, h in rows] + [shoulder]),
+                    [at(parts[key], key, **({"margin": "6px 0"} if key == "tank" else {})) for key, *_ in rows],
+                    gap=f"{DATA_GAP}px 0")
+        cards.append(at(panel(label, colour, content=body, side="right" if right else "left", bottom=False),
+                        f"c{i}"))
+    station = grid(" ".join(areas), f"{DATA_LABEL_W}px " + " ".join(["1fr"] * n),
+                   " ".join([shoulder] + [h for *_, h in rows] + [shoulder]), cards, gap=f"{DATA_GAP}px 12px")
+    frame_ = panel("Dosing station", BLUEY, pillar=DATA_LABEL_W, content=station, join_top=True)
+    return grid('"s"', "1fr", "1fr", [at(frame_, "s")], gap="0")
 
 
 POWER_GRID = [  # (label, entity, colour, W at the end of its bar, sign in the mirrored chart)

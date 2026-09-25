@@ -90,7 +90,8 @@ next to values, restrained colour.
   the state's colour (e.g. ice = on/running) or none. Other modes can take their
   lit colour from the state too (`states`, e.g. the water-change countdown in
   its status colour), a level can turn red below a threshold (`alarm`, dosing
-  fill levels), and `days` lights weekdays from a list (dosing schedule).
+  fill levels), and `days` lights weekdays from a list, optionally with a
+  letter in each segment (`labels`, dosing weekdays).
 - **Switches have no bar** (user decision): a row that switches something (tap
   its block or value; hold: more-info) shows only its value, e.g. RO unit,
   CO² coupling, light automation, laundry Supply. Bars are for readings.
@@ -157,9 +158,17 @@ next to values, restrained colour.
   - *Light*: "Phase control" (Automation, Current, Scheduled, Next, Ramp bar);
     below, facing "Profiles" (Fire, Chill, Resume: tap the block) | "Channels"
     (red/green/blue as horizontal LCARdS segment sliders).
-  - *Dosing*: "Fill level" (ml and %, bar red below 50 ml; hold a channel's
-    block or value to mark the bottle refilled) and "Schedule" (dose, time, next
-    weekday, Mon–Sun bar; tap a channel's block to switch its schedule).
+  - *Dosing*: frame "Dosing station" with the row labels as its pillar and a
+    small frame per channel inside it (thin pillar alternating right / left
+    from Nitrate on, open at the bottom, the channel's name in its top bar,
+    channel colour; their bodies line up with the label rows, so the
+    channels aren't listed twice). Per channel: a Schedule pill (tap to switch
+    it) and right of it a Refill button in the channel colour (hold: mark the
+    bottle refilled, tap: more-info), the bottle as a vertical 20-segment tank
+    (`lcars-tank.js`: scale 500/250/LOW, pointer with ml and % at the level,
+    red below 50 ml; tap: more-info), Remaining (days until empty at the
+    scheduled rate, and the date), Dose (ml · time), Next (today / tomorrow /
+    weekday) and last Weekdays (M–S strip).
   - *Power*: "Power grid" (Total 0..350 W, Pump 0..250, Light 0..100, CO² valve
     0..2 W; the block colours are the chart's legend) and "Power visualization"
     (mirrored 24 h LCARdS chart: zero axis in the middle, total above, consumers
@@ -176,6 +185,7 @@ next to values, restrained colour.
 |------|----------|
 | `lcars-day-grid.js` | waste collection timeline cells |
 | `lcars-bar.js` | segment bars: `countdown`, `window`, `level`, `span`, `state`, `days` |
+| `lcars-tank.js` | a dosing bottle's fill level as a vertical segment stack with scale and pointer; tap opens more-info |
 | `lcars-week.js` | next days of all calendars (refreshes HA's calendars first) |
 | `lcars-forecast.js` | hourly forecast (weather/subscribe_forecast) |
 | `lcars-radar.js` | DWD radar with its own control pillar |
@@ -196,7 +206,7 @@ registers it as a resource with `?v=<timestamp>`.
 | `header`, `row`, `column` | older content primitives (calendar pages) |
 | `panel`, `pillar_rows`, `value_text`, `with_bar`, `with_decor_pillar` | reference-style frames and rows |
 | `aq_panel`, `state_row`, `plain_row`, `mode_button`, `channel_slider` | aquarium rows: status/switch rows, LCARS mode buttons, light sliders |
-| `data_bar`, `countdown_bar`, `window_bar`, `level_bar`, `span_bar`, `state_bar` | segment bar configs (`lcars-bar.js`) |
+| `data_bar`, `countdown_bar`, `window_bar`, `level_bar`, `span_bar`, `state_bar` | segment bar configs (`lcars-bar.js`); `tank_card` (`lcars-tank.js`) |
 | `power_card` | power chart with range buttons (`lcars-power.js`) |
 | `number_columns`, `number_sensors`, `header_buttons` | header decoration |
 | `SECTIONS`, `SECTION_TITLES`, `NAV_ORDER` | sections, sub-views, menu order, titles |

@@ -32,6 +32,8 @@
 //   off_fraction: 0.025      # share of the cycle a lit segment briefly flashes
 //   flash: "#FFFFFF"         # colour of that flash
 //   gap: 3
+//   labels: ["M", "T", ...]  # optional text per segment (e.g. weekday letters): ink on lit segments,
+//   ink: "#000", label_colour: "#9999FF", font: "Antonio, sans-serif"   # `label_colour` on unlit ones
 class LcarsBar extends HTMLElement {
   setConfig(config) {
     this._config = config;
@@ -105,20 +107,23 @@ class LcarsBar extends HTMLElement {
     let motion = true;
     try { motion = localStorage.getItem("lcars-motion") !== "off"; } catch (e) { /* default on */ }
     const lit = this._lit(st);
+    const label = (j) => (c.labels ? c.labels[j] ?? "" : "");
     const segs = lit.map((on, j) => {
-      if (!on) return `<div style="background:${c.off}"></div>`;
+      if (!on) return `<div style="background:${c.off};color:${c.label_colour}">${label(j)}</div>`;
       const ms = (c.blink && c.blink[j % c.blink.length]) || 1000;
       const colour = typeof on === "string" ? on : c.colour;   // state mode: the state's colour
       // mostly in its colour, briefly flashing at the end of each cycle; step-end jumps, no fade
       const anim = motion ? `animation:blink ${ms}ms step-end infinite` : "";
-      return `<div style="--c:${colour};background:${colour};${anim}"></div>`;
+      return `<div style="--c:${colour};background:${colour};color:${c.ink};${anim}">${label(j)}</div>`;
     });
     if (c.side === "right") segs.reverse();
     this.shadowRoot.innerHTML = `
       <style>
         :host { display: block; height: 100%; }
         .bar { display: grid; height: 100%; gap: ${c.gap ?? 3}px;
-               grid-template-columns: repeat(${c.segments}, minmax(0, 1fr)); }
+               grid-template-columns: repeat(${c.segments}, minmax(0, 1fr));
+               font-family: ${c.font ?? "inherit"}; font-size: 15px; line-height: 1; }
+        .bar div { display: flex; align-items: center; justify-content: center; overflow: hidden; }
         /* explicit keyframes: steps() with alternate would hold the start value in both directions */
         @keyframes blink { 0% { background: var(--c); }
                            ${Math.round((1 - (c.off_fraction ?? 0.025)) * 1000) / 10}%, 100% { background: ${c.flash ?? "#FFFFFF"}; } }

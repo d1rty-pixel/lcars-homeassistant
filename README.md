@@ -38,6 +38,7 @@ ha/www/lcars-motion.js         per-device animation switch (?lcars_motion=off, s
                                global segment-bar switch (?lcars_bars=off)
 ha/www/lcars-day-grid.js       the waste timeline's day grid as one light card (was ~200 LCARdS buttons)
 ha/www/lcars-bar.js            segment bars (countdown, time window, level, span, status, weekdays) as light cards, CSS blink
+ha/www/lcars-tank.js           a dosing bottle's fill level as a vertical segment tank (Dosing)
 ha/www/lcars-week.js           next days of several calendars, timeline style (OPS)
 ha/www/lcars-forecast.js       hourly forecast, LCARS style (OPS)
 ha/www/lcars-radar.js          DWD precipitation radar with LCARS controls (OPS)
