@@ -38,8 +38,12 @@ Buttons the entity doesn't support right now (per `supported_features`) are grey
 The library categories are matched against the end of the browse root's `media_content_id`
 (`LIBRARY` in the generator): `current_user_playlists`, `current_user_saved_albums`,
 `current_user_followed_artists`, `current_user_recently_played`, `current_user_top_tracks`. The
-integration also offers `current_user_saved_tracks`, `current_user_saved_shows` and
-`current_user_top_artists`, so you can add those.
+integration also offers `current_user_saved_shows` and `current_user_top_artists`, so you can add
+those.
+
+**Liked songs** (`current_user_saved_tracks`) isn't a playlist in Spotify's API, so it is pinned as the
+first row of Playlists (`LIBRARY_PINNED`), marked ♥. Tapping it plays the whole collection as one
+context, so shuffle and next work across all liked songs.
 
 ## Notes and limitations
 

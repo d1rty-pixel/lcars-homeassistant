@@ -1716,6 +1716,8 @@ JS_MEDIA_STATUS = ("({playing: 'Playing', paused: 'Paused', buffering: 'Bufferin
 LIBRARY = [("current_user_playlists", "Playlists", PEACH), ("current_user_saved_albums", "Albums", ICE),
            ("current_user_followed_artists", "Artists", LILAC), ("current_user_recently_played", "Recent", BONE),
            ("current_user_top_tracks", "Top tracks", ALMOND)]
+# listed first in a category as one playable row: Spotify's Liked songs isn't a playlist, but belongs there
+LIBRARY_PINNED = {"current_user_playlists": ["current_user_saved_tracks"]}
 
 
 def player_card():
@@ -1736,7 +1738,8 @@ def library_card():
     """The Spotify library (ha/www/lcars-library in lcars-player.js): category pillar on the right, rows
     that play on tap."""
     return {"type": "custom:lcars-library", "entity": SPOTIFY,
-            "categories": [{"match": m, "label": label, "colour": c, "code": lcars_code(f"media/library/{m}")}
+            "categories": [{"match": m, "label": label, "colour": c, "code": lcars_code(f"media/library/{m}"),
+                            **({"pinned": LIBRARY_PINNED[m]} if m in LIBRARY_PINNED else {})}
                            for m, label, c in LIBRARY],
             "pillar": {"width": ATMOS_LABEL_W, "gap": PANEL_GAP, "ink": INK, "filler": VIOLET, "active": ORANGE,
                        "up": {"colour": GRAY, "code": lcars_code("media/library/up")},

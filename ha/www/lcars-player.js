@@ -24,8 +24,11 @@
 //
 //   type: custom:lcars-library
 //   entity: media_player.spotify_x
-//   categories: [{match: "current_user_playlists", label: "Playlists", colour, code}]
-//                                    # match: end of a root child's media_content_id or media_content_type
+//   categories: [{match: "current_user_playlists", label: "Playlists", colour, code,
+//                 pinned: ["current_user_saved_tracks"]}]
+//                                    # match: end of a root child's media_content_id or media_content_type;
+//                                    # pinned: other root children listed first as one playable row each
+//                                    # (e.g. Spotify's Liked songs, which isn't a playlist)
 //   pillar: {width, gap, ink, filler, active, up: {colour, code}, down: {colour, code}}
 //   row: 44, row_gap: 4              # px
 //   colours: {text, dim, rows: [colour, ...], ink}
@@ -472,8 +475,21 @@ class LcarsLibrary extends HTMLElement {
         if (!node) return this._message(`${cat.label} · not offered by this media player`);
       }
       const res = await this._browse(node.media_content_id, node.media_content_type);
+      // pinned root children (top level of a category only): browsed for their own can_play, listed first
+      const pinned = [];
+      if (!this._stack.length) {
+        for (const m of cat.pinned || []) {
+          const p = (this._root.children || []).find((ch) =>
+            String(ch.media_content_id).endsWith(m) || String(ch.media_content_type).endsWith(m));
+          if (!p) continue;
+          const pr = await this._browse(p.media_content_id, p.media_content_type);
+          pinned.push({title: pr.title, media_content_id: pr.media_content_id,
+                       media_content_type: pr.media_content_type, can_play: pr.can_play, can_expand: false,
+                       pinned: true});
+        }
+      }
       if (token !== this._token) return;       // another category was picked meanwhile
-      this._items = res.children || [];
+      this._items = [...pinned, ...(res.children || [])];
       this._title = res.title;
       this._draw();
     } catch (e) {
@@ -506,7 +522,7 @@ class LcarsLibrary extends HTMLElement {
     }
     this._items.slice(start, start + per).forEach((item, j) => {
       const i = start + j, colour = k.rows[i % k.rows.length];
-      const sub = item.can_play ? "" : "<i>▸</i>";
+      const sub = item.pinned ? "<i>♥</i>" : item.can_play ? "" : "<i>▸</i>";
       rows.push(`<div class="row" data-i="${i}"><b style="background:${colour}">` +
                 `${String(i + 1).padStart(2, "0")}-${code4(item.media_content_id || item.title || "")}</b>` +
                 `<span>${sub}${esc(item.title)}</span></div>`);
