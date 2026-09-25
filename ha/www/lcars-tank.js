@@ -19,6 +19,16 @@
 //   blink: [ms, ...], off_fraction: 0.025, flash: "#FFFFFF"
 //   gap: 3
 //   font: "Antonio, sans-serif"
+// Fluid sizes, the same as the generator's (Len, font() in build_dashboard.py): full size from REF_H
+// viewport height up, shrinking below it: sizes to 60 % (sz), fonts to 80 % (fz; LCARS numbers to 67 %).
+// len(): a size from the config (a number of px or a CSS length) as CSS.
+const REF_H = 720;
+const fluid = (px, lo) => `clamp(${+(px * lo).toFixed(2)}px, ${+(px * 100 / REF_H).toFixed(3)}vh, ${px}px)`;
+const fz = (px, lo = 0.8) => fluid(px, lo);
+const sz = (px) => fluid(px, 0.6);
+const scale = () => Math.min(1, Math.max(0.6, window.innerHeight / REF_H));   // sz(px) = px * scale()
+const len = (v) => (typeof v === "number" ? `${v}px` : v);
+
 class LcarsTank extends HTMLElement {
   setConfig(config) {
     this._config = config;
@@ -76,10 +86,10 @@ class LcarsTank extends HTMLElement {
         :host { display: block; height: 100%; cursor: pointer; }
         .tank { display: grid; height: 100%; grid-template-columns: minmax(40px, 36%) 44px minmax(0, 1fr);
                 gap: 0 8px; font-family: ${c.font}; text-transform: uppercase; line-height: 1; }
-        .stack { display: grid; gap: ${c.gap ?? 3}px; grid-template-rows: repeat(${c.segments}, minmax(0, 1fr)); }
+        .stack { display: grid; gap: ${len(c.gap ?? 3)}; grid-template-rows: repeat(${c.segments}, minmax(0, 1fr)); }
         .scale, .read { position: relative; }
         .tick { position: absolute; left: 0; right: 0; display: flex; align-items: center; gap: 4px;
-                font-size: 13px; white-space: nowrap; }
+                font-size: ${fz(13)}; white-space: nowrap; }
         .tick i { flex: none; width: 10px; height: 2px; }
         /* centred on the level (set after layout), kept inside the card at full / empty */
         .ptr { position: absolute; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; gap: 3px;

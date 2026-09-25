@@ -20,6 +20,16 @@
 //   blink: [ms, ...], off_fraction: 0.025, flash: "#FFFFFF"
 //   gap: 3
 //   font: "Antonio, sans-serif"
+// Fluid sizes, the same as the generator's (Len, font() in build_dashboard.py): full size from REF_H
+// viewport height up, shrinking below it: sizes to 60 % (sz), fonts to 80 % (fz; LCARS numbers to 67 %).
+// len(): a size from the config (a number of px or a CSS length) as CSS.
+const REF_H = 720;
+const fluid = (px, lo) => `clamp(${+(px * lo).toFixed(2)}px, ${+(px * 100 / REF_H).toFixed(3)}vh, ${px}px)`;
+const fz = (px, lo = 0.8) => fluid(px, lo);
+const sz = (px) => fluid(px, 0.6);
+const scale = () => Math.min(1, Math.max(0.6, window.innerHeight / REF_H));   // sz(px) = px * scale()
+const len = (v) => (typeof v === "number" ? `${v}px` : v);
+
 class LcarsTransporter extends HTMLElement {
   setConfig(config) {
     this._config = config;
@@ -68,16 +78,16 @@ class LcarsTransporter extends HTMLElement {
         :host { display: block; height: 100%; }
         .wrap { display: grid; height: 100%; justify-content: center; gap: 0 clamp(12px, 2.6vw, 48px);
                 padding: 0 14px; box-sizing: border-box;
-                grid-template-columns: 36px repeat(${c.channels.length}, minmax(0, ${c.col_w}));
+                grid-template-columns: ${sz(36)} repeat(${c.channels.length}, minmax(0, ${c.col_w}));
                 grid-template-rows: auto minmax(0, 1fr) ${c.label_h};
                 font-family: ${c.font}; text-transform: uppercase; line-height: 1; }
         .col { display: contents; }
         .val, .slot, .blk { grid-column: var(--col); }
-        .val { grid-row: 1; padding-bottom: 10px; text-align: center; color: ${c.text}; font-weight: bold;
+        .val { grid-row: 1; padding-bottom: ${sz(10)}; text-align: center; white-space: nowrap; color: ${c.text}; font-weight: bold;
                font-size: var(--lcars-data-size, 24px); }
         .slot { grid-row: 2; position: relative; background: ${c.slot}; border-radius: 12px; padding: 10px 8px;
                 cursor: ns-resize; touch-action: none; user-select: none; -webkit-user-select: none; }
-        .segs { display: grid; height: 100%; gap: ${c.gap ?? 3}px;
+        .segs { display: grid; height: 100%; gap: ${len(c.gap ?? 3)};
                 grid-template-rows: repeat(${c.segments}, minmax(0, 1fr)); }
         .seg { background: ${c.off}; }
         .seg.lit { background: var(--c); }
@@ -87,12 +97,12 @@ class LcarsTransporter extends HTMLElement {
                   background: ${c.handle}; transform: translateY(50%); pointer-events: none; }
         /* label at the bottom, number top-left: both fit a narrow slot */
         .blk { grid-row: 3; position: relative; display: flex; align-items: flex-end; justify-content: flex-end;
-               margin-top: 8px; padding: 0 8px 3px; background: var(--c); color: ${c.ink}; font-size: 17px;
+               margin-top: ${sz(8)}; padding: 0 ${sz(8)} 3px; background: var(--c); color: ${c.ink}; font-size: ${fz(17)};
                white-space: nowrap; overflow: hidden; }
-        .blk em { position: absolute; left: 6px; top: 3px; font-style: normal; font-size: 12px; }
+        .blk em { position: absolute; left: 6px; top: 3px; font-style: normal; font-size: ${fz(12, 0.67)}; }
         .scale { grid-row: 2; grid-column: 1; position: relative; margin: 10px 0; }
         .tick { position: absolute; right: 0; display: flex; align-items: center; gap: 4px; color: ${c.dim};
-                font-size: 13px; }
+                font-size: ${fz(13)}; }
         .tick i { width: 10px; height: 2px; background: ${c.dim}; }
         @keyframes blink { 0% { background: var(--c); }
                            ${Math.round((1 - (c.off_fraction ?? 0.025)) * 1000) / 10}%, 100% { background: ${c.flash ?? "#FFFFFF"}; } }

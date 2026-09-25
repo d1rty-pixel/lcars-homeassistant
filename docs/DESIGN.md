@@ -9,22 +9,27 @@ page.** The migration plan below records how the pages got there.
 
 - **No page scrolling, ever.** Every view is exactly one viewport. Frames are
   sized to their content; whatever is left of the page stays black.
-- **Two target screens**: 1920×1080 (desktop) and **1280×800** (Lenovo Tab M10
-  Gen 1, Fully Kiosk, landscape). Every page must fit and read well on both;
-  check both after layout changes (`tools/screenshot/`, see
-  `docs/OPERATIONS.md`). The tablet's real viewport is shorter than 800 (system
-  bars), so also check 1280×720.
+- **One layout for every screen** (user decision: one codebase that adapts, like Bootstrap; no separate
+  phone design). Sizes follow the viewport height (see "Responsive sizes"); only placement changes, at a
+  few breakpoints, through the display priorities.
+- **Target screens**: 1920×1080 (desktop), **1280×800** (Lenovo Tab M10 Gen 1, Fully Kiosk, landscape)
+  and **phones in landscape** (iPhone 16: 852×393, of which HA leaves ~734×372 inside the notch and
+  home-indicator insets). Every page must fit and read well on all of them; check them after layout
+  changes (`tools/screenshot/`, see `docs/OPERATIONS.md`). The tablet's real viewport is shorter than
+  800 (system bars), so also check 1280×720.
 - **Display priorities** (user decision): content that doesn't fit vertically
   is **not rendered**, rather than cut off or squeezed. `PRIORITY_MIN_H` maps a
-  priority to the minimum viewport height it needs (1 always, 2 ≥ 760 px,
-  3 ≥ 880 px, 4 ≥ 1000 px). `shown_from(card, p)` hides one card below its
+  priority to the minimum viewport height it needs (0 always, 1 ≥ 520 px, i.e. everywhere but on
+  phones, 2 ≥ 760 px, 3 ≥ 880 px, 4 ≥ 1000 px). `shown_from(card, p)` hides one card below its
   priority; `tiered({p: card, ...})` picks one of several variants (e.g. a
-  frame closed or open at the bottom, 10/9/8 list rows). Both use HA's `screen`
+  frame closed or open at the bottom, 10/9/8 list rows); its lowest variant is the fallback on every
+  shorter screen. Both use HA's `screen`
   visibility condition: `hui-card` doesn't create a card that isn't shown, so
   it costs nothing on the tablet. Current uses: header number columns (4th row,
   p4), light page device log (p3, else Controls closes the S), the shoulders of
   the small lower frames on OPS, Waste and Aquarium Status (p2; flat section bars
-  below), OPS calendar rows (1/1/2/3 at p1..p4). The fallback for a frame that no longer fits: drop its shoulders
+  below), OPS calendar rows (1/1/2/3 at p1..p4), and the phone variants (p0, see "Responsive sizes").
+  The fallback for a frame that no longer fits: drop its shoulders
   first, then leave it out.
 - **Voyager palette**, hex constants at the top of `build_dashboard.py`
   (orange, butterscotch, peach, almond, violet, lilac, bluey, peri, ice, rose,
@@ -79,6 +84,34 @@ page.** The migration plan below records how the pages got there.
   Dense graphics (grids of cells, segment bars, calendars, forecast, radar) are
   small custom cards in `ha/www/` with plain divs/CSS. Hundreds of LCARdS
   buttons crash the tablet's renderer (see `docs/NOTES.md`).
+
+## Responsive sizes
+
+- **Fluid sizes** (`Len`, `fl()`, `font()` in the generator; `sz()`, `fz()`, `len()` in the cards): every
+  size is written at its full value, which it keeps from `REF_H` (720 px) viewport height up, so the
+  tablet and the desktop look exactly as before. Below that it shrinks with the height, down to 60 %
+  (`S_MIN`, reached at 432 px). Fonts shrink to 80 % (`F_MIN`), LCARS numbers in blocks to 67 %
+  (`CODE_LO`), label columns to 75 % (`LABEL_LO`, so their labels keep fitting), sidebar labels to 70 %.
+  Rows that already grew with `vh` keep doing so above 720 px and shrink below it (e.g. `DATA_ROW`:
+  28 px at 720, 22 px on a phone).
+- A `Len` renders as CSS (`clamp(84px, 19.444vh, 140px)`, sums as `calc()`), and the generator keeps doing
+  its arithmetic with it (corners, title widths, `top_bars()` edges), so bar and content stay aligned at
+  every height. LCARdS elbows take such CSS lengths and redraw on resize; LCARdS text paddings take px
+  only, hence `phone_pill()`.
+- **Phones** (viewport below `PHONE_H`, 520 px; placement, not design): the header is not rendered (its
+  row is 0 px) and the **section menu moves into the foot bar**, with short labels (`SHORT_LABELS`), no
+  numbers (the bar is only as thick as its text), the active section near-white without "◂". The foot
+  bar ends in weekday and time instead of date/time and stardate, and shows the pump alert there ("Red
+  alert", "Pump off", blinking like the header title), since the header isn't there.
+- Buttons in the mid bar (radar, transport, calendar) drop their numbers on phones; so do the calendar
+  legend's blocks, which may also shrink to share the height.
+- Pills in narrow places get a phone variant without number and with smaller insets (`phone_pill()`, used
+  with `tiered()`).
+- Per page on phones: OPS without Next 7 days; Waste the timeline only; Status the four modes as one
+  column of pills level with Equipment's rows; Light Phase control with four rows and Controls in one row
+  (Automation, Fire, Chill); Dosing's Schedule/Refill pills without numbers. Frame titles may be clipped
+  where a frame is narrower than its title (Dosing's channel frames).
+- HA pads the view by the safe areas (notch, home indicator); the view's height leaves them out.
 
 ## Page frame (reference: Media)
 
@@ -434,7 +467,8 @@ registers it as a resource with `?v=<timestamp>`.
 | `clock`, `stardate_block` | foot bar: local date/time, stardate (`FOOT_FONT` sets the bar's size) |
 | `panel`, `pillar_rows`, `value_text`, `with_bar`, `with_decor_pillar` | reference-style frames and rows |
 | `state_row`, `plain_row`, `mode_button` | aquarium rows: status/switch rows, LCARS mode buttons |
-| `PRIORITY_MIN_H`, `shown_from`, `tiered` | display priorities: content not rendered below its viewport height |
+| `Len`, `fl`, `font`, `css`, `REF_H`, `PHONE_H` | fluid sizes (see "Responsive sizes") |
+| `PRIORITY_MIN_H`, `shown_from`, `tiered`, `phone_pill` | display priorities: content not rendered below its viewport height |
 | `s_joint`, `s_chain` | frames joined into an S (or double S) through shared bars (light page) |
 | `transporter_card`, `light_phases`, `phases_card`, `light_log_card` | light page cards; `light_phases()` reads the schedule from the HA host |
 | `data_bar`, `countdown_bar`, `window_bar`, `level_bar`, `span_bar`, `state_bar` | segment bar configs (`lcars-bar.js`); `tank_card` (`lcars-tank.js`) |
@@ -463,8 +497,9 @@ registers it as a resource with `?v=<timestamp>`.
    that section's sub-view list in `SECTIONS`.
 3. Add `view("<section>", key, "LCARS …", "<section>-<name>", subtitle="Subtitle", **my_view())`
    to `VIEWS`.
-4. Run `python3 tools/deploy.py` (it validates before saving) and check both
-   target screens.
+4. Run `python3 tools/deploy.py` (it validates before saving) and check the
+   target screens, a phone included. Write sizes with `fl()` / `font()` (or the existing constants), not
+   plain px, so they follow the viewport height.
 
 ### Adding a new section
 

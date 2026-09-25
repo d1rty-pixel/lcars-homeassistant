@@ -140,6 +140,8 @@ view's `*_content()` function:
 - **Palette**: hex constants (`ORANGE`, `PEACH`, `LILAC`, …). They are hex on purpose, so LCARdS alert
   modes don't shift them.
 - **Display priorities**: `PRIORITY_MIN_H` maps a priority to the minimum viewport height it needs
+- **Fluid sizes**: `REF_H` (full size from this viewport height up), `S_MIN`/`F_MIN` (how far sizes and
+  fonts shrink below it), `PHONE_H` (below it: phone placement, menu in the foot bar)
 - **Click sounds**: `CLICK_SOUNDS`. `None` uses LCARdS' built-in scheme.
 
 The Calendar views copy their calendar card from another dashboard at build time

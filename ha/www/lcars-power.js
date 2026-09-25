@@ -16,6 +16,16 @@
 //                                     # without it they share the height and the filler is 14 px
 //   colours: {line, fill_opacity, grid, axis, text}
 //   font: "Antonio, sans-serif"
+// Fluid sizes, the same as the generator's (Len, font() in build_dashboard.py): full size from REF_H
+// viewport height up, shrinking below it: sizes to 60 % (sz), fonts to 80 % (fz; LCARS numbers to 67 %).
+// len(): a size from the config (a number of px or a CSS length) as CSS.
+const REF_H = 720;
+const fluid = (px, lo) => `clamp(${+(px * lo).toFixed(2)}px, ${+(px * 100 / REF_H).toFixed(3)}vh, ${px}px)`;
+const fz = (px, lo = 0.8) => fluid(px, lo);
+const sz = (px) => fluid(px, 0.6);
+const scale = () => Math.min(1, Math.max(0.6, window.innerHeight / REF_H));   // sz(px) = px * scale()
+const len = (v) => (typeof v === "number" ? `${v}px` : v);
+
 const RANGE_KEY = "lcars-power-range";
 // LCARdS' click sound (its sound manager honours the sound helpers), as on LCARdS buttons
 const lcarsTapSound = () => {
@@ -63,17 +73,17 @@ class LcarsPower extends HTMLElement {
       <style>
         :host { display: block; height: 100%; }
         .wrap { display: grid; height: 100%; gap: 0 16px; font-family: ${c.font}; text-transform: uppercase;
-                grid-template-columns: ${p.side === "right" ? `minmax(0, 1fr) ${p.width}px` : `${p.width}px minmax(0, 1fr)`}; }
+                grid-template-columns: ${p.side === "right" ? `minmax(0, 1fr) ${len(p.width)}` : `${len(p.width)} minmax(0, 1fr)`}; }
         .chart { position: relative; min-height: 0; overflow: hidden; }
         svg { position: absolute; inset: 0; width: 100%; height: 100%; }
-        svg text { font-family: ${c.font}; font-size: 12px; fill: ${c.colours.text}; }
-        .pillar { display: grid; gap: ${p.gap}px;
+        svg text { font-family: ${c.font}; font-size: ${fz(12)}; fill: ${c.colours.text}; }
+        .pillar { display: grid; gap: ${len(p.gap)};
                   grid-template-rows: ${p.row ? `repeat(${c.ranges.length}, ${p.row}) minmax(0, 1fr)`
                                               : `repeat(${c.ranges.length}, minmax(0, 1fr)) 14px`}; }
         .blk { position: relative; display: flex; align-items: ${p.row ? "center" : "flex-end"}; justify-content: flex-end;
                padding: 0 8px ${p.row ? 0 : 4}px;
-               color: ${p.ink}; font-size: 17px; cursor: pointer; user-select: none; }
-        .blk em { position: absolute; left: 6px; top: 3px; font-style: normal; font-size: 12px; }
+               color: ${p.ink}; font-size: ${fz(17)}; cursor: pointer; user-select: none; }
+        .blk em { position: absolute; left: 6px; top: 3px; font-style: normal; font-size: ${fz(12, 0.67)}; }
         .blk:active { filter: brightness(1.3); }
       </style>
       <div class="wrap">${p.side === "right" ? chart + pillar : pillar + chart}</div>`;

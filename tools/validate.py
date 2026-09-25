@@ -8,6 +8,7 @@ Two passes per LCARdS card:
 Exit code 1 on any finding.
 """
 import json
+import re
 import os
 import sys
 import urllib.request
@@ -161,6 +162,11 @@ def main(path):
                     # template string under `style` (_preEvaluateStyleTemplates in LCARdSButton).
                     if (list(e.absolute_path)[:1] == ["style"] and isinstance(e.instance, str)
                             and e.instance.startswith("[[[")):
+                        continue
+                    # Schema gap: font_size only allows px/em/var(), but LCARdS writes it into CSS, so
+                    # clamp()/calc() work (the generator's fluid sizes, see Len).
+                    if (list(e.absolute_path)[-1:] == ["font_size"] and isinstance(e.instance, str)
+                            and re.match(r"^(clamp|calc|min|max)\(", e.instance)):
                         continue
                     problems.append(f"{where} {list(e.absolute_path)} {e.message[:160]}")
                 found = []

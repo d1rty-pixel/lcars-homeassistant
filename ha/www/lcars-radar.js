@@ -20,6 +20,16 @@
 //   group: "ops"
 //   colours: {past, now, future, text, dim, home}
 //   font: "Antonio, sans-serif"
+// Fluid sizes, the same as the generator's (Len, font() in build_dashboard.py): full size from REF_H
+// viewport height up, shrinking below it: sizes to 60 % (sz), fonts to 80 % (fz; LCARS numbers to 67 %).
+// len(): a size from the config (a number of px or a CSS length) as CSS.
+const REF_H = 720;
+const fluid = (px, lo) => `clamp(${+(px * lo).toFixed(2)}px, ${+(px * 100 / REF_H).toFixed(3)}vh, ${px}px)`;
+const fz = (px, lo = 0.8) => fluid(px, lo);
+const sz = (px) => fluid(px, 0.6);
+const scale = () => Math.min(1, Math.max(0.6, window.innerHeight / REF_H));   // sz(px) = px * scale()
+const len = (v) => (typeof v === "number" ? `${v}px` : v);
+
 const WMS = "https://maps.dwd.de/geoserver/dwd/wms";
 const EVENT = "lcars-radar";   // detail: {group, cmd: "toggle" | "step" | "now" | "query", d} or {group, playing}
 
@@ -96,28 +106,30 @@ class LcarsRadar extends HTMLElement {
     this.shadowRoot.innerHTML = `
       <style>
         :host { display: block; height: 100%; }
-        .wrap { display: grid; height: 100%; grid-template-columns: minmax(0, 1fr) ${p.width}px; gap: 0 16px;
+        .wrap { display: grid; height: 100%; grid-template-columns: minmax(0, 1fr) ${len(p.width)}; gap: 0 16px;
                 font-family: ${c.font}; text-transform: uppercase; }
         .map { position: relative; overflow: hidden; background: #000; min-height: 0; }
         .map img, .map svg { position: absolute; inset: 0; width: 100%; height: 100%; }
         .imgs img { visibility: hidden; }
         .imgs img.on { visibility: visible; }
-        .label { position: absolute; left: 10px; top: 8px; font-size: 20px; color: ${col.text}; text-shadow: 0 0 4px #000; }
+        .label { position: absolute; left: 10px; top: 8px; font-size: ${fz(20)}; color: ${col.text}; text-shadow: 0 0 4px #000; }
         .label b { font-weight: normal; color: ${col.now}; }
         .frames { position: absolute; left: 10px; right: 10px; bottom: 8px; height: 8px; display: grid; gap: 3px; }
         .frames i { display: block; opacity: 0.35; }
         .frames i.on { opacity: 1; }
-        .pillar { display: grid; gap: ${p.gap}px; grid-template-rows: repeat(${p.blocks.length}, minmax(0, 1fr)) 14px; }
+        .pillar { display: grid; gap: ${len(p.gap)}; grid-template-rows: repeat(${p.blocks.length}, minmax(0, 1fr)) 14px; }
         .blk { position: relative; display: flex; align-items: flex-end; justify-content: flex-end; padding: 0 8px 4px;
-               color: ${p.ink}; font-size: 17px; cursor: pointer; user-select: none; }
-        .blk em { position: absolute; left: 6px; top: 3px; font-style: normal; font-size: 12px; }
+               color: ${p.ink}; font-size: ${fz(17)}; cursor: pointer; user-select: none; }
+        .blk em { position: absolute; left: 6px; top: 3px; font-style: normal; font-size: ${fz(12, 0.67)}; }
         .blk:active { filter: brightness(1.3); }
         .wrap.c-none { grid-template-columns: minmax(0, 1fr); }
         .wrap.c-none .pillar, .wrap.c-row .map, .wrap.c-row .pillar > .fill { display: none; }
         .wrap.c-row { grid-template-columns: minmax(0, 1fr); }
         .wrap.c-row .pillar { grid-template-rows: minmax(0, 1fr); grid-template-columns: repeat(${p.blocks.length}, minmax(0, 1fr)); }
-        .wrap.c-row .blk { font-size: 16px; padding: 0 8px 3px; }
-        .wrap.c-row .blk em { font-size: 10px; top: 2px; }
+        .wrap.c-row .blk { font-size: ${fz(16)}; padding: 0 8px 3px; }
+        .wrap.c-row .blk em { font-size: ${fz(10, 0.67)}; top: 2px; }
+        /* phones (PHONE_H in the generator): the mid bar is too thin for numbers */
+        @media (max-height: 520px) { .wrap.c-row .blk em { display: none; } .wrap.c-row .blk { padding: 0 4px; align-items: center; justify-content: center; font-size: 12px; } }
       </style>
       <div class="wrap c-${this._mode}">
         <div class="map"><svg class="borders" preserveAspectRatio="none"></svg>

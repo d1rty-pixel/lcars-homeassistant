@@ -14,6 +14,16 @@
 //     state:     a pickup on day ds when entity.state === ds
 //   colours: {empty, weekend, today, text, text_weekend, text_today}
 //   font: "Antonio, sans-serif", font_size: 15
+// Fluid sizes, the same as the generator's (Len, font() in build_dashboard.py): full size from REF_H
+// viewport height up, shrinking below it: sizes to 60 % (sz), fonts to 80 % (fz; LCARS numbers to 67 %).
+// len(): a size from the config (a number of px or a CSS length) as CSS.
+const REF_H = 720;
+const fluid = (px, lo) => `clamp(${+(px * lo).toFixed(2)}px, ${+(px * 100 / REF_H).toFixed(3)}vh, ${px}px)`;
+const fz = (px, lo = 0.8) => fluid(px, lo);
+const sz = (px) => fluid(px, 0.6);
+const scale = () => Math.min(1, Math.max(0.6, window.innerHeight / REF_H));   // sz(px) = px * scale()
+const len = (v) => (typeof v === "number" ? `${v}px` : v);
+
 class LcarsDayGrid extends HTMLElement {
   setConfig(config) {
     this._config = config;
@@ -72,7 +82,7 @@ class LcarsDayGrid extends HTMLElement {
         .grid { display: grid; height: 100%; box-sizing: border-box;
                 grid-template-columns: repeat(${c.days}, minmax(0, 1fr));
                 grid-template-rows: ${c.rows.join(" ")}; gap: ${c.gap};
-                font-family: ${c.font}; font-size: ${c.font_size}px; line-height: 1; }
+                font-family: ${c.font}; font-size: ${fz(c.font_size)}; line-height: 1; }
         .lbl { display: flex; justify-content: center; overflow: hidden; white-space: nowrap; }
         .wd { align-items: flex-end; }
         .num { align-items: flex-start; }

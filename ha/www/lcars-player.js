@@ -51,6 +51,16 @@
 //   row: 44, row_gap: 4              # px
 //   colours: {text, dim, rows: [colour, ...], ink}
 //   font: "Antonio, sans-serif"
+// Fluid sizes, the same as the generator's (Len, font() in build_dashboard.py): full size from REF_H
+// viewport height up, shrinking below it: sizes to 60 % (sz), fonts to 80 % (fz; LCARS numbers to 67 %).
+// len(): a size from the config (a number of px or a CSS length) as CSS.
+const REF_H = 720;
+const fluid = (px, lo) => `clamp(${+(px * lo).toFixed(2)}px, ${+(px * 100 / REF_H).toFixed(3)}vh, ${px}px)`;
+const fz = (px, lo = 0.8) => fluid(px, lo);
+const sz = (px) => fluid(px, 0.6);
+const scale = () => Math.min(1, Math.max(0.6, window.innerHeight / REF_H));   // sz(px) = px * scale()
+const len = (v) => (typeof v === "number" ? `${v}px` : v);
+
 const lcarsTapSound = () => {
   try { window.lcards.core.soundManager.play("card_tap"); } catch (e) { /* LCARdS not loaded: silent */ }
 };
@@ -172,12 +182,12 @@ class LcarsPlayer extends HTMLElement {
       <style>
         :host { display: block; height: 100%; }
         .wrap { display: grid; height: 100%; gap: 0 16px; font-family: ${c.font}; text-transform: uppercase;
-                line-height: 1; grid-template-columns: ${p.width}px minmax(0, 1fr); }
-        .pillar { display: grid; gap: ${p.gap}px; grid-template-rows: repeat(5, minmax(0, 1fr)) 14px; }
+                line-height: 1; grid-template-columns: ${len(p.width)} minmax(0, 1fr); }
+        .pillar { display: grid; gap: ${len(p.gap)}; grid-template-rows: repeat(5, minmax(0, 1fr)) 14px; }
         .blk { position: relative; display: flex; align-items: flex-end; justify-content: flex-end; padding: 0 8px 4px;
-               background: var(--c); color: ${p.ink}; font-size: 17px; cursor: pointer; user-select: none;
+               background: var(--c); color: ${p.ink}; font-size: ${fz(17)}; cursor: pointer; user-select: none;
                -webkit-user-select: none; }
-        .blk em { position: absolute; left: 6px; top: 3px; font-style: normal; font-size: 12px; }
+        .blk em { position: absolute; left: 6px; top: 3px; font-style: normal; font-size: ${fz(12, 0.67)}; }
         .blk:active { filter: brightness(1.3); }
         .blk.na { background: ${k.off} !important; color: ${k.dim}; cursor: default; }
         .blk.err { background: ${k.error || "#DD4444"} !important; }
@@ -190,7 +200,7 @@ class LcarsPlayer extends HTMLElement {
                border-left: ${ART_STRIPE}px solid ${k.art}; overflow: hidden; }
         .art img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
         .art span { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-                    color: ${k.dim}; font-size: 18px; letter-spacing: 2px; }
+                    color: ${k.dim}; font-size: ${fz(18)}; letter-spacing: 2px; }
         .meta { display: grid; min-height: 0; align-content: center; gap: clamp(4px, 1vh, 12px) 0; overflow: hidden; }
         .meta > div { min-width: 0; }   /* else a long title widens its grid item and the ellipsis never shows */
         .lbl { color: ${k.dim}; font-size: clamp(12px, 1.5vh, 16px); letter-spacing: 1px; }
@@ -198,10 +208,10 @@ class LcarsPlayer extends HTMLElement {
                overflow: hidden; text-overflow: ellipsis; padding-bottom: 2px; }
         .val.title { color: ${k.accent}; font-size: clamp(26px, 5vh, 56px); }
         .val.status { font-size: clamp(16px, 2.2vh, 24px); }
-        .line { display: grid; align-items: center; gap: 0 14px; grid-template-columns: 110px minmax(0, 1fr) 110px; }
+        .line { display: grid; align-items: center; gap: 0 14px; grid-template-columns: ${sz(110)} minmax(0, 1fr) ${sz(110)}; }
         .line .t { color: ${k.text}; font-weight: bold; font-size: clamp(16px, 2.4vh, 26px); }
         .line .t.r { text-align: right; }
-        .segs { display: grid; gap: ${c.gap ?? 3}px; height: clamp(18px, 3vh, 30px); cursor: pointer;
+        .segs { display: grid; gap: ${len(c.gap ?? 3)}; height: clamp(18px, 3vh, 30px); cursor: pointer;
                 touch-action: none; user-select: none; -webkit-user-select: none; }
         .prog { grid-template-columns: repeat(${c.segments.progress}, minmax(0, 1fr)); }
         .vol { grid-template-columns: repeat(${c.segments.volume}, minmax(0, 1fr)); }
@@ -212,22 +222,22 @@ class LcarsPlayer extends HTMLElement {
         .na .segs { cursor: default; }
         .srcs { display: flex; gap: 10px; overflow: hidden; height: clamp(28px, 4vh, 40px); }
         .src { flex: 0 1 auto; min-width: 0; display: flex; align-items: center; padding: 0 20px; border-radius: 40px;
-               background: ${k.source}; color: ${k.ink}; font-size: 17px; white-space: nowrap; overflow: hidden;
+               background: ${k.source}; color: ${k.ink}; font-size: ${fz(17)}; white-space: nowrap; overflow: hidden;
                text-overflow: ellipsis; cursor: pointer; user-select: none; }
         .src.on { background: ${k.active}; }
         .src:active { filter: brightness(1.3); }
-        .none { color: ${k.dim}; font-size: 17px; align-self: center; }
+        .none { color: ${k.dim}; font-size: ${fz(17)}; align-self: center; }
         /* output devices as a column of LCARS buttons (config.sources = "column") */
-        .scol { display: none; min-height: 0; gap: ${p.gap}px; }
+        .scol { display: none; min-height: 0; gap: ${len(p.gap)}; }
         .wrap.s-none .srcs, .wrap.s-column .pillar, .wrap.s-column .body { display: none; }
         .wrap.s-column { grid-template-columns: minmax(0, 1fr); }
         .wrap.s-column .scol { display: grid; align-content: start;
-                               grid-template-rows: repeat(var(--n, 1), minmax(0, ${c.source_row || 72}px)); }
+                               grid-template-rows: repeat(var(--n, 1), minmax(0, ${len(c.source_row || 72)})); }
         .sblk { position: relative; display: flex; align-items: flex-end; justify-content: flex-end; min-width: 0;
-                padding: 0 8px 4px; background: ${k.source}; color: ${p.ink}; font-size: 17px; cursor: pointer;
+                padding: 0 8px 4px; background: ${k.source}; color: ${p.ink}; font-size: ${fz(17)}; cursor: pointer;
                 user-select: none; -webkit-user-select: none; }
         .sblk span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .sblk em { position: absolute; left: 6px; top: 3px; font-style: normal; font-size: 12px; }
+        .sblk em { position: absolute; left: 6px; top: 3px; font-style: normal; font-size: ${fz(12, 0.67)}; }
         .sblk.on { background: ${k.active}; cursor: default; }
         .sblk:active { filter: brightness(1.3); }
         .scol .none { padding: 4px 2px; }
@@ -241,8 +251,10 @@ class LcarsPlayer extends HTMLElement {
         .wrap.t-bottom { grid-template-columns: minmax(0, 1fr); gap: clamp(8px, 1.6vh, 18px) 0;
                          grid-template-rows: minmax(0, 1fr) ${c.row_h || "clamp(44px, 7vh, 72px)"}; }
         .wrap.t-bottom .pillar { order: 2; }
-        .wrap.t-row .blk { font-size: 16px; padding: 0 8px 3px; }
-        .wrap.t-row .blk em { font-size: 10px; top: 2px; }
+        .wrap.t-row .blk { font-size: ${fz(16)}; padding: 0 8px 3px; }
+        .wrap.t-row .blk em { font-size: ${fz(10, 0.67)}; top: 2px; }
+        /* phones (PHONE_H in the generator): the mid bar is too thin for numbers */
+        @media (max-height: 520px) { .wrap.t-row .blk em { display: none; } .wrap.t-row .blk { padding: 0 4px; align-items: center; justify-content: center; font-size: 12px; } }
         @keyframes blink { 0% { background: ${k.accent}; }
                            ${Math.round((1 - (c.off_fraction ?? 0.025)) * 1000) / 10}%, 100% { background: ${c.flash ?? "#FFFFFF"}; } }
       </style>
@@ -514,27 +526,27 @@ class LcarsLibrary extends HTMLElement {
       <style>
         :host { display: block; height: 100%; }
         .wrap { display: grid; height: 100%; gap: 0 16px; font-family: ${c.font}; text-transform: uppercase;
-                line-height: 1; grid-template-columns: minmax(0, 1fr) ${p.width}px; }
-        .pillar { display: grid; gap: ${p.gap}px;
+                line-height: 1; grid-template-columns: minmax(0, 1fr) ${len(p.width)}; }
+        .pillar { display: grid; gap: ${len(p.gap)};
                   grid-template-rows: repeat(${c.categories.length}, minmax(0, 1fr)) minmax(0, 0.8fr) minmax(0, 0.8fr) 14px; }
         .blk { position: relative; display: flex; align-items: flex-end; justify-content: flex-end; padding: 0 8px 4px;
-               background: var(--c); color: ${p.ink}; font-size: 17px; cursor: pointer; user-select: none;
+               background: var(--c); color: ${p.ink}; font-size: ${fz(17)}; cursor: pointer; user-select: none;
                -webkit-user-select: none; }
-        .blk em { position: absolute; left: 6px; top: 3px; font-style: normal; font-size: 12px; }
+        .blk em { position: absolute; left: 6px; top: 3px; font-style: normal; font-size: ${fz(12, 0.67)}; }
         .blk:active { filter: brightness(1.3); }
         .blk.na { opacity: 0.35; cursor: default; }
-        .list { display: grid; align-content: start; min-height: 0; overflow: hidden; gap: ${c.row_gap}px 0; }
-        .row { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 0 14px; height: ${c.row}px;
+        .list { display: grid; align-content: start; min-height: 0; overflow: hidden; gap: ${len(c.row_gap)} 0; }
+        .row { display: grid; grid-template-columns: ${sz(96)} minmax(0, 1fr); gap: 0 ${sz(14)}; height: ${sz(c.row)};
                cursor: pointer; user-select: none; -webkit-user-select: none; }
         .row:active { filter: brightness(1.3); }
         .row b { display: flex; align-items: flex-end; justify-content: flex-end; padding: 0 8px 3px; color: ${k.ink};
-                 font-weight: normal; font-size: 13px; }
+                 font-weight: normal; font-size: ${fz(13)}; }
         .row span { display: flex; align-items: center; justify-content: flex-start; color: ${k.text}; font-weight: bold;
                     font-size: clamp(16px, 2.3vh, 24px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
                     padding-right: 2px; }
         .row span i { font-style: normal; color: ${k.dim}; font-weight: normal; margin-right: 10px; }
         .row.head span { color: ${k.dim}; font-weight: normal; }
-        .msg { color: ${k.dim}; font-size: 18px; padding: 8px 2px; }
+        .msg { color: ${k.dim}; font-size: ${fz(18)}; padding: 8px 2px; }
       </style>
       <div class="wrap">
         <div class="list"></div>
@@ -698,7 +710,7 @@ class LcarsLibrary extends HTMLElement {
   _fit() {
     const c = this._config, list = this.shadowRoot.querySelector(".list");
     const h = list.getBoundingClientRect().height;
-    const rows = Math.max(1, Math.floor((h + c.row_gap) / (c.row + c.row_gap)));
+    const rows = Math.max(1, Math.floor((h + c.row_gap) / (c.row * scale() + c.row_gap)));   // rows are sz(c.row) high
     if (rows !== this._rows) {
       this._rows = rows;
       this._draw();

@@ -12,6 +12,16 @@
 //   min_height: 0.3
 //   colours: {grid, text, now}
 //   font: "Antonio, sans-serif"
+// Fluid sizes, the same as the generator's (Len, font() in build_dashboard.py): full size from REF_H
+// viewport height up, shrinking below it: sizes to 60 % (sz), fonts to 80 % (fz; LCARS numbers to 67 %).
+// len(): a size from the config (a number of px or a CSS length) as CSS.
+const REF_H = 720;
+const fluid = (px, lo) => `clamp(${+(px * lo).toFixed(2)}px, ${+(px * 100 / REF_H).toFixed(3)}vh, ${px}px)`;
+const fz = (px, lo = 0.8) => fluid(px, lo);
+const sz = (px) => fluid(px, 0.6);
+const scale = () => Math.min(1, Math.max(0.6, window.innerHeight / REF_H));   // sz(px) = px * scale()
+const len = (v) => (typeof v === "number" ? `${v}px` : v);
+
 class LcarsPhases extends HTMLElement {
   setConfig(config) {
     this._config = config;
@@ -98,8 +108,8 @@ class LcarsPhases extends HTMLElement {
                 font-family: ${c.font}; text-transform: uppercase; line-height: 1; color: ${col.text}; }
         .plot, .axis { position: relative; }
         .plot svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
-        .axis span { position: absolute; font-size: 12px; white-space: nowrap; }
-        .name { position: absolute; transform: translate(4px, calc(-100% - 4px)); font-size: 14px; white-space: nowrap; }
+        .axis span { position: absolute; font-size: ${fz(12)}; white-space: nowrap; }
+        .name { position: absolute; transform: translate(4px, calc(-100% - 4px)); font-size: ${fz(14)}; white-space: nowrap; }
         .now { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: ${col.now}; }
         .dot { position: absolute; width: 9px; height: 9px; border-radius: 50%; transform: translate(-50%, -50%);
                box-shadow: 0 0 0 2px #000; }

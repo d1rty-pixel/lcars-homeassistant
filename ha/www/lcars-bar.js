@@ -34,6 +34,16 @@
 //   gap: 3
 //   labels: ["M", "T", ...]  # optional text per segment (e.g. weekday letters): ink on lit segments,
 //   ink: "#000", label_colour: "#9999FF", font: "Antonio, sans-serif"   # `label_colour` on unlit ones
+// Fluid sizes, the same as the generator's (Len, font() in build_dashboard.py): full size from REF_H
+// viewport height up, shrinking below it: sizes to 60 % (sz), fonts to 80 % (fz; LCARS numbers to 67 %).
+// len(): a size from the config (a number of px or a CSS length) as CSS.
+const REF_H = 720;
+const fluid = (px, lo) => `clamp(${+(px * lo).toFixed(2)}px, ${+(px * 100 / REF_H).toFixed(3)}vh, ${px}px)`;
+const fz = (px, lo = 0.8) => fluid(px, lo);
+const sz = (px) => fluid(px, 0.6);
+const scale = () => Math.min(1, Math.max(0.6, window.innerHeight / REF_H));   // sz(px) = px * scale()
+const len = (v) => (typeof v === "number" ? `${v}px` : v);
+
 class LcarsBar extends HTMLElement {
   setConfig(config) {
     this._config = config;
@@ -120,9 +130,9 @@ class LcarsBar extends HTMLElement {
     this.shadowRoot.innerHTML = `
       <style>
         :host { display: block; height: 100%; }
-        .bar { display: grid; height: 100%; gap: ${c.gap ?? 3}px;
+        .bar { display: grid; height: 100%; gap: ${len(c.gap ?? 3)};
                grid-template-columns: repeat(${c.segments}, minmax(0, 1fr));
-               font-family: ${c.font ?? "inherit"}; font-size: 15px; line-height: 1; }
+               font-family: ${c.font ?? "inherit"}; font-size: ${fz(15)}; line-height: 1; }
         .bar div { display: flex; align-items: center; justify-content: center; overflow: hidden; }
         /* explicit keyframes: steps() with alternate would hold the start value in both directions */
         @keyframes blink { 0% { background: var(--c); }

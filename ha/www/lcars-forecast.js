@@ -21,6 +21,16 @@
 //                                    # temperature (bar + °C, the rest of the height), rain; rain: null
 //                                    # puts the mm under the °C instead (two rows)
 //   font: "Antonio, sans-serif"
+// Fluid sizes, the same as the generator's (Len, font() in build_dashboard.py): full size from REF_H
+// viewport height up, shrinking below it: sizes to 60 % (sz), fonts to 80 % (fz; LCARS numbers to 67 %).
+// len(): a size from the config (a number of px or a CSS length) as CSS.
+const REF_H = 720;
+const fluid = (px, lo) => `clamp(${+(px * lo).toFixed(2)}px, ${+(px * 100 / REF_H).toFixed(3)}vh, ${px}px)`;
+const fz = (px, lo = 0.8) => fluid(px, lo);
+const sz = (px) => fluid(px, 0.6);
+const scale = () => Math.min(1, Math.max(0.6, window.innerHeight / REF_H));   // sz(px) = px * scale()
+const len = (v) => (typeof v === "number" ? `${v}px` : v);
+
 const CONDITION_CODES = {
   "clear-night": "CLEAR", cloudy: "CLOUD", exceptional: "ALERT", fog: "FOG", hail: "HAIL",
   lightning: "STORM", "lightning-rainy": "STORM", partlycloudy: "PCLD", pouring: "POUR", rainy: "RAIN",
@@ -95,9 +105,9 @@ class LcarsForecast extends HTMLElement {
         :host { display: block; height: 100%; }
         .blk { position: relative; height: 100%; box-sizing: border-box; display: flex; align-items: center;
                justify-content: flex-end; padding: 0 8px; background: ${g.colour}; color: ${g.ink || "#000"};
-               font-family: ${c.font}; font-size: 17px; text-transform: uppercase; cursor: pointer;
+               font-family: ${c.font}; font-size: ${fz(17)}; text-transform: uppercase; cursor: pointer;
                user-select: none; -webkit-user-select: none; }
-        .blk em { position: absolute; left: 6px; top: 3px; font-style: normal; font-size: 12px; }
+        .blk em { position: absolute; left: 6px; top: 3px; font-style: normal; font-size: ${fz(12, 0.67)}; }
         .blk:active { filter: brightness(1.3); }
       </style>
       <div class="blk"><em>${g.code || ""}</em><span></span></div>`;
@@ -169,20 +179,20 @@ class LcarsForecast extends HTMLElement {
                 font-family: ${c.font}; color: ${col.text}; text-transform: uppercase; line-height: 1.15; }
         .col { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto auto; justify-items: center;
                gap: 3px; min-height: 0; }
-        b { font-weight: normal; font-size: 15px; color: ${col.text}; }
-        .cond { font-size: 12px; color: ${col.dim}; }
-        .t { font-size: 17px; font-weight: bold; color: ${col.temp}; }
-        .r { font-size: 12px; }
+        b { font-weight: normal; font-size: ${fz(15)}; color: ${col.text}; }
+        .cond { font-size: ${fz(12)}; color: ${col.dim}; }
+        .t { font-size: ${fz(17)}; font-weight: bold; color: ${col.temp}; }
+        .r { font-size: ${fz(12)}; }
         .bar { display: grid; width: 60%; min-height: 0; gap: 2px; grid-template-rows: repeat(${n}, minmax(0, 1fr)); }
         .bar i { display: block; --c: ${col.temp}; }
         .rows .col { grid-template-rows: ${(c.rows || {}).time || "28px"} minmax(0, 1fr)${(c.rows || {}).rain === null ? "" : ` ${(c.rows || {}).rain || "28px"}`};
-                     gap: ${c.gap ?? 4}px; }
+                     gap: ${len(c.gap ?? 4)}; }
         .rows .time { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; line-height: 1; }
         .rows .temp { display: flex; flex-direction: column; align-items: center; min-height: 0; gap: 3px;
                       justify-self: stretch; }   /* full column width, so the bar's 60 % match the default layout */
         .rows .temp .bar { flex: 1 1 auto; }
-        .rows .r { align-self: center; font-size: 14px; }
-        .rows .temp .r { align-self: auto; font-size: 12px; }
+        .rows .r { align-self: center; font-size: ${fz(14)}; }
+        .rows .temp .r { align-self: auto; font-size: ${fz(12)}; }
         @keyframes blink { 0% { background: var(--c); }
                            ${Math.round((1 - (c.off_fraction ?? 0.025)) * 1000) / 10}%, 100% { background: ${col.flash || "#FFFFFF"}; } }
       </style>

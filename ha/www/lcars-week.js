@@ -19,6 +19,16 @@
 //   head: "28px", row: "30px", gap: 4
 //   colours: {empty, weekend, today, text, text_weekend, text_today, ink}
 //   font: "Antonio, sans-serif"
+// Fluid sizes, the same as the generator's (Len, font() in build_dashboard.py): full size from REF_H
+// viewport height up, shrinking below it: sizes to 60 % (sz), fonts to 80 % (fz; LCARS numbers to 67 %).
+// len(): a size from the config (a number of px or a CSS length) as CSS.
+const REF_H = 720;
+const fluid = (px, lo) => `clamp(${+(px * lo).toFixed(2)}px, ${+(px * 100 / REF_H).toFixed(3)}vh, ${px}px)`;
+const fz = (px, lo = 0.8) => fluid(px, lo);
+const sz = (px) => fluid(px, 0.6);
+const scale = () => Math.min(1, Math.max(0.6, window.innerHeight / REF_H));   // sz(px) = px * scale()
+const len = (v) => (typeof v === "number" ? `${v}px` : v);
+
 class LcarsWeek extends HTMLElement {
   setConfig(config) {
     this._config = config;
@@ -136,20 +146,20 @@ class LcarsWeek extends HTMLElement {
     this.shadowRoot.innerHTML = `
       <style>
         :host { display: block; height: 100%; }
-        .grid { display: grid; height: 100%; gap: ${c.gap}px ${c.gap}px;
-                grid-template-columns: ${right ? `repeat(${c.days}, minmax(0, 1fr)) ${c.label_w}px`
-                                                : `${c.label_w}px repeat(${c.days}, minmax(0, 1fr))`};
+        .grid { display: grid; height: 100%; gap: ${len(c.gap)} ${len(c.gap)};
+                grid-template-columns: ${right ? `repeat(${c.days}, minmax(0, 1fr)) ${len(c.label_w)}`
+                                                : `${len(c.label_w)} repeat(${c.days}, minmax(0, 1fr))`};
                 grid-template-rows: ${c.head} repeat(${n}, ${c.row}) minmax(0, 1fr);
                 font-family: ${c.font}; text-transform: uppercase; line-height: 1; }
-        .head { display: flex; align-items: flex-end; justify-content: center; font-size: 15px; white-space: nowrap; }
+        .head { display: flex; align-items: flex-end; justify-content: center; font-size: ${fz(15)}; white-space: nowrap; }
         .blk { position: relative; display: flex; align-items: center; justify-content: flex-end;
-               padding: 0 8px; color: ${col.ink}; font-size: 17px; overflow: hidden; white-space: nowrap; }
-        .blk em { position: absolute; left: 6px; top: 3px; font-style: normal; font-size: 12px; }
+               padding: 0 8px; color: ${col.ink}; font-size: ${fz(17)}; overflow: hidden; white-space: nowrap; }
+        .blk em { position: absolute; left: 6px; top: 3px; font-style: normal; font-size: ${fz(12, 0.67)}; }
         .cell { display: flex; align-items: center; min-width: 0; padding: 0 6px; overflow: hidden;
-                color: ${col.ink}; font-size: 14px; white-space: nowrap; }
+                color: ${col.ink}; font-size: ${fz(14)}; white-space: nowrap; }
         .cell span { overflow: hidden; text-overflow: ellipsis; flex: 1 1 auto; min-width: 0; }
         .cell b { flex: none; padding-left: 4px; }
-        .none { display: flex; align-items: center; padding-left: 12px; color: ${col.text_weekend}; font-size: 15px; }
+        .none { display: flex; align-items: center; padding-left: 12px; color: ${col.text_weekend}; font-size: ${fz(15)}; }
       </style>
       <div class="grid">${cells.join("")}</div>`;
   }

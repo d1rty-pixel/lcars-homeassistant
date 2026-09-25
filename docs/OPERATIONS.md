@@ -16,9 +16,10 @@
 - Kiosk mode and the view theme apply to every user.
 - Sounds play after the first touch. If the tablet stays silent, allow media
   playback in Fully's web content settings.
-- Layouts are checked at 1920×1080 (desktop) and 1280×800 (Lenovo Tab M10
-  Gen 1 in landscape). Row heights and most fonts scale with viewport height,
-  header readouts with its width (theme variable `lcars-readout-size`).
+- Layouts are checked at 1920×1080 (desktop), 1280×800 (Lenovo Tab M10
+  Gen 1 in landscape) and a phone in landscape. Sizes and fonts scale with the viewport height (see
+  `docs/DESIGN.md` "Responsive sizes"), header readouts with its width (theme variable
+  `lcars-readout-size`).
 - The waste page used to crash Fully with ~450 LCARdS buttons; dense graphics
   are now light custom cards (≈60 LCARdS buttons left on that page).
 
@@ -38,8 +39,12 @@ cd "$W" && export HA_TOKEN=$(cat ~/.config/homeassistant/token) WSLENV=HA_TOKEN:
 DSF=1.1 "/mnt/c/Program Files/nodejs/node.exe" shot.js ops 1745 982 out.png 900 600 300 200   # 110 %, clipped
 ```
 
-Check both target sizes (and 1280×720, the tablet with its system bars) after every layout change;
-display priorities switch at 760, 880 and 1000 px viewport height, so check around those too. For seams,
+Check the target sizes (and 1280×720, the tablet with its system bars) after every layout change, and a
+phone: `SAFE=0,59,21,59 … shot.js <view> 852 393 out.png` (iPhone 16 in landscape; `SAFE` sets the
+safe-area insets HA pads the view by). Display priorities switch at 520 (phones), 760, 880 and 1000 px
+viewport height, so check around those too. `LCARS_DASHBOARD=<url_path>` points `deploy.py`, the build
+and `shot.js` at another dashboard, e.g. a hidden test copy, so a layout can be checked before the live
+dashboard gets it. For seams,
 clip a region at
 `DSF=1` and `DSF=1.1` (110 % zoom).
 

@@ -2,6 +2,8 @@
 
 Snapshots the currently live config to build/backups/ first, so a bad deploy
 can be reverted with:  python3 tools/deploy.py --restore build/backups/<file>.json
+
+LCARS_DASHBOARD=<url_path> builds for and saves to another dashboard (e.g. a test copy, lcars-dev).
 """
 import json
 import os
@@ -14,7 +16,7 @@ ROOT = os.path.join(HERE, "..")
 sys.path.insert(0, os.path.join(ROOT, "generator"))
 import ha_ws  # noqa: E402
 
-URL_PATH = "lcars-bridge"
+URL_PATH = os.environ.get("LCARS_DASHBOARD", "lcars-bridge")
 BUILT = os.path.join(ROOT, "build", "lcars_dashboard.json")
 
 

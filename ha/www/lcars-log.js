@@ -23,6 +23,16 @@
 //   colours: {time, bright}          # time column; the colour the waterfall brightens to
 //   cascade_ms: 5400, stagger_ms: 90
 //   font: "Antonio, sans-serif", font_size: 15
+// Fluid sizes, the same as the generator's (Len, font() in build_dashboard.py): full size from REF_H
+// viewport height up, shrinking below it: sizes to 60 % (sz), fonts to 80 % (fz; LCARS numbers to 67 %).
+// len(): a size from the config (a number of px or a CSS length) as CSS.
+const REF_H = 720;
+const fluid = (px, lo) => `clamp(${+(px * lo).toFixed(2)}px, ${+(px * 100 / REF_H).toFixed(3)}vh, ${px}px)`;
+const fz = (px, lo = 0.8) => fluid(px, lo);
+const sz = (px) => fluid(px, 0.6);
+const scale = () => Math.min(1, Math.max(0.6, window.innerHeight / REF_H));   // sz(px) = px * scale()
+const len = (v) => (typeof v === "number" ? `${v}px` : v);
+
 class LcarsLog extends HTMLElement {
   setConfig(config) {
     this._config = config;
@@ -160,7 +170,7 @@ class LcarsLog extends HTMLElement {
       <style>
         :host { display: block; height: 100%; }
         .log { height: 100%; overflow: hidden; font-family: ${c.font}; text-transform: uppercase; line-height: 1.25;
-               font-size: ${c.font_size || 15}px; }
+               font-size: ${fz(c.font_size || 15)}; }
         .line { display: grid; gap: 0 12px; color: var(--c);
                 grid-template-columns: 7.2em 4.6em minmax(6em, 9em) minmax(0, 1fr) 10.5em;
                 white-space: nowrap; }

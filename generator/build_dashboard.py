@@ -21,6 +21,7 @@ import random
 import urllib.parse
 import urllib.request
 import re
+import copy
 import functools
 import subprocess
 import sys
@@ -35,6 +36,116 @@ from site_config import SITE, HA_SSH  # noqa: E402  (site.yaml: host, location, 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "..", "build", "lcars_dashboard.json")
 _FOREIGN = {}
+
+
+# ── Fluid sizes (docs/DESIGN.md "Responsive sizes") ─────────────────────────────
+# One layout for every screen: frame and content sizes follow the viewport height. A size is given at its
+# full value (reached at REF_H and above, i.e. on the tablet and the desktop) and shrinks with the height
+# below that, down to S_MIN of it (phones in landscape). Fonts shrink less (F_MIN), so they stay readable.
+REF_H = 720          # viewport height from which every size is at its full value
+S_MIN = 0.6          # smallest scale for sizes (reached at 432 px viewport height)
+F_MIN = 0.8          # smallest scale for fonts
+PHONE_H = 520        # below this viewport height: the phone placement (no header, menu in the foot bar)
+
+
+def _num(x):
+    return f"{round(x, 3):g}"
+
+
+class Len:
+    """A CSS length: px that scale with the viewport height (see REF_H), each down to its own minimum share
+    `lo`, plus fixed px. Supports + and - with Len and numbers (px) and * / by numbers; str() gives the
+    CSS. The generator keeps doing its arithmetic with these, and the result stays exact at every height."""
+
+    def __init__(self, s=0.0, f=0.0, lo=S_MIN):
+        self.terms = {lo: s} if s else {}     # lo -> scaled px
+        self.f = f
+
+    @staticmethod
+    def of(x):
+        return x if isinstance(x, Len) else Len(0, x)
+
+    def _new(self, terms, f):
+        n = Len(0, f)
+        n.terms = {lo: v for lo, v in terms.items() if abs(v) > 1e-9}
+        return n
+
+    def __add__(self, o):
+        o = Len.of(o)
+        terms = dict(self.terms)
+        for lo, v in o.terms.items():
+            terms[lo] = terms.get(lo, 0) + v
+        return self._new(terms, self.f + o.f)
+
+    __radd__ = __add__
+
+    def __sub__(self, o):
+        return self + (-Len.of(o))
+
+    def __rsub__(self, o):
+        return Len.of(o) - self
+
+    def __neg__(self):
+        return self * -1
+
+    def __mul__(self, k):
+        return self._new({lo: v * k for lo, v in self.terms.items()}, self.f * k)
+
+    __rmul__ = __mul__
+
+    def __truediv__(self, k):
+        return self * (1 / k)
+
+    __floordiv__ = __truediv__
+
+    @staticmethod
+    def _clamp(s, lo):
+        a, b = sorted((s * lo, s))
+        return f"clamp({_num(a)}px, {_num(s * 100 / REF_H)}vh, {_num(b)}px)"
+
+    def __str__(self):
+        parts = [self._clamp(v, lo) for lo, v in sorted(self.terms.items())]
+        if not parts:
+            return f"{_num(self.f)}px"
+        if self.f:
+            parts.append(f"{_num(self.f)}px")
+        if len(parts) == 1:
+            return parts[0]
+        return "calc(" + " + ".join(parts).replace("+ -", "- ") + ")"
+
+    __format__ = lambda self, spec: str(self)   # noqa: E731  (f-strings give the CSS)
+
+    def full(self):
+        """The value in px at full size."""
+        return sum(self.terms.values()) + self.f
+
+
+def fl(px):
+    """A size that follows the viewport height (full value `px`)."""
+    return Len(px)
+
+
+def font(px, lo=F_MIN):
+    """A font size that follows the viewport height, down to `lo` of `px`."""
+    return str(Len(px, lo=lo))
+
+
+LABEL_LO = 0.75      # label columns shrink less than the frame, so their labels keep fitting
+CODE_LO = 0.67       # LCARS numbers in blocks: 12 px -> 8 px on phones
+
+
+def css(x):
+    """A size for a card config: CSS for a Len, the number itself otherwise."""
+    return str(x) if isinstance(x, Len) else x
+
+
+PHONE = f"(max-height: {PHONE_H}px)"
+NOT_PHONE = f"(min-height: {PHONE_H + 0.02}px)"
+
+
+def only_below(px, value):
+    """CSS: `value` while the viewport is at least `px` high, 0 below (no media query needed)."""
+    return f"min({value}, max(0px, calc((100vh - {px}px) * 1000)))"
 
 
 def number_sensors(n, seed=47174):
@@ -113,9 +224,9 @@ HEADER_FAMILY = (BLUEY, PERI, ICE, LILAC, VIOLET)   # main frame: ORANGE, BUTTER
 ACTIVE = "#F3F3FC"   # near-white, so the active item stands out in every family
 SIDEBAR_COLOURS = (PEACH, BUTTERSCOTCH, ALMOND)   # sub-view blocks, in turn
 
-PILLAR = 140        # width of the vertical frame bars / sidebar
-BAR = 10            # thickness of the horizontal frame bars
-ELBOW_W = PILLAR + 44
+PILLAR = fl(140)    # width of the vertical frame bars / sidebar
+BAR = 10            # thickness of the horizontal frame bars (LCARdS elbows need at least 10)
+ELBOW_W = PILLAR + fl(44)
 
 THEME = "LCARS Aquarium"
 
@@ -180,10 +291,11 @@ def block(color, label=None, code=None, path=None, align="bottom-right", size=21
     text = {}
     if label:
         pad = {"right": 8} if align.startswith("center") else {"right": 8, "bottom": 3}
-        text["label"] = {"show": True, "content": label, "position": align, "font_size": size,
+        text["label"] = {"show": True, "content": label, "position": align,
+                         "font_size": size if isinstance(size, str) else font(size),
                          "color": INK, "text_transform": "uppercase", "padding": pad}
     if code:
-        text["code"] = {"content": code, "position": "top-left", "font_size": 12, "color": INK,
+        text["code"] = {"content": code, "position": "top-left", "font_size": font(12, CODE_LO), "color": INK,
                         "padding": {"left": 6, "top": 3}}
     card = {"type": "custom:lcards-button", "preset": "barrel", "show_icon": False,
             "interactive": bool(path), "style": {"card": {"color": {"background": color}}}, "text": text,
@@ -207,6 +319,20 @@ def pill_shape(card):
     return card
 
 
+PHONE_PILL_INSET = (10, 3)
+
+
+def phone_pill(card):
+    """The phone variant of a pill (use with tiered()): no number and smaller insets, so its label fits a
+    narrow pill. LCARdS takes text paddings in px only, so a pill can't shrink its insets by itself."""
+    card = copy.deepcopy(card)
+    card["text"].pop("code", None)
+    if "label" in card["text"]:
+        x, y = PHONE_PILL_INSET
+        card["text"]["label"].update({"position": "center-right", "padding": {"right": x, "bottom": 0}})
+    return card
+
+
 def segments(colors_fr, position):
     """Segmented horizontal bar. position: 'top' or 'bottom' (bar sits on that edge)."""
     cols = " ".join(f"{fr}fr" for _, fr in colors_fr)
@@ -214,12 +340,12 @@ def segments(colors_fr, position):
     row = '"' + " ".join(names) + '"'
     blank = '"' + " ".join("." for _ in names) + '"'
     areas = f"{row} {blank}" if position == "top" else f"{blank} {row}"
-    rows = f"{BAR}px 1fr" if position == "top" else f"1fr {BAR}px"
+    rows = f"{Len.of(BAR)} 1fr" if position == "top" else f"1fr {Len.of(BAR)}"
     return grid(areas, cols, rows, [at(block(c), n) for (c, _), n in zip(colors_fr, names)], gap="0 6px")
 
 
-FRAME_H = 34        # height of the frame row above the sidebar/content (the foot row: FOOT_H)
-INNER_CURVE = FRAME_H - BAR   # one inner radius for every corner around the content
+INNER_CURVE = fl(24)          # one inner radius for every corner around the content
+FRAME_H = BAR + INNER_CURVE   # height of the frame row above the sidebar/content (the foot row: FOOT_H)
 
 
 def elbow(kind, color, text=None, bar_height=BAR, outer_curve=FRAME_H):
@@ -227,8 +353,8 @@ def elbow(kind, color, text=None, bar_height=BAR, outer_curve=FRAME_H):
     height anyway, and explicit values keep the mid and foot elbows identical."""
     card = {"type": "custom:lcards-elbow", "interactive": False, "tap_action": {"action": "none"},
             "elbow": {"type": kind, "style": "simple",
-                      "segment": {"bar_width": PILLAR, "bar_height": bar_height, "outer_curve": outer_curve,
-                                  "inner_curve": INNER_CURVE, "color": {"default": color}}}}
+                      "segment": {"bar_width": css(PILLAR), "bar_height": css(bar_height), "outer_curve": css(outer_curve),
+                                  "inner_curve": css(INNER_CURVE), "color": {"default": color}}}}
     if text:
         card["text"] = text
     return card
@@ -236,7 +362,7 @@ def elbow(kind, color, text=None, bar_height=BAR, outer_curve=FRAME_H):
 
 def readout(entity, label, value, colors=None, label_color=LILAC):
     return {"type": "custom:lcards-button", "entity": entity, "preset": "text-only", "show_icon": False,
-            "text": {"lbl": {"content": label, "position": "top-left", "font_size": 17, "color": label_color,
+            "text": {"lbl": {"content": label, "position": "top-left", "font_size": font(17), "color": label_color,
                              "text_transform": "uppercase"},
                      "val": {"content": value, "position": "bottom-left", "font_size": "var(--lcars-readout-size)",
                              "font_weight": "bold",
@@ -247,25 +373,27 @@ def readout(entity, label, value, colors=None, label_color=LILAC):
 # Display priorities: content that doesn't fit a shorter screen is not rendered there, instead of being
 # cut off. HA's hui-card, which wraps every child of a layout card, doesn't create a card whose visibility
 # conditions fail, so a variant that isn't shown costs nothing (better performance on the tablet too).
-# Priority -> minimum viewport height in px; priority 1 is always shown.
-PRIORITY_MIN_H = {1: 0, 2: 760, 3: 880, 4: 1000}
+# Priority -> minimum viewport height in px: 0 is always shown, 1 everywhere but on phones (PHONE_H).
+PRIORITY_MIN_H = {0: 0, 1: PHONE_H, 2: 760, 3: 880, 4: 1000}
 
 
 def shown_from(card, priority, below=None):
     """`card` only while the viewport is at least as high as `priority` needs (and lower than what
     priority `below` needs, if given)."""
-    q = [f"(min-height: {PRIORITY_MIN_H[priority]}px)"] if PRIORITY_MIN_H[priority] else []
+    q = [f"(min-height: {Len.of(PRIORITY_MIN_H[priority])})"] if PRIORITY_MIN_H[priority] else []
     if below:
-        q.append(f"(max-height: {PRIORITY_MIN_H[below] - 0.02}px)")
+        q.append(f"(max-height: {Len.of(PRIORITY_MIN_H[below] - 0.02)})")
     return dict(card, visibility=card.get("visibility", []) +
                 [{"condition": "screen", "media_query": " and ".join(q) or "all"}])
 
 
 def tiered(variants):
     """One of several variants of the same content by viewport height: {priority: card}; the variant with
-    the highest priority that fits is rendered, the others aren't. Needs a variant for priority 1."""
+    the highest priority that fits is rendered, the others aren't. The lowest variant is the fallback: it
+    is shown on every screen too short for the others (phones included)."""
     prios = sorted(variants, reverse=True)
-    cards = [at(shown_from(variants[p], p, prios[i - 1] if i else None), "v") for i, p in enumerate(prios)]
+    cards = [at(shown_from(variants[p], p if i < len(prios) - 1 else 0, prios[i - 1] if i else None), "v")
+             for i, p in enumerate(prios)]
     return grid('"v"', "1fr", "1fr", cards, gap="0")
 
 
@@ -293,7 +421,7 @@ def _number_grid(n_rows, color_start, color_text, color_end):
     return {"type": "custom:lcards-data-grid", "data_mode": "data", "rows": rows,
             "grid": {"grid-template-columns": f"repeat({HEX_COLS}, auto)",
                      "grid-template-rows": f"repeat({n_rows}, 1fr)", "gap": "0 14px", "justify-content": "start"},
-            "style": {"font_size": 15, "font_weight": "bold", "color": color_start, "align": "left"},
+            "style": {"font_size": font(15), "font_weight": "bold", "color": color_start, "align": "left"},
             "animations": [{"trigger": "on_load", "preset": "cascade-color",
                             "params": {"duration": CASCADE_MS, "colors": [color_start, color_text, color_end],
                                        "stagger_from": "first", "stagger_delay": 70}}]}
@@ -309,7 +437,7 @@ def rgba(hex_color, alpha):
 
 
 # ── Shared frame ────────────────────────────────────────────────────────────────
-BASE = "/lcars-bridge/"
+BASE = f"/{os.environ.get('LCARS_DASHBOARD', 'lcars-bridge')}/"   # LCARS_DASHBOARD: build for a test copy
 
 # Header sections, each with its sidebar sub-views.
 #   section: (key, label, code, colour, classic_url, [(view_key, label, code, colour, path), ...])
@@ -343,26 +471,37 @@ SECTIONS = [
 
 SECTION_TITLES = {"home": "Operations"}   # page title where it differs from the menu label
 
+SHORT_LABELS = {"aquarium": "Aqua", "calendar": "Cal"}   # the phone's section menu in the foot bar
+FOOT_NAV_FONT = 15
 NAV_ORDER = ["home", "aquarium", "laundry", "waste", "calendar", "media"]
-NAV_H = 43          # height of the header frame bar, which doubles as the section menu (every page)
+NAV_H = fl(43)      # height of the header frame bar, which doubles as the section menu (every page)
 
 
-def dashboard_nav(active_section):
-    """Section menu rendered as the segments of the header frame bar (like the sidebar blocks)."""
+def dashboard_nav(active_section, foot=False):
+    """Section menu rendered as the segments of the header frame bar (like the sidebar blocks). foot=True:
+    the phone variant in the foot bar (no numbers: the bar is only as thick as its text)."""
     by_key = {sec[0]: sec for sec in SECTIONS}
     names, cards = [], []
     for key in NAV_ORDER:
         _, label, code, colour, _classic, subviews = by_key[key]
         active = key == active_section
-        card = block(ACTIVE if active else colour, label + (" ◂" if active else ""), code,
-                     None if active else BASE + subviews[0][4], size=18)
-        card["text"]["code"]["font_size"] = 10
+        if foot:        # short labels, no arrow: the active one is marked by its colour
+            card = block(ACTIVE if active else colour, SHORT_LABELS.get(key, label), None,
+                         None if active else BASE + subviews[0][4], align="center-right", size=f"{FOOT_NAV_FONT}px")
+        else:
+            card = block(ACTIVE if active else colour, label + (" ◂" if active else ""), code,
+                         None if active else BASE + subviews[0][4], size=18)
+        if not foot:
+            card["text"]["code"]["font_size"] = font(10, CODE_LO)
         names.append(key)
         cards.append(at(card, key))
     names.append("tail")                       # plain segment running the bar out (to the edge or the shoulder)
-    cards.append(at(block(LILAC), "tail"))
-    return grid('"' + " ".join(names) + '"', " ".join(["1fr"] * len(NAV_ORDER)) + " 1.6fr", "1fr", cards,
-                gap="0 6px")
+    cards.append(at(block(ORANGE if foot else LILAC), "tail"))
+    return grid('"' + " ".join(names) + '"', " ".join(["1fr"] * len(NAV_ORDER)) + (" 0.3fr" if foot else " 1.6fr"),
+                "1fr", cards, gap="0 6px")
+
+
+SIDEBAR_LO = 0.7     # sidebar labels: 21 px -> 15 px on phones (the pillar is narrow there)
 
 
 def sidebar(section_key, active_view, here=None):
@@ -374,14 +513,15 @@ def sidebar(section_key, active_view, here=None):
     for key, label, code, colour, path in items:
         is_active = key == active_view
         cards.append(at(block(ACTIVE if is_active else colour, label + (" ◂" if is_active else ""), code,
-                              None if is_active else path), key))
+                              None if is_active else path, size=font(21, SIDEBAR_LO)), key))
         areas.append(f'"{key}"')
-        rows.append("clamp(48px, 8vh, 110px)")   # 6 blocks + motion switch fit the 800 px tablet
+        # 6 blocks + motion switch fit the 800 px tablet; on the shortest phones they share what there is
+        rows.append(f"minmax(0, clamp({fl(48)}, 8vh, 110px))")
     cards.append(at(block(EARTH, None, lcars_code(f"sidebar-filler/{section_key}")), "filler"))
     here = next((BASE + path for k, _, _, _, path in subviews if k == active_view), here)
     cards.append(at(motion_switch(section_key, here), "motion"))
     areas += ['"filler"', '"motion"']
-    rows += ["1fr", "clamp(36px, 5vh, 60px)"]
+    rows += ["1fr", f"clamp({Len(36, lo=0.7)}, 5vh, 60px)"]
     return grid(" ".join(areas), "1fr", " ".join(rows), cards, gap="6px")
 
 
@@ -390,7 +530,7 @@ def motion_switch(section_key, here):
     the current view `here` with ?lcars_motion=toggle."""
     card = block(ALMOND, "[[[ let off = false; try { off = localStorage.getItem('lcars-motion') === 'off'; } "
                         "catch (e) {} return off ? 'Motion off' : 'Motion on'; ]]]",
-                 lcars_code(f"motion/{section_key}"), size=16)
+                 lcars_code(f"motion/{section_key}"), size=font(16, SIDEBAR_LO))
     card["interactive"] = True
     card["tap_action"] = {"action": "navigate", "navigation_path": here + "?lcars_motion=toggle"}
     return card
@@ -405,7 +545,7 @@ pump_title_js = (
 )
 
 
-CLASSIC_H = "clamp(42px, 5.4vh, 58px)"   # Classic block on top of the header frame's pillar
+CLASSIC_H = f"clamp({fl(42)}, 5.4vh, 58px)"   # Classic block on top of the header frame's pillar
 WIDE_MIN = 1600      # header decoration that only fits on wide screens (not the 1280 px tablet)
 WIDE_W = 290
 
@@ -424,6 +564,7 @@ FOOT_T = FOOT_FONT + 6            # foot bar thickness = height of the clock and
 FOOT_H = FOOT_T + INNER_CURVE     # foot row: the bar plus the inner curve above it
 CLOCK_W = int(22 * FOOT_T * 0.37) + 24   # "FRI 25/09/2026 · 14:32" at bar height (Antonio digits ~0.37 em)
 STARDATE_W = int(16 * FOOT_FONT * 0.44) + 80   # label plus room for the code on the left
+CLOCK_W_PHONE = 100               # the phone's foot bar: short time, or the pump alert (see clock(phone=True))
 CLOCK_JS = ("[[[ const d = new Date(), p = (n) => String(n).padStart(2, '0'); "
             "return d.toLocaleDateString('en-GB', {weekday: 'short'}) + ' ' + p(d.getDate()) + '/' "
             "+ p(d.getMonth() + 1) + '/' + d.getFullYear() + ' · ' + p(d.getHours()) + ':' + p(d.getMinutes()); ]]]")
@@ -434,18 +575,32 @@ STARDATE_JS = ("[[[ const d = new Date(), y = d.getFullYear(), a = new Date(y, 0
                "return 'Stardate ' + (Math.floor(sd * 10) / 10).toFixed(1); ]]]")
 
 
-def clock():
-    """Local date and time, re-rendered by the minute through sensor.time."""
-    return {"type": "custom:lcards-button", "entity": "sensor.time", "preset": "text-only", "show_icon": False,
+def clock(phone=False):
+    """Local date and time, re-rendered by the minute through sensor.time. phone=True: weekday and time
+    only, and the pump alert instead while there is one (the phone has no header, where it sits otherwise)."""
+    card = {"type": "custom:lcards-button", "entity": "sensor.time", "preset": "text-only", "show_icon": False,
             "interactive": False, "tap_action": {"action": "none"},
             "text": {"t": {"content": CLOCK_JS, "position": "center-left", "font_size": FOOT_T,
                            "color": ORANGE, "text_transform": "uppercase", "padding": {"left": 4}}}}
+    if phone:
+        card.update({"entity": PUMP, "triggers_update": ["sensor.time"], "interactive": True,
+                     "tap_action": {"action": "more-info"},
+                     "animations": [{"trigger": "on_entity_change", "entity": PUMP, "to_state": "Critical",
+                                     "check_on_load": True, "preset": "blink", "loop": True}]})
+        card["text"]["t"].update({
+            "content": "[[[ const s = entity.state; if (s === 'Critical') return 'Red alert'; "
+                       "if (s === 'Warning' || s === 'Off') return 'Pump off'; "
+                       "const d = new Date(), p = (n) => String(n).padStart(2, '0'); "
+                       "return d.toLocaleDateString('en-GB', {weekday: 'short'}) + ' ' + p(d.getHours()) + ':' "
+                       "+ p(d.getMinutes()); ]]]",
+            "color": {"Critical": RED, "Warning": SUNFLOWER, "Off": SUNFLOWER, "default": ORANGE}})
+    return card
 
 
 def stardate_block():
     card = block(PEACH, STARDATE_JS, lcars_code("stardate"), align="center-right", size=FOOT_FONT)
     card["entity"] = "sensor.time"
-    card["text"]["code"]["font_size"] = 10
+    card["text"]["code"]["font_size"] = font(10, CODE_LO)
     card["text"]["code"]["padding"] = {"left": 6, "top": 2}
     return card
 
@@ -453,8 +608,8 @@ def stardate_block():
 def frame_elbow(kind, colour, width, bar_t, outer):
     return {"type": "custom:lcards-elbow", "interactive": False, "tap_action": {"action": "none"},
             "elbow": {"type": kind, "style": "simple",
-                      "segment": {"bar_width": width, "bar_height": bar_t, "outer_curve": outer,
-                                  "inner_curve": INNER_CURVE, "color": {"default": colour}}}}
+                      "segment": {"bar_width": css(width), "bar_height": css(bar_t), "outer_curve": css(outer),
+                                  "inner_curve": css(INNER_CURVE), "color": {"default": colour}}}}
 
 
 def frame(section, active, content, subtitle, mid_bars=None, mid_t=BAR, right=None, main_margin=None, nav_h=NAV_H,
@@ -465,10 +620,10 @@ def frame(section, active, content, subtitle, mid_bars=None, mid_t=BAR, right=No
     (`width` px wide, e.g. the library's category pillar)."""
     section_label = SECTION_TITLES.get(section, next(sec[1] for sec in SECTIONS if sec[0] == section)).upper()
     title = {"type": "custom:lcards-button", "entity": PUMP, "preset": "text-only", "show_icon": False,
-             "text": {"title": {"content": pump_title_js % section_label, "position": "top-right", "font_size": 60,
+             "text": {"title": {"content": pump_title_js % section_label, "position": "top-right", "font_size": font(60),
                                 "color": {"Critical": RED, "Warning": SUNFLOWER, "Off": SUNFLOWER, "default": ORANGE},
                                 "text_transform": "uppercase"},
-                      "sub": {"content": subtitle, "position": "bottom-right", "font_size": 20, "color": PEACH,
+                      "sub": {"content": subtitle, "position": "bottom-right", "font_size": font(20), "color": PEACH,
                               "text_transform": "uppercase"}},
              "animations": [{"trigger": "on_entity_change", "entity": PUMP, "to_state": "Critical",
                              "check_on_load": True, "preset": "blink", "loop": True}],
@@ -484,7 +639,7 @@ def frame(section, active, content, subtitle, mid_bars=None, mid_t=BAR, right=No
         slots += [name if card else "."] * n
         if span == "wide":
             widths[-1] = "1.6fr"
-            widths.append(f"clamp(0px, calc((100vw - {WIDE_MIN}px) * 100), {WIDE_W}px)")
+            widths.append(f"clamp(0px, calc((100vw - {Len.of(WIDE_MIN)}) * 100), {Len.of(WIDE_W)})")
         else:
             widths += ["1fr"] * n
         if card:
@@ -498,8 +653,8 @@ def frame(section, active, content, subtitle, mid_bars=None, mid_t=BAR, right=No
     _, _, _, _, classic_url, _ = next(sec for sec in SECTIONS if sec[0] == section)
     classic = block(VIOLET, "Classic", lcars_code(f"classic/{section}"), classic_url, size=18)
     top_cards = [
-        at(classic, "cl", margin=f"0 {ELBOW_W - PILLAR}px {PANEL_GAP + 2}px 0"),
-        at(elbow("footer-left", LILAC, {"code": {"content": "LCARS 47174", "position": "top-left", "font_size": 14,
+        at(classic, "cl", margin=f"0 {ELBOW_W - PILLAR} {Len.of(PANEL_GAP + 2)} 0"),
+        at(elbow("footer-left", LILAC, {"code": {"content": "LCARS 47174", "position": "top-left", "font_size": font(14),
                                                  "color": INK, "padding": {"left": 8, "top": 6}}},
                  bar_height=nav_h, outer_curve=PILLAR // 2), "elbow"),
         at(readouts, "data", margin="0 0 10px 0"),
@@ -510,15 +665,15 @@ def frame(section, active, content, subtitle, mid_bars=None, mid_t=BAR, right=No
         # the left: a numbered block over a shoulder from the nav bar, as wide as the page's right side below
         rw = right[1]
         top_cards += [at(block(VIOLET, None, lcars_code(f"header-right/{section}")), "rc",
-                         margin=f"0 0 {PANEL_GAP + 2}px 44px"),
+                         margin=f"0 0 {Len.of(PANEL_GAP + 2)} {fl(44)}"),
                       at(frame_elbow("footer-right", LILAC, rw, nav_h, rw // 2), "re")]
-        top = grid('"cl data rc" "elbow data re" "elbow nav re"', f"{ELBOW_W}px 1fr {rw + 44}px",
-                   f"{CLASSIC_H} 1fr {nav_h}px", top_cards, gap="0 6px")
+        top = grid('"cl data rc" "elbow data re" "elbow nav re"', f"{ELBOW_W} 1fr {rw + fl(44)}",
+                   f"{CLASSIC_H} 1fr {nav_h}", top_cards, gap="0 6px")
     else:
-        top = grid('"cl data" "elbow data" "elbow nav"', f"{ELBOW_W}px 1fr", f"{CLASSIC_H} 1fr {nav_h}px", top_cards,
+        top = grid('"cl data" "elbow data" "elbow nav"', f"{ELBOW_W} 1fr", f"{CLASSIC_H} 1fr {nav_h}", top_cards,
                    gap="0 6px")
     if mid_bars is None and right is None:
-        mid = grid('"elbow bars"', f"{ELBOW_W}px 1fr", "1fr", [
+        mid = grid('"elbow bars"', f"{ELBOW_W} 1fr", "1fr", [
             at(elbow("header-left", PEACH), "elbow"),
             at(segments([(PEACH, 1), (ROSE, 4), (BLUEY, 2), (ORANGE, 1)], "top"), "bars"),
         ], gap="0 6px")
@@ -528,43 +683,51 @@ def frame(section, active, content, subtitle, mid_bars=None, mid_t=BAR, right=No
                                 gap="0 6px")
         h = mid_t + INNER_CURVE
         cards = [at(elbow("header-left", PEACH, bar_height=mid_t, outer_curve=h), "e"), at(bars, "b")]
-        areas, widths = '"e b" "e ."', f"{ELBOW_W}px 1fr"
+        areas, widths = '"e b" "e ."', f"{ELBOW_W} 1fr"
         if right:
             cards.append(at(frame_elbow("header-right", right[0], right[1], mid_t, h), "r"))
-            areas, widths = '"e b r" "e . r"', f"{ELBOW_W}px 1fr {right[1] + 44}px"
-        mid = grid(areas, widths, f"{mid_t}px 1fr", cards, gap="0 6px")
+            areas, widths = '"e b r" "e . r"', f"{ELBOW_W} 1fr {right[1] + fl(44)}"
+        mid = grid(areas, widths, f"{Len.of(mid_t)} 1fr", cards, gap="0 6px")
     side = sidebar(section, active, here)
     # the foot bar is as thick as its text and ends in the local date/time (in a gap of the bar, like a
-    # panel caption) and the stardate block; the elbow keeps the page frame's outer and inner radius
-    foot_cards = []
-    foot_areas, foot_widths = '"elbow . . . ." "elbow bars cap clock sd"', f"{ELBOW_W}px 1fr 14px {CLOCK_W}px {STARDATE_W}px"
-    if right:       # the clock and stardate stay at the end of the bar, before the right shoulder
-        foot_colour = right[2] if len(right) > 2 else right[0]    # the pillar that runs into it may differ
-        foot_cards.append(at(frame_elbow("footer-right", foot_colour, right[1], FOOT_T, FRAME_H), "r"))
-        foot_areas = '"elbow . . . . r" "elbow bars cap clock sd r"'
-        foot_widths += f" {right[1] + 44}px"
-    foot = grid(foot_areas, foot_widths, f"1fr {FOOT_T}px", foot_cards + [
-        at(elbow("footer-left", ALMOND, bar_height=FOOT_T), "elbow"),
-        at(grid('"a b c"', "3fr 1fr 5fr", "1fr", [at(block(c), n) for c, n in ((ALMOND, "a"), (BUTTERSCOTCH, "b"),
-                                                                                (ORANGE, "c"))], gap="0 6px"),
-           "bars"),
-        at(block(ORANGE), "cap"),
-        at(clock(), "clock"),
-        at(stardate_block(), "sd"),
-    ], gap="0 6px")
-    main_margin = main_margin or ("4px 0 4px 18px" if not right else "0 0 0 18px")
-    return [at(top, "top"), at(mid, "mid"), at(side, "side"), at(content, "main", margin=main_margin),
-            at(foot, "foot")]
+    # panel caption) and the stardate block; the elbow keeps the page frame's outer and inner radius. On a
+    # phone (no header) the foot bar is the section menu and ends in the time (or the pump alert).
+    def foot_bar(phone):
+        cards = []
+        if phone:
+            areas, widths = '"elbow . . ." "elbow bars cap clock"', f"{ELBOW_W} 1fr 14px {Len.of(CLOCK_W_PHONE)}"
+            bars = dashboard_nav(section, foot=True)
+        else:
+            areas, widths = '"elbow . . . ." "elbow bars cap clock sd"', f"{ELBOW_W} 1fr 14px {Len.of(CLOCK_W)} {Len.of(STARDATE_W)}"
+            bars = grid('"a b c"', "3fr 1fr 5fr", "1fr", [at(block(c), n) for c, n in ((ALMOND, "a"), (BUTTERSCOTCH, "b"),
+                                                                                     (ORANGE, "c"))], gap="0 6px")
+            cards.append(at(stardate_block(), "sd"))
+        if right:       # the clock and stardate stay at the end of the bar, before the right shoulder
+            foot_colour = right[2] if len(right) > 2 else right[0]    # the pillar that runs into it may differ
+            cards.append(at(frame_elbow("footer-right", foot_colour, right[1], FOOT_T, FRAME_H), "r"))
+            areas = areas.replace('."', '. r"').replace('clock"', 'clock r"').replace('sd"', 'sd r"')
+            widths += f" {right[1] + fl(44)}"
+        return grid(areas, widths, f"1fr {Len.of(FOOT_T)}", cards + [
+            at(elbow("footer-left", ALMOND, bar_height=FOOT_T), "elbow"), at(bars, "bars"),
+            at(block(ORANGE), "cap"), at(clock(phone), "clock")], gap="0 6px")
+
+    foot = tiered({1: foot_bar(False), 0: foot_bar(True)})
+    main_margin = main_margin or (f"4px 0 4px {fl(18)}" if not right else f"0 0 0 {fl(18)}")
+    return [at(shown_from(top, 1), "top"), at(mid, "mid"), at(side, "side"),
+            at(content, "main", margin=main_margin), at(foot, "foot")]
 
 
 def view(section, key, title, path, content, subtitle, **frame_opts):
     """frame_opts: mid_bars, mid_t, right, main_margin, nav_h (see frame())."""
     mid_h = frame_opts.get("mid_t", BAR) + INNER_CURVE
     return {"title": title, "path": path, "type": "custom:lcards-layout-view", "theme": THEME,
-            "layout": {"grid-template-columns": f"{PILLAR}px 1fr",
-                       "grid-template-rows": f"clamp(140px, 17vh, 176px) {mid_h}px 1fr {FOOT_H}px",
+            # the header's row is 0 px high on a phone (its card isn't rendered there, see frame())
+            "layout": {"grid-template-columns": f"{PILLAR} 1fr",
+                       "grid-template-rows": f"{only_below(PHONE_H, 'clamp(140px, 17vh, 176px)')} {mid_h} 1fr {FOOT_H}",
                        "grid-template-areas": '"top top" "mid mid" "side main" "foot foot"',
-                       "grid-gap": "6px 0", "height": "calc(100dvh - 16px)", "padding": "8px"},
+                       # HA pads the view by the safe areas (notch, home indicator): the height leaves them out
+                       "grid-gap": "6px 0", "padding": "8px",
+                       "height": "calc(100dvh - 16px - var(--safe-area-inset-top, 0px) - var(--safe-area-inset-bottom, 0px))"},
             "cards": frame(section, key, content, f"{subtitle} · {lcars_code(f'view/{key}')}", here=BASE + path,
                            **frame_opts)}
 
@@ -745,7 +908,7 @@ JS_COMPASS = ("const dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW'
 JS_HHMM = "const hhmm = (t) => new Date(t).toLocaleTimeString('en-GB', {hour: '2-digit', minute: '2-digit'}); "
 
 
-ATMOS_LABEL_W = 150      # "Temperature" needs more than DATA_LABEL_W next to its code
+ATMOS_LABEL_W = Len(150, lo=LABEL_LO)     # "Temperature" needs more than DATA_LABEL_W next to its code
 
 
 # OPS (database style): one label column next to the sidebar runs through the sections Atmosphere, Forecast
@@ -755,7 +918,7 @@ ATMOS_LABEL_W = 150      # "Temperature" needs more than DATA_LABEL_W next to it
 # (top shoulder with the title; its pillar is the label column).
 OPS_COLUMNS = ["1.5fr", "1fr"]     # top row: the label column's sections | Radar
 OPS_ATMOS, OPS_RADAR = ORANGE, ALMOND
-SECTION_GAP = "clamp(10px, 1.6vh, 18px)"     # between the sections of the label column
+SECTION_GAP = f"clamp({fl(10)}, 1.6vh, 18px)"     # between the sections of the label column
 OPS_FORECAST = (LILAC, [VIOLET, LILAC])         # every section a frame of its own family: bar, label blocks
 OPS_WEEK = (BLUEY, PERI)                        # bar, the week column's head piece and filler
 OPS_FORECAST_TOGGLE = PERI                      # the Hourly / Daily switch in the forecast's label column
@@ -794,8 +957,8 @@ def forecast_card(**extra):
 def section_bar(title, colour, label_w=ATMOS_LABEL_W, side="left"):
     """A section's top bar, growing out of the label column on `side`: a block as wide as the column, the
     title (as tall as the bar), the rest of the bar."""
-    title_w = int(len(title) * PANEL_T * 0.42) + 18
-    names, widths = ["p", "t", "b"], [f"{label_w}px", f"{title_w}px", "1fr"]
+    title_w = PANEL_T * (len(title) * 0.42) + 18
+    names, widths = ["p", "t", "b"], [f"{Len.of(label_w)}", f"{Len.of(title_w)}", "1fr"]
     if side == "right":
         names, widths = names[::-1], widths[::-1]
     return grid('"' + " ".join(names) + '"', " ".join(widths), "1fr",
@@ -804,9 +967,9 @@ def section_bar(title, colour, label_w=ATMOS_LABEL_W, side="left"):
 
 
 def section(title, colour, body, label_w=ATMOS_LABEL_W, side="left"):
-    return grid('"bar" "body"', "1fr", f"{PANEL_T}px 1fr",
+    return grid('"bar" "body"', "1fr", f"{Len.of(PANEL_T)} 1fr",
                 [at(section_bar(title, colour, label_w, side), "bar"), at(body, "body")],
-                gap=f"{DATA_GAP}px 0")
+                gap=f"{Len.of(DATA_GAP)} 0")
 
 
 def ops_forecast_rows(labels):
@@ -820,8 +983,8 @@ def ops_forecast_rows(labels):
                                                   "ink": INK})
     cards += [at(toggle, "l2"),
               at(forecast_card(layout="rows", rows={"time": DATA_ROW, "rain": None}, gap=DATA_GAP), "c")]
-    return grid('"l0 c" "l1 c" "l2 c"', f"{ATMOS_LABEL_W}px 1fr", f"{DATA_ROW} 1fr {DATA_ROW}", cards,
-                gap=f"{DATA_GAP}px 16px")
+    return grid('"l0 c" "l1 c" "l2 c"', f"{Len.of(ATMOS_LABEL_W)} 1fr", f"{DATA_ROW} 1fr {DATA_ROW}", cards,
+                gap=f"{Len.of(DATA_GAP)} 16px")
 
 
 def ops_view():
@@ -830,8 +993,8 @@ def ops_view():
                                                  middle=(radar_card("row"), "1fr")))])
     # the week is as high as the calendar rows the screen has room for; the forecast (and with it the
     # radar) gets the rest
-    # below priority 2 the shoulders go first (flat bars instead)
-    content = tiered({p: _ops_content(n, shoulders=p > 1) for p, n in ((4, 3), (3, 2), (2, 1), (1, 1))})
+    # below priority 2 the shoulders go first (flat bars instead), on phones the week
+    content = tiered({p: _ops_content(n, shoulders=p > 1) for p, n in ((4, 3), (3, 2), (2, 1), (1, 1), (0, 0))})
     return dict(content=content, mid_bars=bars, mid_t=TOP_BAR_T, nav_h=NAV_H)
 
 
@@ -845,20 +1008,20 @@ def bottom_shoulder(colour, label_w=ATMOS_LABEL_W, bar_t=FC_BOTTOM_T, side="left
                 "elbow": {"type": f"footer-{side}", "style": "simple",
                           "segment": {"bar_width": label_w, "bar_height": bar_t, "outer_curve": PANEL_CORNER,
                                       "inner_curve": PANEL_CORNER - PANEL_T, "color": {"default": colour}}}}
-    bar = grid('". " "b"', "1fr", f"1fr {bar_t}px", [at(block(colour), "b")], gap="0")
+    bar = grid('". " "b"', "1fr", f"1fr {Len.of(bar_t)}", [at(block(colour), "b")], gap="0")
     corner = label_w + PANEL_CORNER - PANEL_T + 8
     if side == "right":
-        return grid('"b e"', f"1fr {corner}px", "1fr", [at(bar, "b"), at(shoulder, "e")], gap="0 6px")
-    return grid('"e b"', f"{corner}px 1fr", "1fr", [at(shoulder, "e"), at(bar, "b")], gap="0 6px")
+        return grid('"b e"', f"1fr {Len.of(corner)}", "1fr", [at(bar, "b"), at(shoulder, "e")], gap="0 6px")
+    return grid('"e b"', f"{Len.of(corner)} 1fr", "1fr", [at(shoulder, "e"), at(bar, "b")], gap="0 6px")
 
 
 def _ops_content(rows, shoulders=True):
     fc_colour, fc_labels = OPS_FORECAST
     wk_colour, wk_pillar = OPS_WEEK
-    atm_h = f"calc(5 * {DATA_ROW} + {4 * DATA_GAP}px)"
+    atm_h = f"calc(5 * {DATA_ROW} + {Len.of(4 * DATA_GAP)})"
     # shoulder, weekday row, the calendar rows and a short filler piece (lcars-week.js: gaps of PANEL_GAP)
     top = PANEL_CORNER + PANEL_GAP if shoulders else PANEL_T + DATA_GAP     # shoulder or flat section bar
-    wk_h = f"calc({top}px + {TL_HEAD} + {rows} * {DATA_ROW} + {(rows + 1) * PANEL_GAP + 8}px)"
+    wk_h = f"calc({Len.of(top)} + {TL_HEAD} + {rows} * {DATA_ROW} + {Len.of((rows + 1) * PANEL_GAP + 8)})"
     week = week_calendar(side="left", pillar=wk_pillar, max_rows=rows)
     # the calendar in a frame of its own (its label column is the frame's pillar, so it stays aligned); the
     # forecast above closes with a bottom shoulder facing the calendar's top shoulder, a frame gap apart
@@ -870,16 +1033,19 @@ def _ops_content(rows, shoulders=True):
     # rows: Atmosphere, section gap, Forecast (the radar beside both), the forecast's bottom shoulder with
     # its bar under forecast and radar to the right edge, frame gap between the two shoulders, calendar
     cards = [at(ops_atmosphere(), "atm"), at(forecast, "fc"), at(calendar, "wk"), at(radar_card("none"), "radar")]
+    if not rows:            # phones: no week, forecast and radar down to the foot bar
+        return grid('"atm radar" ". radar" "fc radar"', " ".join(OPS_COLUMNS), f"{atm_h} {SECTION_GAP} 1fr",
+                    cards[:2] + cards[3:], gap=f"0 {Len.of(FRAME_GAP)}")
     if not shoulders:
         return grid('"atm radar" ". radar" "fc radar" ". ." "wk wk"', " ".join(OPS_COLUMNS),
-                    f"{atm_h} {SECTION_GAP} 1fr {SECTION_GAP} {wk_h}", cards, gap=f"0 {FRAME_GAP}px")
+                    f"{atm_h} {SECTION_GAP} 1fr {SECTION_GAP} {wk_h}", cards, gap=f"0 {Len.of(FRAME_GAP)}")
     cards.append(at(bottom_shoulder(fc_colour), "fb"))
     return grid('"atm radar" ". radar" "fc radar" ". ." "fb fb" ". ." "wk wk"', " ".join(OPS_COLUMNS),
-                f"{atm_h} {SECTION_GAP} 1fr {PANEL_GAP}px {PANEL_CORNER}px {FRAME_GAP}px {wk_h}", cards,
-                gap=f"0 {FRAME_GAP}px")
+                f"{atm_h} {SECTION_GAP} 1fr {Len.of(PANEL_GAP)} {Len.of(PANEL_CORNER)} {Len.of(FRAME_GAP)} {wk_h}", cards,
+                gap=f"0 {Len.of(FRAME_GAP)}")
 
 
-DECOR_PILLAR_W = 90      # pillar of decorative blocks next to embedded content (radar, forecast)
+DECOR_PILLAR_W = fl(90)     # pillar of decorative blocks next to embedded content (radar, forecast)
 
 
 def with_decor_pillar(content, key, colours, side="right", filler=None, width=DECOR_PILLAR_W, row=None):
@@ -894,8 +1060,8 @@ def with_decor_pillar(content, key, colours, side="right", filler=None, width=DE
         rows = " ".join([row] * len(colours) + (["1fr"] if filler else []))
     else:
         rows = " ".join(["1fr"] * len(colours) + (["14px"] if filler else []))
-    pillar = grid(" ".join(f'"{n}"' for n in names), "1fr", rows, blocks, gap=f"{DATA_GAP if row else PANEL_GAP}px")
-    areas, widths = ('"c p"', f"1fr {width}px") if side == "right" else ('"p c"', f"{width}px 1fr")
+    pillar = grid(" ".join(f'"{n}"' for n in names), "1fr", rows, blocks, gap=f"{Len.of(DATA_GAP if row else PANEL_GAP)}")
+    areas, widths = ('"c p"', f"1fr {Len.of(width)}") if side == "right" else ('"p c"', f"{Len.of(width)} 1fr")
     return grid(areas, widths, "1fr", [at(content, "c", overflow="hidden"), at(pillar, "p")], gap="0 16px")
 
 
@@ -982,16 +1148,18 @@ def week_calendar(**extra):
 
 
 TIMELINE_DAYS = 28
-TIMELINE_LABEL_W = 150   # label column = the timeline panel's left pillar
+TIMELINE_LABEL_W = Len(150, lo=LABEL_LO)  # label column = the timeline panel's left pillar
 # Fixed row heights, so the frames hug their content instead of filling the viewport
 # Budget at 1280x800 (tablet): the content area is ~550 px high, timeline + data panels must fit
-TL_HEAD, TL_ROW, TL_AXIS, TL_GAP = "clamp(22px, 2.8vh, 30px)", "clamp(24px, 3.4vh, 40px)", "clamp(24px, 3vh, 32px)", 4
-DATA_ROW, DATA_GAP = "clamp(28px, 3.8vh, 46px)", TL_GAP
-DATA_LABEL_W = 130      # label blocks = pillar of the data panels
+# Rows: their full size from the tablet up, growing with taller screens, shrinking (to 80 %) on phones
+TL_HEAD, TL_ROW, TL_AXIS, TL_GAP = (f"clamp({Len(22, lo=0.8)}, 2.8vh, 30px)", f"clamp({Len(24, lo=0.8)}, 3.4vh, 40px)",
+                                    f"clamp({Len(24, lo=0.8)}, 3vh, 32px)", 4)
+DATA_ROW, DATA_GAP = f"clamp({Len(28, lo=0.8)}, 3.8vh, 46px)", TL_GAP
+DATA_LABEL_W = Len(130, lo=LABEL_LO)     # label blocks = pillar of the data panels
 
-PANEL_T = 26        # bar thickness of a panel frame; the title sits in it, so it must fit the font
-PANEL_PILLAR = 26   # width of its pillar
-PANEL_CORNER = 46   # size of the shoulder (elbow card)
+PANEL_T = fl(26)        # bar thickness of a panel frame; the title sits in it, so it must fit the font
+PANEL_PILLAR = fl(26)   # width of its pillar
+PANEL_CORNER = fl(46)   # size of the shoulder (elbow card)
 PANEL_GAP = TL_GAP  # gap between the pieces of a pillar
 
 
@@ -1015,7 +1183,7 @@ def panel(title, colour, content, *, side="left", pillar=None, top=True, bottom=
     right = side == "right"
     pw = pillar or PANEL_PILLAR
     corner = (pw + PANEL_CORNER - PANEL_T if pillar else PANEL_CORNER) + 8
-    title_w = int(len(title) * PANEL_T * 0.42) + 18        # Antonio is narrow: ~0.4 em per character
+    title_w = PANEL_T * (len(title) * 0.42) + 18        # Antonio is narrow: ~0.4 em per character
     pad = "right" if right else "left"
     title_card = {"type": "custom:lcards-button", "preset": "text-only", "show_icon": False, "interactive": False,
                   "text": {"t": {"content": title, "position": f"center-{pad}", "font_size": PANEL_T,
@@ -1027,27 +1195,28 @@ def panel(title, colour, content, *, side="left", pillar=None, top=True, bottom=
     def bar(edge, titled):
         """Horizontal bar on the top/bottom edge of its row, optionally interrupted by the title."""
         seg = '"b t a"' if right else '"a t b"'
-        widths = f"1fr {title_w}px 14px" if right else f"14px {title_w}px 1fr"
+        # the title's track may shrink (clipping it) where the frame is narrower than its title (phones)
+        widths = f"1fr minmax(0, {title_w}) 14px" if right else f"14px minmax(0, {title_w}) 1fr"
         parts = [at(block(colour), "a"), at(title_card, "t"), at(block(colour), "b")]
         if not titled:
             seg, widths, parts = '"b"', "1fr", [at(block(colour), "b")]
         blank = '"' + " ".join("." for _ in seg.strip('"').split()) + '"'
         areas_ = f"{seg} {blank}" if edge == "top" else f"{blank} {seg}"
-        rows_ = f"{PANEL_T}px 1fr" if edge == "top" else f"1fr {PANEL_T}px"
+        rows_ = f"{Len.of(PANEL_T)} 1fr" if edge == "top" else f"1fr {Len.of(PANEL_T)}"
         return grid(areas_, widths, rows_, parts, gap="0 6px")
 
     areas, rows, cards = [], [], []
     body_edge = "body" if pillar else "side"
     if top:
         areas.append(line("tl", "top"))
-        rows.append(f"{PANEL_CORNER}px")
+        rows.append(f"{Len.of(PANEL_CORNER)}")
         cards += [at(panel_elbow("header-right" if right else "header-left", colour, pw), "tl"),
                   at(bar("top", True), "top")]
     areas.append(line(body_edge, "body"))
     rows.append("1fr")
     if bottom:
         areas.append(line("bl", "bot"))
-        rows.append(f"{PANEL_CORNER}px")
+        rows.append(f"{Len.of(PANEL_CORNER)}")
         cards += [at(panel_elbow("footer-right" if right else "footer-left", colour, pw), "bl"),
                   at(bar("bottom", not top and caption), "bot")]
     if pillar:
@@ -1055,13 +1224,13 @@ def panel(title, colour, content, *, side="left", pillar=None, top=True, bottom=
         # bottom the pillar's filler piece (pillar_rows(filler=...)) runs into the shoulder: it overlaps
         # it by 2 px, otherwise fractional zoom levels (110 %) leave a hairline seam
         cards.append(at(content, "body", overflow=overflow,
-                        margin=f"{-2 if join_top else PANEL_GAP}px 0 {-2 if bottom else 0}px 0"))
+                        margin=f"{Len.of(-2 if join_top else PANEL_GAP)} 0 {Len.of(-2 if bottom else 0)} 0"))
     else:
-        pillar_card = (grid('". p"', f"1fr {PANEL_PILLAR}px", "1fr", [at(block(colour), "p")], gap="0") if right else
-                       grid('"p ."', f"{PANEL_PILLAR}px 1fr", "1fr", [at(block(colour), "p")], gap="0"))
+        pillar_card = (grid('". p"', f"1fr {Len.of(PANEL_PILLAR)}", "1fr", [at(block(colour), "p")], gap="0") if right else
+                       grid('"p ."', f"{Len.of(PANEL_PILLAR)} 1fr", "1fr", [at(block(colour), "p")], gap="0"))
         cards += [at(pillar_card, "side"),
                   at(content, "body", overflow=overflow, margin="0 -18px 0 0" if right else "0 0 0 -18px")]
-    return grid(" ".join(areas), f"1fr {corner}px" if right else f"{corner}px 1fr", " ".join(rows), cards,
+    return grid(" ".join(areas), f"1fr {Len.of(corner)}" if right else f"{Len.of(corner)} 1fr", " ".join(rows), cards,
                 gap="0 6px")
 
 
@@ -1072,7 +1241,7 @@ def collection_timeline():
     series = [(label, e, colour, "attribute") for label, e, colour in BINS]
     series.append(("Hazmat", HAZMAT["date"], RED, "state"))
     track_rows = [TL_HEAD] + [TL_ROW] * len(series) + [TL_AXIS]
-    gap = f"{TL_GAP}px 4px"
+    gap = f"{Len.of(TL_GAP)} 4px"
     day_grid = {"type": "custom:lcars-day-grid", "days": TIMELINE_DAYS, "rows": track_rows, "gap": gap,
                 "series": [{"entity": e, "colour": colour, "match": match} for _, e, colour, match in series],
                 "colours": {"empty": rgba(PERI, 0.1), "weekend": rgba(PERI, 0.05), "today": rgba(PERI, 0.22),
@@ -1085,7 +1254,7 @@ def collection_timeline():
     cards.append(at(block(ORANGE, "Day", lcars_code("timeline/day"), align="center-right", size=17), "lx"))
     cards.append(at(day_grid, "days"))
     # the day grid repeats these row tracks internally, so its rows line up with the label blocks
-    return grid(" ".join(areas), f"{TIMELINE_LABEL_W}px 1fr", " ".join(track_rows), cards, gap=gap)
+    return grid(" ".join(areas), f"{Len.of(TIMELINE_LABEL_W)} 1fr", " ".join(track_rows), cards, gap=gap)
 
 
 def pillar_rows(items, side="left", filler=None, label_w=DATA_LABEL_W):
@@ -1103,8 +1272,8 @@ def pillar_rows(items, side="left", filler=None, label_w=DATA_LABEL_W):
         areas.append('". f"' if side == "right" else '"f ."')
         cards.append(at(block(filler), "f"))
         rows.append("1fr")
-    widths = f"1fr {label_w}px" if side == "right" else f"{label_w}px 1fr"
-    return grid(" ".join(areas), widths, " ".join(rows), cards, gap=f"{DATA_GAP}px 16px")
+    widths = f"1fr {Len.of(label_w)}" if side == "right" else f"{Len.of(label_w)} 1fr"
+    return grid(" ".join(areas), widths, " ".join(rows), cards, gap=f"{Len.of(DATA_GAP)} 16px")
 
 
 def value_text(value_js, entity, align="left", colour=PERI):
@@ -1116,7 +1285,7 @@ def value_text(value_js, entity, align="left", colour=PERI):
                                "font_weight": "bold", "padding": {align: 4}}}}
 
 
-VALUE_W = "clamp(190px, 15vw, 290px)"   # value column next to a countdown bar
+VALUE_W = f"clamp({fl(190)}, 15vw, 290px)"   # value column next to a countdown bar
 BAR_SEGMENTS = 14                        # countdown bars: one segment per 2 days, 0-28 days like the timeline
 
 _BLINK = random.Random(1701)
@@ -1172,7 +1341,7 @@ def with_bar(value, bar, side, width=VALUE_W):
 def data_panel_height(n):
     """Height of a panel with top and bottom bars around n data rows: rows, the gaps between them and
     to both shoulders, and a short filler piece of pillar."""
-    return f"calc({n} * {DATA_ROW} + {(n + 1) * DATA_GAP + 12}px + {2 * PANEL_CORNER}px)"
+    return f"calc({n} * {DATA_ROW} + {Len.of((n + 1) * DATA_GAP + 12)} + {Len.of(2 * PANEL_CORNER)})"
 
 
 WASTE_TIMELINE = ORANGE    # the timeline's piece of the mid bar and its bottom shoulder
@@ -1186,11 +1355,12 @@ def waste_view():
     Hazmat collection. Below priority 2 the shoulders go first (flat section bars)."""
     bars = top_bars(["1fr"], [(1, titled_bar(f"Collection timeline · {TIMELINE_DAYS} days", WASTE_TIMELINE,
                                              TOP_BAR_T))])
-    content = tiered({2: _waste(shoulders=True), 1: _waste(shoulders=False)})
+    content = tiered({2: _waste(shoulders=True), 1: _waste(shoulders=False), 0: _waste(shoulders=True, frames=False)})
     return dict(content=content, mid_bars=bars, mid_t=TOP_BAR_T, nav_h=NAV_H)
 
 
-def _waste(shoulders):
+def _waste(shoulders, frames=True):
+    """frames=False (phones): the timeline alone, closed below by its thin bar and shoulder."""
     rows = pillar_rows(
         [(label, colour, lcars_code(f"next-per-bin/{label}"),
           with_bar(value_text(js_de_date("entity.state"), e), countdown_bar(e, colour, "left"), "left"))
@@ -1210,7 +1380,11 @@ def _waste(shoulders):
                                   ("Hazmat collection", WASTE_HAZMAT, hazmat_rows, DATA_LABEL_W),
                                   ("waste/decor", WASTE_DECOR), len(BINS), shoulders)
     n_tl = len(BINS) + 1
-    timeline_h = f"calc({TL_HEAD} + {n_tl} * {TL_ROW} + {TL_AXIS} + {(n_tl + 1) * TL_GAP}px)"
+    timeline_h = f"calc({TL_HEAD} + {n_tl} * {TL_ROW} + {TL_AXIS} + {Len.of((n_tl + 1) * TL_GAP)})"
+    if not frames:
+        return grid('"t" "." "fb" "."', "1fr", f"{timeline_h} {Len.of(PANEL_GAP)} {PANEL_CORNER} 1fr",
+                    [at(collection_timeline(), "t"), at(bottom_shoulder(WASTE_TIMELINE, label_w=TIMELINE_LABEL_W), "fb")],
+                    gap="0")
     return closed_top(collection_timeline(), timeline_h, WASTE_TIMELINE, TIMELINE_LABEL_W, lower, lower_h, shoulders)
 
 
@@ -1232,14 +1406,14 @@ def outward_pair(left, right, decor, n_rows, shoulders):
         lf = section(lt, lc, lrows, label_w=lw)
         rf = section(rt, rc, rrows, label_w=rw, side="right")
         top = PANEL_T + DATA_GAP
-    height = f"calc({top}px + {n_rows} * {DATA_ROW} + {n_rows * DATA_GAP + 8}px)"
+    height = f"calc({Len.of(top)} + {n_rows} * {DATA_ROW} + {Len.of(n_rows * DATA_GAP + 8)})"
     blocks = [colours[i % len(colours)] for i in range(n_rows)]
     column = grid('"b" "." ' + " ".join(f'"d{i}"' for i in range(n_rows)) + ' "."', "1fr",
-                  f"{PANEL_T}px {top - PANEL_T - DATA_GAP}px " + " ".join([DATA_ROW] * n_rows) + " 1fr",
+                  f"{Len.of(PANEL_T)} {Len.of(top - PANEL_T - DATA_GAP)} " + " ".join([DATA_ROW] * n_rows) + " 1fr",
                   [at(block(ALMOND), "b")] + [at(block(c, None, lcars_code(f"{key}/{i}")), f"d{i}")
-                                              for i, c in enumerate(blocks)], gap=f"{DATA_GAP}px 0")
-    return grid('"l d r"', f"1fr {DECOR_PILLAR_W}px 1fr", "1fr", [at(lf, "l"), at(column, "d"), at(rf, "r")],
-                gap=f"0 {FRAME_GAP}px"), height
+                                              for i, c in enumerate(blocks)], gap=f"{Len.of(DATA_GAP)} 0")
+    return grid('"l d r"', f"1fr {Len.of(DECOR_PILLAR_W)} 1fr", "1fr", [at(lf, "l"), at(column, "d"), at(rf, "r")],
+                gap=f"0 {Len.of(FRAME_GAP)}"), height
 
 
 def closed_top(top, top_h, colour, label_w, lower, lower_h, shoulders):
@@ -1251,7 +1425,7 @@ def closed_top(top, top_h, colour, label_w, lower, lower_h, shoulders):
         return grid('"t" "." "low" "."', "1fr", f"{top_h} {SECTION_GAP} {lower_h} 1fr", cards, gap="0")
     cards.append(at(bottom_shoulder(colour, label_w=label_w), "fb"))
     return grid('"t" "." "fb" "." "low" "."', "1fr",
-                f"{top_h} {PANEL_GAP}px {PANEL_CORNER}px {FRAME_GAP}px {lower_h} 1fr", cards, gap="0")
+                f"{top_h} {Len.of(PANEL_GAP)} {Len.of(PANEL_CORNER)} {Len.of(FRAME_GAP)} {lower_h} 1fr", cards, gap="0")
 
 
 WASH_RUNNING = 3                    # W: above this the machine is running
@@ -1310,7 +1484,7 @@ def laundry_view():
     colour, buttons = LAUNDRY_TRACE
     trace = section("Power trace", colour, power_card(wsh["power"], column=(DATA_LABEL_W, buttons, colour)),
                     label_w=DATA_LABEL_W)
-    unit_h = f"calc(4 * {DATA_ROW} + {3 * DATA_GAP}px)"
+    unit_h = f"calc(4 * {DATA_ROW} + {Len.of(3 * DATA_GAP)})"
     # the trace as high as the waste page's timeline, less where the page is too short; the rest stays black
     content = grid('"u" "t" "."', "1fr", f"{unit_h} {chart_height()} 1fr", [at(unit, "u"), at(trace, "t")],
                    gap=f"{SECTION_GAP} 0")
@@ -1363,7 +1537,7 @@ def mode_button(label, entity, on, off, key):
 
 def small_pill(card):
     """A smaller LCARS pill: text and number sized like the dosing buttons."""
-    card["text"]["label"]["font_size"] = 17
+    card["text"]["label"]["font_size"] = font(17)
     return pill_shape(card)
 
 
@@ -1374,7 +1548,7 @@ def deco_pill(key, colour):
 
 def rows_h(n):
     """Height of n data rows of a label column."""
-    return f"calc({n} * {DATA_ROW} + {(n - 1) * DATA_GAP}px)"
+    return f"calc({n} * {DATA_ROW} + {Len.of((n - 1) * DATA_GAP)})"
 
 
 def water_change_done():
@@ -1407,7 +1581,7 @@ def status_view():
     # the four modes (left) and numbered pills without a function, small like the light page's controls
     # 3 x 3 small pills: the four modes spread diagonally, numbered pills without a function in between
     for b in buttons:                                     # "Water change" fits a third of the column at 1280 px
-        small_pill(b)["text"]["label"]["font_size"] = 14
+        small_pill(b)["text"]["label"]["font_size"] = font(14)
     auto, maintenance, feeding, water = buttons
     deco = [deco_pill(f"aquarium/modes/deco/{i}", c) for i, c in enumerate([PEACH, BONE, ALMOND, BUTTERSCOTCH, PEACH])]
     layout = [auto, deco[0], maintenance, deco[1], feeding, deco[2], water, deco[3], deco[4]]
@@ -1461,21 +1635,27 @@ def status_view():
         ("Record", BONE, lcars_code("aquarium/wc-record"), water_change_done()),
     ], side="right", filler=ICE, label_w=AQ_LABEL_W)
 
-    modes = with_decor_pillar(modes, "aquarium/modes/column", [PEACH, BONE, BUTTERSCOTCH], side="right",
-                              filler=STATUS_MODES, width=AQ_LABEL_W, row=DATA_ROW)
+    # phones: the four modes as one column of pills, level with Equipment's rows (a third of the column is
+    # too narrow for "Maintenance" there)
+    modes_phone = grid('"a" "b" "c" "d"', "1fr", " ".join([DATA_ROW] * 4),
+                       [at(c, n) for c, n in zip(buttons, "abcd")], gap=f"{DATA_GAP}px 0")
+    modes, modes_phone = (with_decor_pillar(m, "aquarium/modes/column", [PEACH, BONE, BUTTERSCOTCH], side="right",
+                                            filler=STATUS_MODES, width=AQ_LABEL_W, row=DATA_ROW)
+                          for m in (modes, modes_phone))
 
-    def content(shoulders):
-        return status_grid(equipment, modes, light, water, shoulders)
+    def content(shoulders, phone=False):
+        return status_grid(equipment, modes_phone if phone else modes, light, water, shoulders)
 
     # the block column's piece of the mid bar: the column hangs from it
     bars = top_bars(STATUS_COLUMNS, [(1, titled_bar("Equipment", STATUS_TOP, TOP_BAR_T)), (1, block(ALMOND)),
                                      (1, titled_bar("Modes", STATUS_MODES, TOP_BAR_T, side="right"))],
                     right_w=AQ_LABEL_W)
-    return dict(content=tiered({2: content(True), 1: content(False)}), mid_bars=bars, mid_t=TOP_BAR_T,
+    return dict(content=tiered({2: content(True), 1: content(False), 0: content(False, phone=True)}), mid_bars=bars,
+                mid_t=TOP_BAR_T,
                 nav_h=NAV_H, right=(STATUS_MODES, AQ_LABEL_W, ICE))
 
 
-STATUS_COLUMNS = ["1fr", f"{DECOR_PILLAR_W}px", "1fr"]   # Equipment | block column | Modes
+STATUS_COLUMNS = ["1fr", DECOR_PILLAR_W, "1fr"]   # Equipment | block column | Modes
 STATUS_COLUMN_TOP = [PEACH, BONE, ALMOND, PEACH]          # the block column beside Equipment's rows
 STATUS_COLUMN_LOW = [PEACH, BONE, ALMOND, PEACH]          # ... and beside the lower frames' rows (4: Water change)
 STATUS_MODES = ALMOND                                     # Modes: its piece of the mid bar and its pillar
@@ -1496,16 +1676,16 @@ def status_grid(equipment, modes, light, water, shoulders):
         il = panel("Illumination", STATUS_LIGHT, inner(light, "l"), pillar=AQ_LABEL_W, bottom=False)
         wc = panel("Water change", ICE, inner(water, "r"), side="right", pillar=AQ_LABEL_W, bottom=False)
         head = PANEL_CORNER + PANEL_GAP            # lower frames: shoulder down to their first row
-        between = f"{PANEL_GAP}px {PANEL_CORNER}px {FRAME_GAP}px"
-        link = f"calc({PANEL_GAP + PANEL_CORNER + FRAME_GAP + head - 2 * g}px)"
+        between = f"{Len.of(PANEL_GAP)} {Len.of(PANEL_CORNER)} {Len.of(FRAME_GAP)}"
+        link = f"calc({Len.of(PANEL_GAP + PANEL_CORNER + FRAME_GAP + head - 2 * g)})"
     else:
         il = section("Illumination", STATUS_LIGHT, inner(light, "l"), label_w=AQ_LABEL_W)
         wc = section("Water change", ICE, inner(water, "r"), label_w=AQ_LABEL_W, side="right")
         head = PANEL_T + DATA_GAP
         between = SECTION_GAP
-        link = f"calc({SECTION_GAP} + {head - 2 * g}px)"
+        link = f"calc({SECTION_GAP} + {Len.of(head - 2 * g)})"
     n_low = len(STATUS_COLUMN_LOW)
-    lower_h = f"calc({head}px + {n_low} * {DATA_ROW} + {n_low * DATA_GAP + 8}px)"
+    lower_h = f"calc({Len.of(head)} + {n_low} * {DATA_ROW} + {Len.of(n_low * DATA_GAP + 8)})"
     top_blocks = [at(block(c, None, lcars_code(f"aquarium/status/column/{i}")), f"t{i}")
                   for i, c in enumerate(STATUS_COLUMN_TOP)]
     low_blocks = [at(block(c, None, lcars_code(f"aquarium/status/column/low/{i}")), f"b{i}")
@@ -1516,12 +1696,12 @@ def status_grid(equipment, modes, light, water, shoulders):
     column = grid(" ".join(f'"t{i}"' for i in range(4)) + ' "link" ' + " ".join(f'"b{i}"' for i in range(n_low))
                   + (' "tail"' if shoulders else ' "."'), "1fr",
                   " ".join([DATA_ROW] * 4 + [link] + [DATA_ROW] * n_low + ["1fr"]),
-                  top_blocks + [at(block(ALMOND), "link")] + low_blocks + tail, gap=f"{g}px 0")   # the link merges into bars: no number
+                  top_blocks + [at(block(ALMOND), "link")] + low_blocks + tail, gap=f"{Len.of(g)} 0")   # the link merges into bars: no number
     cards = [at(inner(equipment, "l"), "e"), at(inner(modes, "r"), "m"), at(wc, "wc")]
     if shoulders:
         corner = lambda pw: pw + PANEL_CORNER - PANEL_T + 8          # noqa: E731 (as panel() with a pillar)
-        bar = grid('"." "b"', "1fr", f"1fr {PANEL_T}px", [at(block(STATUS_LIGHT), "b")], gap="0")
-        closing = grid('"l b r"', f"{corner(AQ_LABEL_W)}px 1fr {corner(DECOR_PILLAR_W)}px", "1fr", [
+        bar = grid('"." "b"', "1fr", f"1fr {Len.of(PANEL_T)}", [at(block(STATUS_LIGHT), "b")], gap="0")
+        closing = grid('"l b r"', f"{Len.of(corner(AQ_LABEL_W))} 1fr {Len.of(corner(DECOR_PILLAR_W))}", "1fr", [
             at(panel_elbow("footer-left", STATUS_LIGHT, AQ_LABEL_W), "l"), at(bar, "b"),
             at(panel_elbow("footer-right", STATUS_LIGHT, DECOR_PILLAR_W), "r")], gap="0 6px")
         cards += [at(bottom_shoulder(STATUS_TOP, label_w=AQ_LABEL_W), "fb"),
@@ -1529,12 +1709,12 @@ def status_grid(equipment, modes, light, water, shoulders):
                   # Illumination's filler and the column's tail overlap the bottom shoulders by 2 px (no seams)
                   at(il, "il", margin="0 0 -2px 0"), at(column, "col", margin="0 0 -2px 0"), at(closing, "ilb")]
         areas = '"e col m" ". col ." "fb col fbr" ". col ." "il col wc" "ilb ilb wc" ". . wc"'
-        rows = f"{rows_h(4)} {between} {lower_h} {PANEL_CORNER}px 1fr"
+        rows = f"{rows_h(4)} {between} {lower_h} {Len.of(PANEL_CORNER)} 1fr"
     else:
         cards += [at(il, "il"), at(column, "col")]
         areas = '"e col m" ". col ." "il col wc"'
         rows = f"{rows_h(4)} {between} 1fr"      # the lower frames' pillars run down to the bottom
-    return grid(areas, " ".join(STATUS_COLUMNS), rows, cards, gap=f"0 {FRAME_GAP}px")
+    return grid(areas, " ".join(map(str, STATUS_COLUMNS)), rows, cards, gap=f"0 {Len.of(FRAME_GAP)}")
 
 
 VISUAL_COLUMNS = ["1fr", "2.2fr"]   # Readings (label column) | camera
@@ -1556,7 +1736,7 @@ def visual_view():
         plain_row("Total power", PEACH, "visual/power", POWER, "{entity.state}"),
     ], label_w=AQ_LABEL_W)
     left = grid('"r" "."', "1fr", f"{rows_h(4)} 1fr", [at(readings, "r")], gap="0")
-    content = grid('"r c"', " ".join(VISUAL_COLUMNS), "1fr", [at(left, "r"), at(camera, "c")], gap=f"0 {FRAME_GAP}px")
+    content = grid('"r c"', " ".join(VISUAL_COLUMNS), "1fr", [at(left, "r"), at(camera, "c")], gap=f"0 {Len.of(FRAME_GAP)}")
     bars = top_bars(VISUAL_COLUMNS, [(1, titled_bar("Readings", ORANGE, TOP_BAR_T)),
                                      (1, titled_bar("Visual sensor 01", VISUAL_CAMERA, TOP_BAR_T, side="right"))],
                     right_w=DECOR_PILLAR_W)
@@ -1623,7 +1803,7 @@ def s_joint(upper, lower, title):
     (su, cu, pu), (sl, cl, pl) = upper, lower
     corner = lambda pw: pw + PANEL_CORNER - PANEL_T + 8          # noqa: E731 (as panel() with a pillar)
     off = PANEL_CORNER - PANEL_T
-    title_w = int(len(title) * PANEL_T * 0.42) + 18
+    title_w = PANEL_T * (len(title) * 0.42) + 18
     right = sl == "right"                                        # the title sits on the lower frame's side
     title_card = {"type": "custom:lcards-button", "preset": "text-only", "show_icon": False, "interactive": False,
                   "text": {"t": {"content": title, "position": "center-right" if right else "center-left",
@@ -1631,13 +1811,13 @@ def s_joint(upper, lower, title):
                                  "padding": {"right" if right else "left": 10}}}}
     # the long part of the bar in the upper frame's colour, the short piece by the title in the lower one's
     left_c, right_c = (cu, cl) if right else (cl, cu)
-    bar = grid('"a t b"', f"1fr {title_w}px 14px" if right else f"14px {title_w}px 1fr", "1fr",
+    bar = grid('"a t b"', f"1fr {Len.of(title_w)} 14px" if right else f"14px {Len.of(title_w)} 1fr", "1fr",
                [at(block(left_c), "a"), at(title_card, "t"), at(block(right_c), "b")], gap="0 6px")
     # the upper shoulder's bar is at the bottom of its box, the lower one's at the top: offset to share it
-    up = at(panel_elbow(f"footer-{su}", cu, pu), "u" if su == "left" else "l", margin=f"0 0 {off}px 0")
-    low = at(panel_elbow(f"header-{sl}", cl, pl), "l" if sl == "right" else "u", margin=f"{off}px 0 0 0")
+    up = at(panel_elbow(f"footer-{su}", cu, pu), "u" if su == "left" else "l", margin=f"0 0 {Len.of(off)} 0")
+    low = at(panel_elbow(f"header-{sl}", cl, pl), "l" if sl == "right" else "u", margin=f"{Len.of(off)} 0 0 0")
     lw, rw = (corner(pu), corner(pl)) if su == "left" else (corner(pl), corner(pu))
-    return grid('"u m l"', f"{lw}px 1fr {rw}px", "1fr", [up, at(bar, "m", margin=f"{off}px 0"), low], gap="0 6px")
+    return grid('"u m l"', f"{Len.of(lw)} 1fr {Len.of(rw)}", "1fr", [up, at(bar, "m", margin=f"{Len.of(off)} 0"), low], gap="0 6px")
 
 
 def s_chain(parts):
@@ -1657,7 +1837,7 @@ def s_chain(parts):
             rows.append(height)
         else:
             cards.append(at(part, name))
-            rows.append(f"{2 * PANEL_CORNER - PANEL_T}px")
+            rows.append(f"{Len.of(2 * PANEL_CORNER - PANEL_T)}")
     return grid(" ".join(f'"r{i}"' for i in range(len(parts))), "1fr", " ".join(rows), cards, gap="0")
 
 
@@ -1741,7 +1921,7 @@ def light_view():
                   "return a.ramp_direction + ' · ' + Math.round(f * 100) + ' %'; ]]]"),
     ], filler=SUNFLOWER, label_w=AQ_LABEL_W)
     # the graph takes the frame's width right of the values
-    body = grid('"r g"', f"calc(clamp(140px, 11vw, 220px) + {AQ_LABEL_W}px + 16px) 1fr", "1fr",
+    body = grid('"r g"', f"calc(clamp({fl(140)}, 11vw, 220px) + {AQ_LABEL_W} + 16px) 1fr", "1fr",
                 [at(rows, "r"), at(phases_card(), "g", margin="4px 0 8px 0")], gap="0 18px")
     control = panel("Phase control", SUNFLOWER, pillar=AQ_LABEL_W, content=body, top=False, bottom=False,
                     caption=False)      # its title is in the mid bar
@@ -1759,9 +1939,14 @@ def light_view():
     names = "abcdefgh"
     button_grid = grid('"a b c d" "e f g h"', "1fr 1fr 1fr 1fr", "1fr 1fr",
                        [at(c, n) for c, n in zip(buttons, names)], gap="8px 12px")
-    def controls(bottom):
+    # phones: one row, Automation and the two profiles (see phone_pill())
+    phone_grid = grid('"a b c"', "1fr 1fr 1fr", "1fr", [at(phone_pill(c), n) for c, n in zip(buttons[:3], "abc")],
+                      gap="0 8px")
+
+    def controls(bottom, phone=False):
         return panel("Controls", ROSE, side="right", pillar=DECOR_PILLAR_W, top=False, bottom=bottom, caption=False,
-                     content=with_decor_pillar(button_grid, "light/controls", [PEACH], filler=ROSE))
+                     content=with_decor_pillar(phone_grid if phone else button_grid, "light/controls", [PEACH],
+                                               filler=ROSE))
 
     # whatever height is left shows the device log, open at the bottom above the foot bar; its pillar is as
     # wide as Phase control's (the left column's pillars line up). Priority 3: on shorter screens (the
@@ -1769,20 +1954,23 @@ def light_view():
     log = panel("Device log", LILAC, pillar=AQ_LABEL_W, top=False, bottom=False, caption=False,
                 content=with_decor_pillar(light_log_card(), "light/log", [PEACH, BONE], side="left", filler=LILAC,
                                           width=AQ_LABEL_W))
-    upper_h = f"calc({data_panel_height(5)} - {2 * PANEL_CORNER}px)"
+    upper_h = f"calc({data_panel_height(5)} - {Len.of(2 * PANEL_CORNER)})"
     to_controls = s_joint(("left", SUNFLOWER, AQ_LABEL_W), ("right", ROSE, DECOR_PILLAR_W), "Controls")
     double_s = s_chain([(control, upper_h), to_controls,
-                        (controls(False), f"calc({data_panel_height(2)} - {2 * PANEL_CORNER}px)"),
+                        (controls(False), f"calc({data_panel_height(2)} - {Len.of(2 * PANEL_CORNER)})"),
                         s_joint(("right", ROSE, DECOR_PILLAR_W), ("left", LILAC, AQ_LABEL_W), "Device log"),
                         (log, "1fr")])
     single_s = s_chain([(control, upper_h), to_controls,
-                        (controls(True), f"calc({data_panel_height(2)} - {PANEL_CORNER}px)"), None])
-    left = tiered({3: double_s, 1: single_s})
+                        (controls(True), f"calc({data_panel_height(2)} - {Len.of(PANEL_CORNER)})"), None])
+    # phones: Phase control without its spare row, Controls in one row
+    phone_s = s_chain([(control, f"calc({data_panel_height(4)} - {Len.of(2 * PANEL_CORNER)})"), to_controls,
+                       (controls(True, phone=True), f"calc({data_panel_height(1)} - {Len.of(PANEL_CORNER)})"), None])
+    left = tiered({3: double_s, 1: single_s, 0: phone_s})
     # the channels' pillar is the frame's right side (closed on the right, down into the foot bar)
     channels = with_decor_pillar(transporter_card(), "light/channels", [PEACH, ALMOND, SUNFLOWER], side="right",
                                  filler=LIGHT_CHANNELS_COLOUR)
     content = grid('"l ch"', " ".join(LIGHT_COLUMNS), "1fr", [at(left, "l"), at(channels, "ch")],
-                   gap=f"0 {FRAME_GAP}px")
+                   gap=f"0 {Len.of(FRAME_GAP)}")
     bars = top_bars(LIGHT_COLUMNS, [(1, titled_bar("Phase control", SUNFLOWER, TOP_BAR_T)),
                                     (1, titled_bar("Channels", LIGHT_CHANNELS_COLOUR, TOP_BAR_T, side="right"))],
                     right_w=DECOR_PILLAR_W)
@@ -1824,7 +2012,7 @@ def dosing_view():
     n = len(DOSE_CHANNELS)
     # the label rows line up with the channel frames' bodies: the pieces above and below them are as high
     # as the frames' shoulders (less the grid gap, which the frames don't have)
-    shoulder = f"{PANEL_CORNER - DATA_GAP}px"
+    shoulder = f"{Len.of(PANEL_CORNER - DATA_GAP)}"
     chans = " ".join(f"c{i}" for i in range(n))
     areas = ['"ph ' + chans + '"'] + [f'"p{key} {chans}"' for key, *_ in rows] + ['"pf ' + chans + '"']
     cards = [at(block(ORANGE), "ph")]   # the column's top piece, level with the channel frames' shoulders
@@ -1868,7 +2056,9 @@ def dosing_view():
                                        "target": {"entity_id": fill}, "service_data": {"value": bottle}}})
         for card in (pill, refill):      # half a column each: smaller text, the number above the label
             small_pill(card)
-        buttons = grid('"s r"', "1fr 1fr", "1fr", [at(pill, "s"), at(refill, "r")], gap="0 8px")
+        buttons = tiered({1: grid('"s r"', "1fr 1fr", "1fr", [at(pill, "s"), at(refill, "r")], gap="0 8px"),
+                          0: grid('"s r"', "1fr 1fr", "1fr", [at(phone_pill(pill), "s"), at(phone_pill(refill), "r")],
+                                  gap="0 4px")})
         parts = {"sched": buttons, "tank": tank_card(fill, status, bottle, colour), "days": days,
                  "left": remaining, "dose": dose, "next": nxt}
         # open at the bottom: an empty row as high as the label pillar's bottom piece keeps the rows aligned
@@ -1878,11 +2068,11 @@ def dosing_view():
         body = grid(" ".join((f'"_ {key}"' if right else f'"{key} _"') for key, *_ in rows) + ' ". ."',
                     "14px 1fr" if right else "1fr 14px", " ".join([h for *_, h in rows] + [shoulder]),
                     [at(parts[key], key, **({"margin": "6px 0"} if key == "tank" else {})) for key, *_ in rows],
-                    gap=f"{DATA_GAP}px 0")
+                    gap=f"{Len.of(DATA_GAP)} 0")
         cards.append(at(panel(label, colour, content=body, side="right" if right else "left", bottom=False),
                         f"c{i}"))
-    station = grid(" ".join(areas), f"{DATA_LABEL_W}px " + " ".join(["1fr"] * n),
-                   " ".join([shoulder] + [h for *_, h in rows] + [shoulder]), cards, gap=f"{DATA_GAP}px 12px")
+    station = grid(" ".join(areas), f"{Len.of(DATA_LABEL_W)} " + " ".join(["1fr"] * n),
+                   " ".join([shoulder] + [h for *_, h in rows] + [shoulder]), cards, gap=f"{Len.of(DATA_GAP)} {fl(12)}")
     bars = top_bars(["1fr"], [(1, titled_bar("Dosing station", ORANGE, TOP_BAR_T))])
     return dict(content=station, mid_bars=bars, mid_t=TOP_BAR_T, nav_h=NAV_H)
 
@@ -1896,7 +2086,7 @@ POWER_GRID = [  # (label, entity, colour, W at the end of its bar, sign in the m
 def chart_height():
     """As high as the waste page's timeline plus the bottom shoulder, less where the page is too short."""
     n = len(BINS) + 1
-    return f"minmax(0, calc({2 * PANEL_CORNER}px + {TL_HEAD} + {n} * {TL_ROW} + {TL_AXIS} + {(n + 2) * TL_GAP}px))"
+    return f"minmax(0, calc({Len.of(2 * PANEL_CORNER)} + {TL_HEAD} + {n} * {TL_ROW} + {TL_AXIS} + {Len.of((n + 2) * TL_GAP)}))"
 
 
 POWER_CHART = (LILAC, [VIOLET, LILAC, PERI])   # the chart section: bar and filler, the column's blocks
@@ -2007,41 +2197,41 @@ def library_card():
 # The mid bar of the page frame carries the titles and context buttons of the content columns below it
 # (docs/DESIGN.md "Page frame"). top_bars() splits it exactly where those columns split.
 FRAME_GAP = 6          # between the top row's content columns, as between the bar pieces above them
-TOP_BAR_T = 43         # a mid bar that carries buttons
+TOP_BAR_T = fl(43)        # a mid bar that carries buttons
 
 
 def top_bars(columns, pieces, right_w=None):
     """The mid bar's pieces over the top row's content columns. columns: the content grid's column widths
-    ("1.1fr", "160px"; laid out with FRAME_GAP), pieces: [(number of columns it covers, card), ...] from
+    ("1.1fr" or a Len; laid out with FRAME_GAP), pieces: [(number of columns it covers, card), ...] from
     left to right. Each piece ends where its last column ends, so bar and content split at the same x at
     any width. right_w: the frame's right side (frame(right=...)), which shortens the bar.
 
-    Coordinates: the content starts at PILLAR + 18 (main margin) and runs to the page's right edge; the
+    Coordinates: the content starts at PILLAR + 18 (main margin, fluid) and runs to the page's right edge; the
     bar starts after the left elbow (ELBOW_W + 6) and ends before the right shoulder. With the bar's
-    width B as 100 %, every column edge is a * B + b, written as CSS calc()."""
+    width B as 100 %, every column edge is a * B + b (b a Len), written as CSS calc()."""
     assert sum(n for n, _ in pieces) == len(columns)
-    g, x0, b0 = FRAME_GAP, PILLAR + 18, ELBOW_W + 6
-    shoulder = right_w + 44 + 6 if right_w else 0
-    px = [float(c[:-2]) if c.endswith("px") else 0 for c in columns]
-    fr = [float(c[:-2]) if c.endswith("fr") else 0 for c in columns]
-    free = b0 + shoulder - x0 - sum(px) - (len(columns) - 1) * g   # content width minus px and gaps = B + free
+    g, x0, b0 = FRAME_GAP, PILLAR + fl(18), ELBOW_W + 6
+    shoulder = right_w + fl(44) + 6 if right_w else 0
+    px = [Len.of(0) if isinstance(c, str) else c for c in columns]
+    fr = [float(c[:-2]) if isinstance(c, str) else 0 for c in columns]
+    free = b0 + shoulder - x0 - sum(px, Len()) - (len(columns) - 1) * g   # content width minus px and gaps = B + free
 
-    def edge(k):          # right edge of column k in bar coordinates: (share of B, px)
+    def edge(k):          # right edge of column k in bar coordinates: (share of B, Len)
         f = sum(fr[:k + 1]) / sum(fr)
-        return f, (x0 - b0) + sum(px[:k + 1]) + k * g + free * f
+        return f, (x0 - b0) + sum(px[:k + 1], Len()) + k * g + free * f
 
-    widths, start, k = [], (0.0, 0.0), -1
+    widths, start, k = [], (0.0, Len()), -1
     for i, (n, _) in enumerate(pieces):
         k += n
         if i == len(pieces) - 1:
             widths.append("1fr")
             break
         a, b = edge(k)
-        widths.append(f"calc({a - start[0]:.5f} * 100% + {b - start[1]:.2f}px)")
+        widths.append(f"calc({a - start[0]:.5f} * 100% + {b - start[1]})")
         start = (a, b + g)
     names = [f"p{i}" for i in range(len(pieces))]
     return grid('"' + " ".join(names) + '"', " ".join(widths), "1fr",
-                [at(card, n) for n, (_, card) in zip(names, pieces)], gap=f"0 {g}px")
+                [at(card, n) for n, (_, card) in zip(names, pieces)], gap=f"0 {Len.of(g)}")
 
 
 ANTONIO_CAP = 0.86     # cap height of Antonio in em (measured: 37 px at font size 43)
@@ -2054,22 +2244,22 @@ def title_text(title, colour, size, side="left"):
     return {"type": "custom:lcards-button", "preset": "text-only", "show_icon": False, "interactive": False,
             "text": {"t": {"content": title, "position": f"bottom-{side}", "baseline": "alphabetic",
                            "font_size": size, "color": colour, "text_transform": "uppercase",
-                           "padding": {side: 10, "bottom": round(size * (1 - ANTONIO_CAP) / 2)}}}}
+                           "padding": {side: 10, "bottom": round(Len.of(size).full() * (1 - ANTONIO_CAP) / 2)}}}}
 
 
 def titled_bar(title, colour, bar_t, side="left", middle=None):
     """A bar piece carrying `title` next to the shoulder on `side`; middle=(card, width): a card (e.g.
     buttons) between the title and the rest of the bar."""
     size = bar_t          # the title is always as tall as its bar
-    title_w = int(len(title) * size * 0.42) + 18
-    names, widths = ["a", "t"], ["14px", f"{title_w}px"]
+    title_w = size * (len(title) * 0.42) + 18
+    names, widths = ["a", "t"], ["14px", f"{Len.of(title_w)}"]
     cards = [at(block(colour), "a"), at(title_text(title, colour, size, side), "t")]
     if middle:
         names.append("m")
         widths.append(middle[1])
         cards.append(at(middle[0], "m"))
     names.append("b")
-    widths.append("1fr" if not middle else "40px")
+    widths.append("1fr" if not middle else str(fl(40)))
     cards.append(at(block(colour), "b"))
     if side == "right":
         names, widths = names[::-1], widths[::-1]
@@ -2077,7 +2267,7 @@ def titled_bar(title, colour, bar_t, side="left", middle=None):
 
 
 MEDIA_NOW_FR = 1.1             # Now playing : Library = MEDIA_NOW_FR : 1 (the device column takes room)
-MEDIA_SOURCES_W = 160          # the output devices' button column between Now playing and Library
+MEDIA_SOURCES_W = fl(160)         # the output devices' button column between Now playing and Library
 
 
 def media_view():
@@ -2085,14 +2275,14 @@ def media_view():
     between Now playing and Library, the frame closed on the right (the library's category pillar)."""
     left = titled_bar("Now playing", ORANGE, TOP_BAR_T, middle=(player_card("row", gap=6), "1fr"))
     right = titled_bar("Library", MEDIA_LIBRARY, TOP_BAR_T, side="right")
-    columns = [f"{MEDIA_NOW_FR}fr", f"{MEDIA_SOURCES_W}px", "1fr"]
+    columns = [f"{MEDIA_NOW_FR}fr", MEDIA_SOURCES_W, "1fr"]
     now = player_card("none")
     now["sources"] = "none"
     sources = player_card("none", gap=PANEL_GAP)
     sources.update({"sources": "column", "source_row": 64})
-    content = grid('"n s l"', " ".join(columns), "1fr",
+    content = grid('"n s l"', " ".join(map(str, columns)), "1fr",
                    [at(now, "n", margin="0 0 8px 0"), at(sources, "s"), at(library_card(), "l")],
-                   gap=f"0 {FRAME_GAP}px")
+                   gap=f"0 {Len.of(FRAME_GAP)}")
     return dict(content=content, mid_bars=top_bars(columns, [(2, left), (1, right)], right_w=ATMOS_LABEL_W),
                 mid_t=TOP_BAR_T, right=(MEDIA_LIBRARY, ATMOS_LABEL_W), nav_h=NAV_H)
 
@@ -2181,5 +2371,5 @@ def finalize(node):
 if __name__ == "__main__":
     finalize(CONFIG)
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
-    json.dump(CONFIG, open(OUT, "w"), indent=1, ensure_ascii=False)
-    print("views:", len(VIEWS), "bytes:", len(json.dumps(CONFIG)))
+    json.dump(CONFIG, open(OUT, "w"), indent=1, ensure_ascii=False, default=str)   # Len -> CSS
+    print("views:", len(VIEWS), "bytes:", len(json.dumps(CONFIG, default=str)))

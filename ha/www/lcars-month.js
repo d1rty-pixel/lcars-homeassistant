@@ -18,6 +18,16 @@
 //   colours: {empty, weekend, today, other, text, text_weekend, text_today, dim, ink}
 //   font: "Antonio, sans-serif"
 //   mode: "controls", group: "calendar", controls: [{colour, code}] x3   # back, today, next
+// Fluid sizes, the same as the generator's (Len, font() in build_dashboard.py): full size from REF_H
+// viewport height up, shrinking below it: sizes to 60 % (sz), fonts to 80 % (fz; LCARS numbers to 67 %).
+// len(): a size from the config (a number of px or a CSS length) as CSS.
+const REF_H = 720;
+const fluid = (px, lo) => `clamp(${+(px * lo).toFixed(2)}px, ${+(px * 100 / REF_H).toFixed(3)}vh, ${px}px)`;
+const fz = (px, lo = 0.8) => fluid(px, lo);
+const sz = (px) => fluid(px, 0.6);
+const scale = () => Math.min(1, Math.max(0.6, window.innerHeight / REF_H));   // sz(px) = px * scale()
+const len = (v) => (typeof v === "number" ? `${v}px` : v);
+
 const EVENT = "lcars-month";
 const DAY = 86400e3;
 const tapSound = () => {
@@ -82,9 +92,11 @@ class LcarsMonth extends HTMLElement {
         .row { display: grid; height: 100%; gap: 6px; grid-template-columns: repeat(3, minmax(0, 1fr));
                font-family: ${c.font}; text-transform: uppercase; }
         .blk { position: relative; display: flex; align-items: flex-end; justify-content: flex-end; padding: 0 8px 3px;
-               color: ${(c.colours || {}).ink || "#000"}; font-size: 16px; cursor: pointer; user-select: none;
+               color: ${(c.colours || {}).ink || "#000"}; font-size: ${fz(16)}; cursor: pointer; user-select: none;
                -webkit-user-select: none; }
-        .blk em { position: absolute; left: 6px; top: 2px; font-style: normal; font-size: 10px; }
+        .blk em { position: absolute; left: 6px; top: 2px; font-style: normal; font-size: ${fz(10, 0.67)}; }
+        /* phones (PHONE_H in the generator): the mid bar is too thin for numbers */
+        @media (max-height: 520px) { .row .blk em { display: none; } .row .blk { align-items: center; } }
         .blk:active { filter: brightness(1.3); }
       </style>
       <div class="row">${names.map(([label, cmd], i) =>
@@ -206,20 +218,22 @@ class LcarsMonth extends HTMLElement {
     this.shadowRoot.innerHTML = `
       <style>
         :host { display: block; height: 100%; }
-        .wrap { display: grid; height: 100%; gap: 0 16px; grid-template-columns: minmax(0, 1fr) ${c.legend_w}px;
+        .wrap { display: grid; height: 100%; gap: 0 16px; grid-template-columns: minmax(0, 1fr) ${len(c.legend_w)};
                 font-family: ${c.font}; text-transform: uppercase; line-height: 1; }
-        .grid { display: grid; min-height: 0; gap: ${c.gap}px;
-                grid-template-columns: ${c.label_w}px repeat(7, minmax(0, 1fr));
+        .grid { display: grid; min-height: 0; gap: ${len(c.gap)};
+                grid-template-columns: ${len(c.label_w)} repeat(7, minmax(0, 1fr));
                 grid-template-rows: ${c.head} repeat(6, minmax(0, 1fr)); }
-        .legend { display: grid; min-height: 0; gap: ${c.gap}px;
-                  grid-template-rows: repeat(${c.calendars.length}, ${c.legend_row || c.head}) minmax(0, 1fr); }
-        .head { display: flex; align-items: flex-end; justify-content: center; font-size: 15px; padding-bottom: 2px; }
+        .legend { display: grid; min-height: 0; gap: ${len(c.gap)};
+                  grid-template-rows: repeat(${c.calendars.length}, minmax(0, ${c.legend_row || c.head})) minmax(0, 1fr); }
+        .head { display: flex; align-items: flex-end; justify-content: center; font-size: ${fz(15)}; padding-bottom: 2px; }
         .blk { position: relative; display: flex; align-items: center; justify-content: flex-end; padding: 0 8px;
-               color: ${col.ink}; font-size: 17px; overflow: hidden; white-space: nowrap; }
-        .blk em { position: absolute; left: 6px; top: 3px; font-style: normal; font-size: 12px; }
+               color: ${col.ink}; font-size: ${fz(17)}; overflow: hidden; white-space: nowrap; }
+        .blk em { position: absolute; left: 6px; top: 3px; font-style: normal; font-size: ${fz(12, 0.67)}; }
         .blk span { overflow: hidden; text-overflow: ellipsis; }
         /* legend: the label at the bottom, clear of the code at the top, so long names fit */
-        .legend .blk { font-size: 15px; align-items: flex-end; padding-bottom: 3px; }
+        .legend .blk { font-size: ${fz(15)}; align-items: flex-end; padding-bottom: 3px; }
+        /* phones (PHONE_H in the generator): legend blocks only as high as their label, no numbers */
+        @media (max-height: 520px) { .legend .blk em { display: none; } .legend .blk { align-items: center; padding-bottom: 0; } }
         .cell { display: flex; flex-direction: column; gap: 3px; min-width: 0; min-height: 0; overflow: hidden;
                 padding: 4px 5px; box-sizing: border-box; }
         .cell b { font-weight: normal; font-size: var(--ev-num, 18px); height: var(--ev-num, 18px); flex: none; }
