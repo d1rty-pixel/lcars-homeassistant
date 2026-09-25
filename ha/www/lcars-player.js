@@ -10,6 +10,12 @@
 //                        the Up/Down buttons. Tapping a row plays it (media_player.play_media); a row that can
 //                        only be expanded (e.g. an artist) opens it, "Back" returns.
 //
+// Idle Spotify: with no active Spotify Connect device, HA's Spotify entity reports only "select source",
+// and HA then refuses play_media and media browsing. Both cards therefore first activate a device when
+// needed (activate()): select_source transfers playback to the device last used in this browser (else
+// the first listed), which wakes it paused, not playing, and then they wait for the full feature set.
+// The library keeps its last lists per browser, so it still shows entries while Spotify is idle.
+//
 // Neither card scrolls. Lit progress segments flash white briefly like lcars-bar.js (off with the per-device
 // motion switch, localStorage "lcars-motion" = "off"). Clicks play LCARdS' tap sound.
 //
@@ -53,8 +59,35 @@ const code4 = (s) => {
   return String((h >>> 0) % 10000).padStart(4, "0");
 };
 // media_player supported_features bits
-const F = {PAUSE: 1, SEEK: 2, VOLUME_SET: 4, PREVIOUS: 16, NEXT: 32, SELECT_SOURCE: 2048, PLAY: 16384,
-           SHUFFLE: 32768, REPEAT: 262144};
+const F = {PAUSE: 1, SEEK: 2, VOLUME_SET: 4, PREVIOUS: 16, NEXT: 32, PLAY_MEDIA: 512, SELECT_SOURCE: 2048,
+           PLAY: 16384, SHUFFLE: 32768, REPEAT: 262144, BROWSE_MEDIA: 131072};
+const DEVICE_KEY = "lcars-media-device";      // output device last used in this browser
+const store = {
+  get(key) { try { return JSON.parse(localStorage.getItem(key)); } catch (e) { return null; } },
+  set(key, v) { try { localStorage.setItem(key, JSON.stringify(v)); } catch (e) { /* this page only */ } },
+};
+const features = (hass, entity) => ((hass && hass.states[entity]) || {attributes: {}}).attributes.supported_features || 0;
+// The device activate() would wake: the one last used here if Spotify still lists it, else the first listed
+const wakeDevice = (hass, entity) => {
+  const list = ((hass.states[entity] || {}).attributes || {}).source_list || [];
+  const last = store.get(DEVICE_KEY);
+  return list.includes(last) ? last : list[0];
+};
+// Make sure the player has an active device, so HA offers play/browse: transfer playback to wakeDevice()
+// (Spotify keeps it paused) and wait until HA reports the features. getHass returns the current hass
+// object (it is replaced on every state change). Resolves with the device woken (or null if none needed).
+const activate = async (getHass, entity) => {
+  if (features(getHass(), entity) & F.PLAY_MEDIA) return null;
+  const dev = wakeDevice(getHass(), entity);
+  if (!dev) throw new Error("No output device · open Spotify on a device");
+  await getHass().callService("media_player", "select_source", {entity_id: entity, source: dev});
+  for (let i = 0; i < 40 && !(features(getHass(), entity) & F.PLAY_MEDIA); i++) {
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  if (!(features(getHass(), entity) & F.PLAY_MEDIA)) throw new Error(`${dev} does not respond`);
+  store.set(DEVICE_KEY, dev);
+  return dev;
+};
 
 class LcarsPlayer extends HTMLElement {
   setConfig(config) {
@@ -185,6 +218,7 @@ class LcarsPlayer extends HTMLElement {
       const el = e.target.closest(".src");
       if (!el || el.classList.contains("on")) return;
       lcarsTapSound();
+      store.set(DEVICE_KEY, el.dataset.s);
       this._call("select_source", {source: el.dataset.s});
     });
   }
@@ -199,13 +233,31 @@ class LcarsPlayer extends HTMLElement {
     lcarsTapSound();
     const a = st.attributes;
     switch (el.dataset.b) {
-      case "play": return this._call("media_play_pause");
+      case "play":
+        if (a.supported_features & F.PLAY) return this._call("media_play_pause");
+        return this._wake();
       case "back": return this._call("media_previous_track");
       case "next": return this._call("media_next_track");
       case "shuffle": return this._call("shuffle_set", {shuffle: !a.shuffle});
       case "repeat": return this._call("repeat_set",
         {repeat: {off: "all", all: "one", one: "off"}[a.repeat] || "off"});
     }
+  }
+
+  // Idle: wake the output device, then resume what Spotify played last on it
+  async _wake() {
+    const c = this._config;
+    this._note = "Connecting…";
+    this._render();
+    try {
+      await activate(() => this._hass, c.entity);
+      await this._hass.callService("media_player", "media_play", {entity_id: c.entity});
+      this._note = null;
+    } catch (e) {
+      // e.g. nothing to resume on that device: the library starts something instead
+      this._note = (e && e.message) || "Spotify unavailable";
+    }
+    this._render();
   }
 
   _bindVolume(bar) {
@@ -248,11 +300,14 @@ class LcarsPlayer extends HTMLElement {
     set("title", !st ? "No signal" : active ? (a.media_title || "–") : "Standing by");
     set("artist", active ? (a.media_artist || a.media_series_title || "–") : "–");
     set("album", active ? (a.media_album_name || a.media_channel || "–") : "–");
-    const statusText = !st ? `${c.entity} not found` :
+    if (a.source) store.set(DEVICE_KEY, a.source);
+    const wake = !!st && !(feat & F.PLAY) && (feat & F.SELECT_SOURCE) ? wakeDevice(this._hass, c.entity) : null;
+    const statusText = this._note ? this._note : !st ? `${c.entity} not found` :
+      wake && !active ? `Standby · Play starts ${wake}` :
       state === "playing" ? "Playing" : state === "paused" ? "Paused" : state === "buffering" ? "Buffering" :
       state === "unavailable" ? "Offline" : "Idle";
     const statusEl = root.getElementById("status");
-    statusEl.textContent = statusText + (a.source ? ` · ${a.source}` : "");
+    statusEl.textContent = statusText + (a.source && !this._note ? ` · ${a.source}` : "");
     statusEl.style.color = state === "playing" ? k.playing : state === "paused" ? k.paused : k.idle;
 
     // cover art: HA proxies it (entity_picture is a relative /api/media_player_proxy URL with a token)
@@ -269,7 +324,7 @@ class LcarsPlayer extends HTMLElement {
     const play = blk("play");
     play.querySelector("span").textContent = state === "playing" ? "Pause" : "Play";
     play.style.background = state === "playing" ? k.playing : "";
-    play.classList.toggle("na", !can(F.PLAY | F.PAUSE));
+    play.classList.toggle("na", !can(F.PLAY | F.PAUSE) && !wake);
     blk("back").classList.toggle("na", !can(F.PREVIOUS));
     blk("next").classList.toggle("na", !can(F.NEXT));
     const shuffle = blk("shuffle"), repeat = blk("repeat");
@@ -347,10 +402,14 @@ class LcarsLibrary extends HTMLElement {
   }
 
   set hass(hass) {
-    const had = this._hass && this._hass.states[this._config.entity];
+    const e = this._config.entity;
+    const had = this._hass && this._hass.states[e];
+    const could = this._canBrowse;
     this._hass = hass;
-    if (!had && hass.states[this._config.entity]) this._load();
-    if (!hass.states[this._config.entity]) this._message("Library offline · media player not found");
+    this._canBrowse = !!(features(hass, e) & F.BROWSE_MEDIA);
+    if (!hass.states[e]) return this._message("Library offline · media player not found");
+    // first state, or Spotify just became active: (re)load from HA
+    if (!had || (this._canBrowse && !could)) this._load();
   }
 
   connectedCallback() {
@@ -428,10 +487,10 @@ class LcarsLibrary extends HTMLElement {
         this._page = 0;
         return this._load();
       }
+      if (el.dataset.connect) return this._connect();
       const item = this._items[+el.dataset.i];
       if (item.can_play) {
-        this._hass.callService("media_player", "play_media", {entity_id: c.entity,
-          media_content_id: item.media_content_id, media_content_type: item.media_content_type});
+        this._play(item);
       } else if (item.can_expand) {
         this._stack.push(item);
         this._page = 0;
@@ -439,6 +498,40 @@ class LcarsLibrary extends HTMLElement {
       }
     });
     this._updateButtons();
+  }
+
+  // Idle Spotify: wake the device first (see activate()), then play
+  async _play(item) {
+    const c = this._config;
+    try {
+      if (!(features(this._hass, c.entity) & F.PLAY_MEDIA)) this._status(`Connecting ${wakeDevice(this._hass, c.entity) || ""}…`);
+      await activate(() => this._hass, c.entity);
+      await this._hass.callService("media_player", "play_media", {entity_id: c.entity,
+        media_content_id: item.media_content_id, media_content_type: item.media_content_type});
+      this._status(null);
+    } catch (e) {
+      this._status((e && e.message) || "Spotify unavailable");
+    }
+  }
+
+  async _connect() {
+    try {
+      this._message("Connecting…");
+      await activate(() => this._hass, this._config.entity);
+      this._load();
+    } catch (e) {
+      this._message((e && e.message) || "Spotify unavailable");
+    }
+  }
+
+  // a one-line note above the rows (connecting, errors); null clears it
+  _status(text) {
+    this._note = text;
+    this._draw();
+  }
+
+  _cacheKey() {
+    return `lcars-library:${this._config.entity}:${this._config.categories[this._cat].match}`;
   }
 
   _updateButtons() {
@@ -465,6 +558,23 @@ class LcarsLibrary extends HTMLElement {
     if (!this._hass || !this._hass.states[this._config.entity]) return;
     const cat = this._config.categories[this._cat];
     const token = (this._token = {});
+    if (!this._canBrowse) {
+      // HA can't browse an idle Spotify: show this category's last list (tapping an entry wakes a device)
+      const cached = this._stack.length ? null : store.get(this._cacheKey());
+      if (!cached) {
+        this._items = null;
+        const dev = wakeDevice(this._hass, this._config.entity);
+        this.shadowRoot.querySelector(".list").innerHTML = dev
+          ? `<div class="row head" data-connect="1"><b style="background:${this._config.colours.dim}">Connect</b>` +
+            `<span>Spotify on standby · tap to wake ${esc(dev)}</span></div>`
+          : `<div class="msg">Spotify on standby · open Spotify on a device</div>`;
+        return;
+      }
+      this._items = cached.items;
+      this._title = cached.title;
+      this._note = null;
+      return this._draw();
+    }
     this._message("Accessing library…");
     try {
       if (!this._root) this._root = await this._browse();
@@ -491,6 +601,12 @@ class LcarsLibrary extends HTMLElement {
       if (token !== this._token) return;       // another category was picked meanwhile
       this._items = [...pinned, ...(res.children || [])];
       this._title = res.title;
+      this._note = null;
+      if (!this._stack.length) {
+        const keep = ["title", "media_content_id", "media_content_type", "can_play", "can_expand", "pinned"];
+        store.set(this._cacheKey(), {title: res.title, items: this._items.map((it) =>
+          Object.fromEntries(keep.filter((k) => it[k] !== undefined).map((k) => [k, it[k]])))});
+      }
       this._draw();
     } catch (e) {
       if (token === this._token) this._message("Library unavailable · " + (e.message || e.code || "error"));
@@ -511,11 +627,12 @@ class LcarsLibrary extends HTMLElement {
     if (!this._items) return;
     const c = this._config, k = c.colours;
     const back = this._stack.length > 0;
-    const per = Math.max(1, this._rows - (back ? 1 : 0));
+    const per = Math.max(1, this._rows - (back ? 1 : 0) - (this._note ? 1 : 0));
     const pages = Math.max(1, Math.ceil(this._items.length / per));
     this._page = Math.min(Math.max(0, this._page), pages - 1);
     const start = this._page * per;
     const rows = [];
+    if (this._note) rows.push(`<div class="msg">${esc(this._note)}</div>`);
     if (back) {
       rows.push(`<div class="row head" data-back="1"><b style="background:${k.dim}">Back</b>` +
                 `<span>${esc(this._title)} · ${this._page + 1}/${pages}</span></div>`);

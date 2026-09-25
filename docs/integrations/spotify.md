@@ -47,6 +47,17 @@ context, so shuffle and next work across all liked songs.
 
 ## Notes and limitations
 
+- **Idle Spotify (nothing played recently)**: without an active Spotify Connect device, HA's Spotify
+  entity reports only "select source" (`supported_features: 2048`). HA then rejects `play_media`,
+  play/pause and media browsing. The cards handle it like this:
+  - **Play**, or tapping a library entry, first *wakes* an output device: the one last used in this
+    browser, else the first listed. That is a `select_source` (Spotify transfer playback without
+    `play`, so the device wakes up paused). The cards wait for HA to report the full feature set, then
+    resume or play.
+  - The library shows the last list it loaded for each category (kept in the browser's localStorage).
+    Without one, it shows a **Connect** row that wakes the device and loads the library.
+  - Play resumes whatever Spotify played last on that device. If there is nothing to resume, start
+    something from the library.
 - **Output devices** are the Spotify Connect devices that Spotify currently lists. A device that is
   asleep or has Spotify closed disappears until Spotify is opened on it again. "No output devices"
   means none is active right now.
