@@ -1,7 +1,7 @@
 # Calendars
 
-Used by **OPS → Next 7 days** (`custom:lcars-week`), the **Calendar** section (month view, agenda,
-header readouts), and the Waste calendar view.
+Used by **OPS → Next 7 days** (`custom:lcars-week`) and the **Calendar** section (month view,
+`custom:lcars-month`, and the header readouts).
 
 ## Setup
 
@@ -21,14 +21,11 @@ German to English.
 
 ## How the cards read events
 
-- Calendar entities only expose their **next** event in their state. `lcars-week` therefore fetches
-  events through HA's calendar REST API (`/api/calendars/<entity>?start=…&end=…`) on load and every
-  10 minutes.
+- Calendar entities only expose their **next** event in their state. `lcars-week` and `lcars-month`
+  therefore fetch events through HA's calendar REST API (`/api/calendars/<entity>?start=…&end=…`) on
+  load and every 10 minutes (the month also when you page to another month).
 - Before each fetch, it asks HA to refresh the calendars (`homeassistant.update_entity`). Without
   that, new Google Calendar events can take a long time to show up.
-- The agenda's "Next per calendar" list uses the entities' states, so it shows one event per
-  calendar.
-- The month view and the agenda embed `custom:global-calendar-card`, which is **not part of this
-  repo**. The generator copies its config from another dashboard (`foreign_card("dashboard-termine",
-  "kalender")`). Replace it with the standard `calendar` card or another calendar card. With the
-  standard card, `entities` takes plain entity ID strings only.
+- The calendars' labels are read at build time from another dashboard's calendar card
+  (`foreign_card("dashboard-termine", "kalender")` in `calendar_list()`); a calendar without one there
+  is labelled by its entity ID. Point it at your own dashboard or set the labels in `calendar_list()`.

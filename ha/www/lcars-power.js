@@ -11,7 +11,9 @@
 //   ranges: [{label: "24h", hours: 24, period: "5minute"}, ...]
 //   ticks: [1, 10, 100, 1000]         # W lines
 //   max: 2500                         # W at the top of the (log) scale
-//   pillar: {width, gap, side: left | right, blocks: [{colour, code}], active, filler, ink}
+//   pillar: {width, gap, side: left | right, blocks: [{colour, code}], active, filler, ink,
+//            row: "28px"}             # optional: buttons one row high (like label blocks), the filler below;
+//                                     # without it they share the height and the filler is 14 px
 //   colours: {line, fill_opacity, grid, axis, text}
 //   font: "Antonio, sans-serif"
 const RANGE_KEY = "lcars-power-range";
@@ -65,8 +67,11 @@ class LcarsPower extends HTMLElement {
         .chart { position: relative; min-height: 0; overflow: hidden; }
         svg { position: absolute; inset: 0; width: 100%; height: 100%; }
         svg text { font-family: ${c.font}; font-size: 12px; fill: ${c.colours.text}; }
-        .pillar { display: grid; gap: ${p.gap}px; grid-template-rows: repeat(${c.ranges.length}, minmax(0, 1fr)) 14px; }
-        .blk { position: relative; display: flex; align-items: flex-end; justify-content: flex-end; padding: 0 8px 4px;
+        .pillar { display: grid; gap: ${p.gap}px;
+                  grid-template-rows: ${p.row ? `repeat(${c.ranges.length}, ${p.row}) minmax(0, 1fr)`
+                                              : `repeat(${c.ranges.length}, minmax(0, 1fr)) 14px`}; }
+        .blk { position: relative; display: flex; align-items: ${p.row ? "center" : "flex-end"}; justify-content: flex-end;
+               padding: 0 8px ${p.row ? 0 : 4}px;
                color: ${p.ink}; font-size: 17px; cursor: pointer; user-select: none; }
         .blk em { position: absolute; left: 6px; top: 3px; font-style: normal; font-size: 12px; }
         .blk:active { filter: brightness(1.3); }

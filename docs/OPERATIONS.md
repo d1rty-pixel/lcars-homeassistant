@@ -31,7 +31,7 @@ across the WSL boundary:
 
 ```bash
 W=$(wslpath "$(cmd.exe /c echo %TEMP% | tr -d '\r')")/lcars-shot
-mkdir -p "$W" && cp tools/screenshot/{shot.js,package.json} "$W/" && (cd "$W" && "/mnt/c/Program Files/nodejs/npm.cmd" install)
+mkdir -p "$W" && cp tools/screenshot/{shot.js,package.json} "$W/" && (cd "$W" && cmd.exe /c "npm install")   # npm.cmd can't be run from bash
 cd "$W" && export HA_TOKEN=$(cat ~/.config/homeassistant/token) WSLENV=HA_TOKEN:DSF
 "/mnt/c/Program Files/nodejs/node.exe" shot.js waste 1280 800 "$(wslpath -w "$W")\\waste-1280.png"
 "/mnt/c/Program Files/nodejs/node.exe" shot.js waste 1920 1080 "$(wslpath -w "$W")\\waste-1920.png"
@@ -59,9 +59,6 @@ clip a region at
 
 ## Known limitations (by design or data)
 
-- **Agenda "Next per calendar"** shows only the *next* event of each calendar,
-  because HA calendar entities expose just one upcoming event in their state.
-  The full list comes from the embedded calendar card next to it.
 - **Hold-to-act** on purpose:
   - dosing "refilled": hold a channel's Refill button in "Dosing station" (sets the
     fill level to the bottle size; tap opens more-info)
@@ -75,11 +72,9 @@ clip a region at
   - light profiles Fire / Chill: their pill in "Controls" (applies once, no toggle; switching Automation
     back on resumes the schedule)
   - light channels: drag a transporter slot (sets a manual override when the finger lifts)
-- **Calendar card text is German.** `/local/global-calendar-card.js` (not in
-  this repo, shared with the classic dashboards) hardcodes its UI text
-  ("Heute", "Keine Termine …"). Only its calendar labels are translated.
-- **Rebuild needed** when the source dashboards' calendar cards change. They are
-  copied from `dashboard-muell` / `dashboard-termine` at build time. (Adding HA
+- **Rebuild needed** when the calendars' labels in the source dashboard's
+  calendar card change: the labels are read from `dashboard-termine` at build
+  time (`calendar_list()`). (Adding HA
   users needs no rebuild: the segment bars are shown to everyone.)
 - **New calendar events** show up in "Next 7 days" within 10 minutes (or on
   reload): the card asks HA to refresh the calendars before each fetch, because

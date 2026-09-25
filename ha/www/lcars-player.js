@@ -14,6 +14,11 @@
 // and HA then refuses play_media and media browsing. Both cards therefore first activate a device when
 // needed (activate()): select_source transfers playback to the device last used in this browser (else
 // the first listed), which wakes it paused, not playing, and then they wait for the full feature set.
+//
+// Refused commands: Spotify rejects some commands in some contexts (e.g. repeat_set with 403 "Restriction
+// violated"; HA doesn't expose Spotify's "disallows"). Services are called over the websocket, so HA shows
+// no generic error toast; the button flashes red and every card of the entity shows "Spotify refused · ..."
+// in its status for a few seconds (window event "lcars-player-note").
 // The library keeps its last lists per browser, so it still shows entries while Spotify is idle.
 //
 // Neither card scrolls. Lit progress segments flash white briefly like lcars-bar.js (off with the per-device
@@ -23,8 +28,15 @@
 //   type: custom:lcars-player
 //   entity: media_player.spotify_x
 //   pillar: {width, gap, ink, filler, blocks: [{colour, code}] x5}   # play, back, next, shuffle, repeat
+//   transport: "pillar"              # where the transport buttons go: "pillar" (own pillar left of the body,
+//                                    # default), "bottom" (a row under the body), "none" (body only), or
+//                                    # only the buttons: "row" (e.g. embedded in a frame bar). Several
+//                                    # cards can share one entity.
+//   sources: "pills"                 # output devices: "pills" (a row in the body, default), "none", or
+//                                    # "column": this card is only a column of LCARS buttons, one per device
+//   source_row: 72                   # "column": max height of a device button (px); the rest stays black
 //   segments: {progress: 40, volume: 20}
-//   colours: {accent, text, value, dim, off, on, playing, paused, idle, active, source, art, ink}
+//   colours: {accent, text, value, dim, off, on, playing, paused, idle, active, source, volume, art, ink, error}
 //   blink: [ms, ...], off_fraction: 0.025, flash: "#FFFFFF", gap: 3
 //   font: "Antonio, sans-serif"
 //
@@ -63,6 +75,10 @@ const F = {PAUSE: 1, SEEK: 2, VOLUME_SET: 4, PREVIOUS: 16, NEXT: 32, PLAY_MEDIA:
            PLAY: 16384, SHUFFLE: 32768, REPEAT: 262144, BROWSE_MEDIA: 131072};
 const ART_STRIPE = 10;                         // px, the frame-colour stripe left of the cover
 const DEVICE_KEY = "lcars-media-device";      // output device last used in this browser
+const NOTE_EVENT = "lcars-player-note";       // detail: {entity, text}
+const SERVICE_NAMES = {media_play_pause: "Play/Pause", media_previous_track: "Back", media_next_track: "Next",
+                       shuffle_set: "Shuffle", repeat_set: "Repeat", media_seek: "Seek", volume_set: "Volume",
+                       select_source: "Output device"};
 const store = {
   get(key) { try { return JSON.parse(localStorage.getItem(key)); } catch (e) { return null; } },
   set(key, v) { try { localStorage.setItem(key, JSON.stringify(v)); } catch (e) { /* this page only */ } },
@@ -109,6 +125,16 @@ class LcarsPlayer extends HTMLElement {
   connectedCallback() {
     clearInterval(this._timer);
     this._timer = setInterval(() => this._progress(), 1000);
+    if (!this._onNote) {
+      this._onNote = (e) => {
+        if (!e.detail || e.detail.entity !== this._config.entity) return;
+        clearTimeout(this._noteTimer);
+        this._note = e.detail.text;
+        this._render();
+        this._noteTimer = setTimeout(() => { this._note = null; this._render(); }, 5000);
+      };
+      window.addEventListener(NOTE_EVENT, this._onNote);
+    }
     if (!this._ro) {
       this._ro = new ResizeObserver(() => this._fitArt());
       this._ro.observe(this.shadowRoot.querySelector(".info"));
@@ -117,6 +143,7 @@ class LcarsPlayer extends HTMLElement {
 
   disconnectedCallback() {
     clearInterval(this._timer);
+    if (this._onNote) { window.removeEventListener(NOTE_EVENT, this._onNote); this._onNote = null; }
     if (this._ro) { this._ro.disconnect(); this._ro = null; }
   }
 
@@ -153,6 +180,7 @@ class LcarsPlayer extends HTMLElement {
         .blk em { position: absolute; left: 6px; top: 3px; font-style: normal; font-size: 12px; }
         .blk:active { filter: brightness(1.3); }
         .blk.na { background: ${k.off} !important; color: ${k.dim}; cursor: default; }
+        .blk.err { background: ${k.error || "#DD4444"} !important; }
         .body { display: grid; min-height: 0; gap: clamp(8px, 1.6vh, 18px) 0;
                 grid-template-rows: minmax(0, 1fr) auto auto auto; }
         /* the cover area is square (_fitArt), the stripe outside it; the cover is never cropped */
@@ -164,6 +192,7 @@ class LcarsPlayer extends HTMLElement {
         .art span { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
                     color: ${k.dim}; font-size: 18px; letter-spacing: 2px; }
         .meta { display: grid; min-height: 0; align-content: center; gap: clamp(4px, 1vh, 12px) 0; overflow: hidden; }
+        .meta > div { min-width: 0; }   /* else a long title widens its grid item and the ellipsis never shows */
         .lbl { color: ${k.dim}; font-size: clamp(12px, 1.5vh, 16px); letter-spacing: 1px; }
         .val { color: ${k.value}; font-weight: bold; font-size: var(--lcars-data-size, 24px); white-space: nowrap;
                overflow: hidden; text-overflow: ellipsis; padding-bottom: 2px; }
@@ -178,7 +207,7 @@ class LcarsPlayer extends HTMLElement {
         .vol { grid-template-columns: repeat(${c.segments.volume}, minmax(0, 1fr)); }
         .seg { background: ${k.off}; }
         .prog .seg.lit { background: ${k.accent}; }
-        .vol .seg.lit { background: ${k.text}; }
+        .vol .seg.lit { background: ${k.volume || k.text}; }
         .seg.lit.anim { animation: blink var(--ms) step-end infinite; }
         .na .segs { cursor: default; }
         .srcs { display: flex; gap: 10px; overflow: hidden; height: clamp(28px, 4vh, 40px); }
@@ -188,11 +217,37 @@ class LcarsPlayer extends HTMLElement {
         .src.on { background: ${k.active}; }
         .src:active { filter: brightness(1.3); }
         .none { color: ${k.dim}; font-size: 17px; align-self: center; }
+        /* output devices as a column of LCARS buttons (config.sources = "column") */
+        .scol { display: none; min-height: 0; gap: ${p.gap}px; }
+        .wrap.s-none .srcs, .wrap.s-column .pillar, .wrap.s-column .body { display: none; }
+        .wrap.s-column { grid-template-columns: minmax(0, 1fr); }
+        .wrap.s-column .scol { display: grid; align-content: start;
+                               grid-template-rows: repeat(var(--n, 1), minmax(0, ${c.source_row || 72}px)); }
+        .sblk { position: relative; display: flex; align-items: flex-end; justify-content: flex-end; min-width: 0;
+                padding: 0 8px 4px; background: ${k.source}; color: ${p.ink}; font-size: 17px; cursor: pointer;
+                user-select: none; -webkit-user-select: none; }
+        .sblk span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .sblk em { position: absolute; left: 6px; top: 3px; font-style: normal; font-size: 12px; }
+        .sblk.on { background: ${k.active}; cursor: default; }
+        .sblk:active { filter: brightness(1.3); }
+        .scol .none { padding: 4px 2px; }
+        /* transport layouts (config.transport) */
+        .wrap.t-none { grid-template-columns: minmax(0, 1fr); }
+        .wrap.t-none .pillar, .wrap.t-row .body { display: none; }
+        .wrap.t-row { grid-template-columns: minmax(0, 1fr); }
+        .wrap.t-row .pillar, .wrap.t-bottom .pillar { grid-template-rows: minmax(0, 1fr);
+                                                        grid-template-columns: repeat(5, minmax(0, 1fr)); }
+        .wrap:not(.t-pillar) .pillar > .fill { display: none; }
+        .wrap.t-bottom { grid-template-columns: minmax(0, 1fr); gap: clamp(8px, 1.6vh, 18px) 0;
+                         grid-template-rows: minmax(0, 1fr) ${c.row_h || "clamp(44px, 7vh, 72px)"}; }
+        .wrap.t-bottom .pillar { order: 2; }
+        .wrap.t-row .blk { font-size: 16px; padding: 0 8px 3px; }
+        .wrap.t-row .blk em { font-size: 10px; top: 2px; }
         @keyframes blink { 0% { background: ${k.accent}; }
                            ${Math.round((1 - (c.off_fraction ?? 0.025)) * 1000) / 10}%, 100% { background: ${c.flash ?? "#FFFFFF"}; } }
       </style>
-      <div class="wrap">
-        <div class="pillar">${blocks}<div style="background:${p.filler}"></div></div>
+      <div class="wrap t-${c.transport || "pillar"} s-${c.sources || "pills"}">
+        <div class="pillar">${blocks}<div class="fill" style="background:${p.filler}"></div></div>
         <div class="body">
           <div class="info">
             <div class="art"><span>No visual</span></div>
@@ -207,6 +262,7 @@ class LcarsPlayer extends HTMLElement {
           <div class="line" id="vline"><div class="t">Volume</div><div class="segs vol">${segs(c.segments.volume, "v")}</div><div class="t r" id="volv">–</div></div>
           <div class="srcs" id="srcs"></div>
         </div>
+        <div class="scol" id="scol"></div>
       </div>`;
     const root = this.shadowRoot;
     root.querySelectorAll(".blk").forEach((el) => el.addEventListener("click", () => this._button(el)));
@@ -220,17 +276,29 @@ class LcarsPlayer extends HTMLElement {
       this._call("media_seek", {seek_position: Math.round(f * st.attributes.media_duration)});
     });
     this._bindVolume(root.querySelector(".vol"));
-    root.getElementById("srcs").addEventListener("click", (e) => {
-      const el = e.target.closest(".src");
+    const pick = (e) => {
+      const el = e.target.closest(".src, .sblk");
       if (!el || el.classList.contains("on")) return;
       lcarsTapSound();
       store.set(DEVICE_KEY, el.dataset.s);
       this._call("select_source", {source: el.dataset.s});
-    });
+    };
+    root.getElementById("srcs").addEventListener("click", pick);
+    root.getElementById("scol").addEventListener("click", pick);
   }
 
-  _call(service, data = {}) {
-    if (this._hass) this._hass.callService("media_player", service, {entity_id: this._config.entity, ...data});
+  // el: the button that asked for it (flashes red if refused)
+  _call(service, data = {}, el = null) {
+    if (!this._hass) return;
+    this._hass.callWS({type: "call_service", domain: "media_player", service,
+                       service_data: {entity_id: this._config.entity, ...data}}).catch(() => {
+      if (el) {
+        el.classList.add("err");
+        setTimeout(() => el.classList.remove("err"), 1200);
+      }
+      window.dispatchEvent(new CustomEvent(NOTE_EVENT, {detail: {entity: this._config.entity,
+        text: `Spotify refused · ${SERVICE_NAMES[service] || service}`}}));
+    });
   }
 
   _button(el) {
@@ -240,13 +308,13 @@ class LcarsPlayer extends HTMLElement {
     const a = st.attributes;
     switch (el.dataset.b) {
       case "play":
-        if (a.supported_features & F.PLAY) return this._call("media_play_pause");
+        if (a.supported_features & F.PLAY) return this._call("media_play_pause", {}, el);
         return this._wake();
-      case "back": return this._call("media_previous_track");
-      case "next": return this._call("media_next_track");
-      case "shuffle": return this._call("shuffle_set", {shuffle: !a.shuffle});
+      case "back": return this._call("media_previous_track", {}, el);
+      case "next": return this._call("media_next_track", {}, el);
+      case "shuffle": return this._call("shuffle_set", {shuffle: !a.shuffle}, el);
       case "repeat": return this._call("repeat_set",
-        {repeat: {off: "all", all: "one", one: "off"}[a.repeat] || "off"});
+        {repeat: {off: "all", all: "one", one: "off"}[a.repeat] || "off"}, el);
     }
   }
 
@@ -351,7 +419,15 @@ class LcarsPlayer extends HTMLElement {
     const key = JSON.stringify([srcs, a.source, can(F.SELECT_SOURCE)]);
     if (key !== this._srcKey) {
       this._srcKey = key;
-      root.getElementById("srcs").innerHTML = !srcs.length || !can(F.SELECT_SOURCE)
+      const none = !srcs.length || !can(F.SELECT_SOURCE);
+      const scol = root.getElementById("scol");
+      scol.style.setProperty("--n", none ? 1 : srcs.length);
+      scol.innerHTML = none
+        ? `<div class="none">No output devices</div>`
+        : srcs.map((s, i) => `<div class="sblk${s === a.source ? " on" : ""}" data-s="${esc(s)}">` +
+                             `<em>${String(i + 1).padStart(2, "0")}-${code4(s)}</em>` +
+                             `<span>${esc(s)}${s === a.source ? " ◂" : ""}</span></div>`).join("");
+      root.getElementById("srcs").innerHTML = none
         ? `<div class="none">No output devices${st ? " · open Spotify on a device" : ""}</div>`
         : srcs.map((s) => `<div class="src${s === a.source ? " on" : ""}" data-s="${esc(s)}">` +
                           `${esc(s)}${s === a.source ? " ◂" : ""}</div>`).join("");

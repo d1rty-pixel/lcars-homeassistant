@@ -4,9 +4,9 @@ ha:
   port: 8123
   ssh: hassio@homeassistant.local    # SSH login with passwordless sudo (env HA_SSH overrides)
 
-# DWD precipitation radar (OPS): map centre, the home marker, map width
+# DWD precipitation radar (OPS): the home marker (the map is centred on it), map width;
+# optional center: [lat, lon] for another map centre
 radar:
-  center: [50.00, 8.00]
   home: [50.00, 8.00]
   width_km: 170
 

@@ -14,7 +14,8 @@ needed.
   (`dwd:Warngebiete_Kreise`) and state (`dwd:Laender`) outlines from the WFS
   (`https://maps.dwd.de/geoserver/dwd/ows`) **at build time**. It clips them to the map area,
   rounds them to about 100 m and embeds them in the card config as SVG paths.
-- **Controls**: the pillar buttons are Play/Pause, Back, Next and Now. With the per-device motion
+- **Controls**: the buttons are Play/Pause, Back, Next and Now (on the OPS page in the frame's bar,
+  `controls: "row"`, linked to the map card, `controls: "none"`). With the per-device motion
   switch off (`?lcars_motion=off`), it doesn't autoplay, but the buttons still work.
 
 ## Configuration
@@ -23,9 +24,9 @@ In `site.yaml`:
 
 ```yaml
 radar:
-  center: [50.00, 8.00]   # map centre (lat, lon)
-  home: [50.00, 8.00]     # home marker (lat, lon)
+  home: [50.00, 8.00]     # home marker (lat, lon); the map is centred on it
   width_km: 170           # map width
+  # center: [50.10, 7.90] # optional: another map centre (lat, lon)
 ```
 
 Frame timing, colours and the layer are set in `radar_card()` in the generator. Rebuild after

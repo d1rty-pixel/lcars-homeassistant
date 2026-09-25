@@ -26,7 +26,7 @@ entities (see [Adapting it](#adapting-it-to-your-home)).
 | Aquarium | Status, Visual, Light, Dosing, Power, Osmosis | custom aquarium integrations, Shelly plugs, a Chihiros BLE light, an ESPHome camera | [aquarium](docs/integrations/aquarium.md) |
 | Laundry  | Laundry unit and power trace | a smart plug with power metering | [power metering](docs/integrations/power-metering.md) |
 | Waste    | Collection timeline, next pickup per bin, calendar | Waste Collection Schedule | [waste collection](docs/integrations/waste-collection.md) |
-| Calendar | Month calendar, agenda | `calendar.*` entities | [calendars](docs/integrations/calendars.md) |
+| Calendar | Month calendar | `calendar.*` entities | [calendars](docs/integrations/calendars.md) |
 | Media    | Spotify player and library browser | the built-in Spotify integration | [Spotify](docs/integrations/spotify.md) |
 
 ### Custom cards (`ha/www/`)
@@ -70,9 +70,8 @@ at the top of its file.
   - the Antonio font: `https://fonts.googleapis.com/css2?family=Antonio:wght@400;700&display=swap` (stylesheet)
   - HA-LCARS' `https://cdn.jsdelivr.net/gh/th3jesta/ha-lcars@js-main/lcars.js` (JavaScript module)
   - every `ha/www/*.js` (created by the deploy script, see below)
-- Two cards used by single views are **not part of this repo**: `custom:timed-camera-card` (Aquarium
-  Visual) and `custom:global-calendar-card` (the Waste calendar and Calendar views). Replace them with
-  standard cards or drop those views.
+- One card used by a single view is **not part of this repo**: `custom:timed-camera-card` (Aquarium
+  Visual). Replace it with a standard picture/camera card or drop that view.
 - The integrations behind the views you keep (see the table above).
 
 **Workstation:**
@@ -123,7 +122,7 @@ Everything that identifies one installation lives in `site.yaml`, which git igno
 |-----|---------|
 | `ha.host`, `ha.port` | HA address for the WebSocket and REST APIs |
 | `ha.ssh` | SSH login with passwordless sudo on the HA host |
-| `radar.center`, `radar.home`, `radar.width_km` | map centre, home marker (lat, lon) and map width of the radar |
+| `radar.home`, `radar.width_km`, `radar.center` | home marker (lat, lon; the map is centred on it), map width, optional other map centre |
 | `devices.pump_plug`, `devices.light`, `devices.light_area` | the device-derived parts of some entity IDs (serials, MACs, area prefix) |
 | `calendars` | calendars besides the waste calendars (OPS "Next 7 days", Calendar header) |
 
@@ -143,9 +142,8 @@ view's `*_content()` function:
 - **Display priorities**: `PRIORITY_MIN_H` maps a priority to the minimum viewport height it needs
 - **Click sounds**: `CLICK_SOUNDS`. `None` uses LCARdS' built-in scheme.
 
-The Waste and Calendar views copy their calendar cards from two other dashboards at build time
-(`foreign_card("dashboard-muell", …)` and `foreign_card("dashboard-termine", …)`). Point these at your
-own dashboards or replace them.
+The Calendar views copy their calendar card from another dashboard at build time
+(`foreign_card("dashboard-termine", …)`). Point it at your own dashboard or replace it.
 
 ### Adapting it to your home
 
