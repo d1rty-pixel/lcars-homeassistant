@@ -100,6 +100,13 @@ class LcarsTank extends HTMLElement {
         .ptr b { font-size: var(--lcars-data-size, 24px); }
         .ptr small { font-size: 0.6em; }
         .ptr span { font-size: calc(var(--lcars-data-size, 24px) * 0.7); color: ${c.dim}; }
+        /* phones (PHONE_H in the generator): the bottle is short and narrow there, so thin gaps, no scale,
+           the reading without its percentage */
+        @media (max-height: 520px) {
+          .tank { grid-template-columns: minmax(20px, 45%) minmax(0, 1fr); }
+          .stack { gap: 1px; }
+          .scale, .ptr span { display: none; }
+        }
         @keyframes blink { 0% { background: var(--c); }
                            ${Math.round((1 - (c.off_fraction ?? 0.025)) * 1000) / 10}%, 100% { background: ${c.flash ?? "#FFFFFF"}; } }
       </style>

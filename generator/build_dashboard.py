@@ -135,8 +135,14 @@ def font(px, lo=F_MIN):
     return str(Len(px, lo=lo))
 
 
+def code_font(px):
+    """Font size of an LCARS number in a block: shrinking like a font, 0 on phones (the numbers are
+    decoration, and there they would collide with the labels)."""
+    return only_below(PHONE_H, font(px, CODE_LO))
+
+
 LABEL_LO = 0.75      # label columns shrink less than the frame, so their labels keep fitting
-CODE_LO = 0.67       # LCARS numbers in blocks: 12 px -> 8 px on phones
+CODE_LO = 0.67       # LCARS numbers in blocks shrink to 67 % (and are hidden on phones, see code_font())
 
 
 def css(x):
@@ -303,7 +309,7 @@ def block(color, label=None, code=None, path=None, align="bottom-right", size=21
                          "font_size": size if isinstance(size, str) else font(size),
                          "color": INK, "text_transform": "uppercase", "padding": pad}
     if code:
-        text["code"] = {"content": code, "position": "top-left", "font_size": font(12, CODE_LO), "color": INK,
+        text["code"] = {"content": code, "position": "top-left", "font_size": code_font(12), "color": INK,
                         "padding": {"left": 6, "top": 3}}
     card = {"type": "custom:lcards-button", "preset": "barrel", "show_icon": False,
             "interactive": bool(path), "style": {"card": {"color": {"background": color}}}, "text": text,
@@ -500,7 +506,7 @@ def dashboard_nav(active_section, foot=False):
             card = block(ACTIVE if active else colour, label + (" ◂" if active else ""), code,
                          None if active else BASE + subviews[0][4], size=18)
         if not foot:
-            card["text"]["code"]["font_size"] = font(10, CODE_LO)
+            card["text"]["code"]["font_size"] = code_font(10)
         names.append(key)
         cards.append(at(card, key))
     names.append("tail")                       # plain segment running the bar out (to the edge or the shoulder)
@@ -509,7 +515,7 @@ def dashboard_nav(active_section, foot=False):
                 "1fr", cards, gap="0 6px")
 
 
-SIDEBAR_LO = 0.7     # sidebar labels: 21 px -> 15 px on phones (the pillar is narrow there)
+SIDEBAR_LO = 0.6     # sidebar labels: 21 px -> 12.6 px on phones (the pillar is only 70 px wide there)
 
 
 def sidebar(section_key, active_view, here=None):
@@ -608,7 +614,7 @@ def clock(phone=False):
 def stardate_block():
     card = block(PEACH, STARDATE_JS, lcars_code("stardate"), align="center-right", size=FOOT_FONT)
     card["entity"] = "sensor.time"
-    card["text"]["code"]["font_size"] = font(10, CODE_LO)
+    card["text"]["code"]["font_size"] = code_font(10)
     card["text"]["code"]["padding"] = {"left": 6, "top": 2}
     return card
 
@@ -1162,7 +1168,7 @@ TIMELINE_LABEL_W = Len(150, lo=LABEL_LO)  # label column = the timeline panel's 
 # Rows: their full size from the tablet up, growing with taller screens, shrinking (to 80 %) on phones
 TL_HEAD, TL_ROW, TL_AXIS, TL_GAP = (f"clamp({Len(22, lo=0.8)}, 2.8dvh, 30px)", f"clamp({Len(24, lo=0.8)}, 3.4dvh, 40px)",
                                     f"clamp({Len(24, lo=0.8)}, 3dvh, 32px)", 4)
-DATA_ROW, DATA_GAP = f"clamp({Len(28, lo=0.8)}, 3.8dvh, 46px)", TL_GAP
+DATA_ROW, DATA_GAP = f"clamp({Len(28, lo=0.72)}, 3.8dvh, 46px)", TL_GAP
 DATA_LABEL_W = Len(130, lo=LABEL_LO)     # label blocks = pillar of the data panels
 
 PANEL_T = fl(26)        # bar thickness of a panel frame; the title sits in it, so it must fit the font
@@ -2013,10 +2019,18 @@ def dosing_view():
     """Dosing station (title in the mid bar): a small frame per channel (thin pillar on alternating sides, open at the bottom, the
     channel's name in its top bar) with the schedule and refill buttons, the bottle as a tank, remaining
     supply, dose, next dose and weekdays; the row labels are the label column next to the sidebar. Tap a Schedule pill
-    to switch the schedule; hold Refill to mark the bottle refilled."""
+    to switch the schedule; hold Refill to mark the bottle refilled. Phones leave out the weekdays, so the
+    bottle keeps some height."""
+    bars = top_bars(["1fr"], [(1, titled_bar("Dosing station", ORANGE, TOP_BAR_T))])
+    return dict(content=tiered({1: _dosing_station(), 0: _dosing_station(skip=("days",))}), mid_bars=bars,
+                mid_t=TOP_BAR_T, nav_h=NAV_H)
+
+
+def _dosing_station(skip=()):
     rows = [("sched", "Schedule", PEACH, f"calc({DATA_ROW} * 1.3)"), ("tank", "Reservoir", ALMOND, "1fr"),
             ("left", "Remaining", BUTTERSCOTCH, DATA_ROW), ("dose", "Dose", PEACH, DATA_ROW),
             ("next", "Next", ALMOND, DATA_ROW), ("days", "Weekdays", BUTTERSCOTCH, DATA_ROW)]
+    rows = [r for r in rows if r[0] not in skip]
     n = len(DOSE_CHANNELS)
     # the label rows line up with the channel frames' bodies: the pieces above and below them are as high
     # as the frames' shoulders (less the grid gap, which the frames don't have)
@@ -2081,8 +2095,7 @@ def dosing_view():
                         f"c{i}"))
     station = grid(" ".join(areas), f"{Len.of(DATA_LABEL_W)} " + " ".join(["1fr"] * n),
                    " ".join([shoulder] + [h for *_, h in rows] + [shoulder]), cards, gap=f"{Len.of(DATA_GAP)} {fl(12)}")
-    bars = top_bars(["1fr"], [(1, titled_bar("Dosing station", ORANGE, TOP_BAR_T))])
-    return dict(content=station, mid_bars=bars, mid_t=TOP_BAR_T, nav_h=NAV_H)
+    return station
 
 
 POWER_GRID = [  # (label, entity, colour, W at the end of its bar, sign in the mirrored chart)

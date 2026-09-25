@@ -148,6 +148,8 @@ class LcarsWeek extends HTMLElement {
     const n = rows.length || 1;
     this.shadowRoot.innerHTML = `
       <style>
+        /* phones (PHONE_H in the generator): no LCARS numbers, they are decoration and collide with labels */
+        @media (max-height: 520px) { .blk em { display: none; } }
         :host { display: block; height: 100%; }
         .grid { display: grid; height: 100%; gap: ${len(c.gap)} ${len(c.gap)};
                 grid-template-columns: ${right ? `repeat(${c.days}, minmax(0, 1fr)) ${len(c.label_w)}`

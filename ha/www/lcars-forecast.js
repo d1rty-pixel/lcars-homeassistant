@@ -105,6 +105,8 @@ class LcarsForecast extends HTMLElement {
     const c = this._config, g = c.toggle || {};
     this.shadowRoot.innerHTML = `
       <style>
+        /* phones (PHONE_H in the generator): no LCARS numbers, they are decoration and collide with labels */
+        @media (max-height: 520px) { .blk em { display: none; } }
         :host { display: block; height: 100%; }
         .blk { position: relative; height: 100%; box-sizing: border-box; display: flex; align-items: center;
                justify-content: flex-end; padding: 0 8px; background: ${g.colour}; color: ${g.ink || "#000"};
@@ -177,6 +179,8 @@ class LcarsForecast extends HTMLElement {
     });
     this.shadowRoot.innerHTML = `
       <style>
+        /* phones (PHONE_H in the generator): no LCARS numbers, they are decoration and collide with labels */
+        @media (max-height: 520px) { .blk em { display: none; } }
         :host { display: block; height: 100%; }
         .grid { display: grid; height: 100%; gap: 0 6px; grid-template-columns: repeat(${hours.length}, minmax(0, 1fr));
                 font-family: ${c.font}; color: ${col.text}; text-transform: uppercase; line-height: 1.15; }

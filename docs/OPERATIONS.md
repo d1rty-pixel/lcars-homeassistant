@@ -40,8 +40,8 @@ DSF=1.1 "/mnt/c/Program Files/nodejs/node.exe" shot.js ops 1745 982 out.png 900 
 ```
 
 Check the target sizes (and 1280×720, the tablet with its system bars) after every layout change, and a
-phone: `SAFE=0,59,21,59 … shot.js <view> 852 393 out.png` (iPhone 16 in landscape; `SAFE` sets the
-safe-area insets HA pads the view by). Display priorities switch at 520 (phones), 760, 880 and 1000 px
+phone: `SAFE=0,0,20,0 … shot.js <view> 734 337 out.png` (iPhone 16 in landscape in Chrome, measured;
+the HA app: `SAFE=0,59,21,59 … 852 393`; `SAFE` sets the safe-area insets HA pads the view by). Display priorities switch at 520 (phones), 760, 880 and 1000 px
 viewport height, so check around those too. `LCARS_DASHBOARD=<url_path>` points `deploy.py`, the build
 and `shot.js` at another dashboard, e.g. a hidden test copy, so a layout can be checked before the live
 dashboard gets it. For seams,

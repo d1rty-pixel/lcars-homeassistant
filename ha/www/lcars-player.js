@@ -183,6 +183,8 @@ class LcarsPlayer extends HTMLElement {
     }).join("");
     this.shadowRoot.innerHTML = `
       <style>
+        /* phones (PHONE_H in the generator): no LCARS numbers, they are decoration and collide with labels */
+        @media (max-height: 520px) { em { display: none; } .list .row b { color: transparent; } }
         :host { display: block; height: 100%; }
         .wrap { display: grid; height: 100%; gap: 0 16px; font-family: ${c.font}; text-transform: uppercase;
                 line-height: 1; grid-template-columns: ${len(p.width)} minmax(0, 1fr); }
@@ -256,8 +258,8 @@ class LcarsPlayer extends HTMLElement {
         .wrap.t-bottom .pillar { order: 2; }
         .wrap.t-row .blk { font-size: ${fz(16)}; padding: 0 8px 3px; }
         .wrap.t-row .blk em { font-size: ${fz(10, 0.67)}; top: 2px; }
-        /* phones (PHONE_H in the generator): the mid bar is too thin for numbers */
-        @media (max-height: 520px) { .wrap.t-row .blk em { display: none; } .wrap.t-row .blk { padding: 0 4px; align-items: center; justify-content: center; font-size: 12px; } }
+        /* phones (PHONE_H in the generator): buttons in the thin mid bar, label centred */
+        @media (max-height: 520px) { .wrap.t-row .blk { padding: 0 4px; align-items: center; justify-content: center; font-size: 12px; } }
         @keyframes blink { 0% { background: ${k.accent}; }
                            ${Math.round((1 - (c.off_fraction ?? 0.025)) * 1000) / 10}%, 100% { background: ${c.flash ?? "#FFFFFF"}; } }
       </style>
@@ -527,6 +529,8 @@ class LcarsLibrary extends HTMLElement {
       `<div class="blk cat" data-i="${i}" style="--c:${cat.colour}"><em>${esc(cat.code)}</em><span></span></div>`).join("");
     this.shadowRoot.innerHTML = `
       <style>
+        /* phones (PHONE_H in the generator): no LCARS numbers, they are decoration and collide with labels */
+        @media (max-height: 520px) { em { display: none; } .list .row b { color: transparent; } }
         :host { display: block; height: 100%; }
         .wrap { display: grid; height: 100%; gap: 0 16px; font-family: ${c.font}; text-transform: uppercase;
                 line-height: 1; grid-template-columns: minmax(0, 1fr) ${len(p.width)}; }

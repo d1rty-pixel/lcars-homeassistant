@@ -74,6 +74,8 @@ class LcarsPower extends HTMLElement {
     const chart = `<div class="chart"><svg></svg></div>`;
     this.shadowRoot.innerHTML = `
       <style>
+        /* phones (PHONE_H in the generator): no LCARS numbers, they are decoration and collide with labels */
+        @media (max-height: 520px) { .blk em { display: none; } }
         :host { display: block; height: 100%; }
         .wrap { display: grid; height: 100%; gap: 0 16px; font-family: ${c.font}; text-transform: uppercase;
                 grid-template-columns: ${p.side === "right" ? `minmax(0, 1fr) ${len(p.width)}` : `${len(p.width)} minmax(0, 1fr)`}; }

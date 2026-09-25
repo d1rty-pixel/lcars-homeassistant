@@ -13,8 +13,8 @@ page.** The migration plan below records how the pages got there.
   phone design). Sizes follow the viewport height (see "Responsive sizes"); only placement changes, at a
   few breakpoints, through the display priorities.
 - **Target screens**: 1920×1080 (desktop), **1280×800** (Lenovo Tab M10 Gen 1, Fully Kiosk, landscape)
-  and **phones in landscape** (iPhone 16: 852×393, of which HA leaves ~734×372 inside the notch and
-  home-indicator insets). Every page must fit and read well on all of them; check them after layout
+  and **phones in landscape** (iPhone 16: 852×393 screen; Chrome on iOS gives the page 734×337 with a
+  20 px home-indicator inset, the HA app about 734×372). Every page must fit and read well on all of them; check them after layout
   changes (`tools/screenshot/`, see `docs/OPERATIONS.md`). The tablet's real viewport is shorter than
   800 (system bars), so also check 1280×720.
 - **Display priorities** (user decision): content that doesn't fit vertically
@@ -92,13 +92,13 @@ page.** The migration plan below records how the pages got there.
   tablet and the desktop look exactly as before. Below that it shrinks linearly with the height to its
   minimum share, reached at `MIN_H` (400 px): 60 % by default (`S_MIN`), fonts 80 % (`F_MIN`), LCARS
   numbers in blocks 67 % (`CODE_LO`), label columns 75 % (`LABEL_LO`, so their labels keep fitting),
-  sidebar labels 70 %.
+  sidebar labels 60 %.
 - **The frame shrinks much more than the content** (user decision: small screens get slim frames and
   shoulders): sidebar/pillar width 50 % (140 → 70 px), mid bar and its titles 47 % (43 → 20), inner
   curves and elbow extensions 35 %, panel shoulders 50 %, panel pillars and decorative pillars 45 %,
   main margin 40 %, foot bar 80 % (it carries the phone's menu).
   Rows that already grew with `vh` keep doing so above 720 px and shrink below it (e.g. `DATA_ROW`:
-  28 px at 720, 22 px on a phone).
+  28 px at 720, 20 px on a phone).
 - A `Len` renders as CSS (`clamp(84px, 19.444vh, 140px)`, sums as `calc()`), and the generator keeps doing
   its arithmetic with it (corners, title widths, `top_bars()` edges), so bar and content stay aligned at
   every height. LCARdS elbows take such CSS lengths and redraw on resize; LCARdS text paddings take px
@@ -108,13 +108,15 @@ page.** The migration plan below records how the pages got there.
   numbers (the bar is only as thick as its text), the active section near-white without "◂". The foot
   bar ends in weekday and time instead of date/time and stardate, and shows the pump alert there ("Red
   alert", "Pump off", blinking like the header title), since the header isn't there.
-- Buttons in the mid bar (radar, transport, calendar) drop their numbers on phones; so do the calendar
-  legend's blocks, which may also shrink to share the height.
-- Pills in narrow places get a phone variant without number and with smaller insets (`phone_pill()`, used
-  with `tiered()`).
+- **No LCARS numbers on phones** (user decision): they are decoration and would collide with the labels.
+  LCARdS blocks get the number's font size as `code_font()` (`min(size, 0 below PHONE_H)`), the custom
+  cards hide their number elements in a media query. The calendar legend's blocks may also shrink to share
+  the height.
+- Pills in narrow places get a phone variant with smaller insets (`phone_pill()`, used with `tiered()`).
 - Per page on phones: OPS without Next 7 days; Waste the timeline only; Status the four modes as one
   column of pills level with Equipment's rows; Light Phase control with four rows and Controls in one row
-  (Automation, Fire, Chill); Dosing's Schedule/Refill pills without numbers. Frame titles may be clipped
+  (Automation, Fire, Chill); Dosing without the Weekdays row, its bottles with thin segment gaps, no scale
+  and the reading in ml only. Frame titles may be clipped
   where a frame is narrower than its title (Dosing's channel frames).
 - HA pads the view by the safe areas (notch, home indicator); the view's height leaves them out.
 - Heights are `dvh` (the visible height): on iOS `vh` is the height without the browser's toolbars, which

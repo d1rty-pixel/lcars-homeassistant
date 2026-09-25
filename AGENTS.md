@@ -28,7 +28,7 @@ The build and the host-file deploy need the HA token and SSH access described in
 
 ## Rules that are easy to miss
 
-- **Check layouts at 1280×720, 1280×800, 1920×1080 and a phone (852×393 with safe areas)** after any
+- **Check layouts at 1280×720, 1280×800, 1920×1080 and a phone (734×337, 20 px bottom inset)** after any
   layout change (screenshots: see `docs/OPERATIONS.md`). No page may scroll; content that doesn't fit is
   not rendered (display priorities), shoulders go first.
 - **One layout for all screens**: write sizes as fluid lengths (`fl()`, `font()`, the existing

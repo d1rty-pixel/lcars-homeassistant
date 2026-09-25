@@ -91,6 +91,8 @@ class LcarsMonth extends HTMLElement {
     const names = [["Back", "back"], ["Today", "today"], ["Next", "next"]];
     this.shadowRoot.innerHTML = `
       <style>
+        /* phones (PHONE_H in the generator): no LCARS numbers, they are decoration and collide with labels */
+        @media (max-height: 520px) { .blk em { display: none; } }
         :host { display: block; height: 100%; }
         .row { display: grid; height: 100%; gap: 6px; grid-template-columns: repeat(3, minmax(0, 1fr));
                font-family: ${c.font}; text-transform: uppercase; }
@@ -98,8 +100,8 @@ class LcarsMonth extends HTMLElement {
                color: ${(c.colours || {}).ink || "#000"}; font-size: ${fz(16)}; cursor: pointer; user-select: none;
                -webkit-user-select: none; }
         .blk em { position: absolute; left: 6px; top: 2px; font-style: normal; font-size: ${fz(10, 0.67)}; }
-        /* phones (PHONE_H in the generator): the mid bar is too thin for numbers */
-        @media (max-height: 520px) { .row .blk em { display: none; } .row .blk { align-items: center; } }
+        /* phones (PHONE_H in the generator): buttons in the thin mid bar, label centred */
+        @media (max-height: 520px) { .row .blk { align-items: center; } }
         .blk:active { filter: brightness(1.3); }
       </style>
       <div class="row">${names.map(([label, cmd], i) =>
@@ -220,6 +222,8 @@ class LcarsMonth extends HTMLElement {
       .join("") + `<div style="background:${c.legend_filler}"></div>`;
     this.shadowRoot.innerHTML = `
       <style>
+        /* phones (PHONE_H in the generator): no LCARS numbers, they are decoration and collide with labels */
+        @media (max-height: 520px) { .blk em { display: none; } }
         :host { display: block; height: 100%; }
         .wrap { display: grid; height: 100%; gap: 0 16px; grid-template-columns: minmax(0, 1fr) ${len(c.legend_w)};
                 font-family: ${c.font}; text-transform: uppercase; line-height: 1; }
@@ -235,8 +239,8 @@ class LcarsMonth extends HTMLElement {
         .blk span { overflow: hidden; text-overflow: ellipsis; }
         /* legend: the label at the bottom, clear of the code at the top, so long names fit */
         .legend .blk { font-size: ${fz(15)}; align-items: flex-end; padding-bottom: 3px; }
-        /* phones (PHONE_H in the generator): legend blocks only as high as their label, no numbers */
-        @media (max-height: 520px) { .legend .blk em { display: none; } .legend .blk { align-items: center; padding-bottom: 0; } }
+        /* phones (PHONE_H in the generator): legend blocks may shrink to their label, label centred */
+        @media (max-height: 520px) { .legend .blk { align-items: center; padding-bottom: 0; } }
         .cell { display: flex; flex-direction: column; gap: 3px; min-width: 0; min-height: 0; overflow: hidden;
                 padding: 4px 5px; box-sizing: border-box; }
         .cell b { font-weight: normal; font-size: var(--ev-num, 18px); height: var(--ev-num, 18px); flex: none; }

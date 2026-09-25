@@ -108,6 +108,8 @@ class LcarsRadar extends HTMLElement {
       `<div class="blk" data-i="${i}" style="background:${b.colour}"><em>${b.code}</em><span></span></div>`).join("");
     this.shadowRoot.innerHTML = `
       <style>
+        /* phones (PHONE_H in the generator): no LCARS numbers, they are decoration and collide with labels */
+        @media (max-height: 520px) { .blk em { display: none; } }
         :host { display: block; height: 100%; }
         .wrap { display: grid; height: 100%; grid-template-columns: minmax(0, 1fr) ${len(p.width)}; gap: 0 16px;
                 font-family: ${c.font}; text-transform: uppercase; }
@@ -131,8 +133,8 @@ class LcarsRadar extends HTMLElement {
         .wrap.c-row .pillar { grid-template-rows: minmax(0, 1fr); grid-template-columns: repeat(${p.blocks.length}, minmax(0, 1fr)); }
         .wrap.c-row .blk { font-size: ${fz(16)}; padding: 0 8px 3px; }
         .wrap.c-row .blk em { font-size: ${fz(10, 0.67)}; top: 2px; }
-        /* phones (PHONE_H in the generator): the mid bar is too thin for numbers */
-        @media (max-height: 520px) { .wrap.c-row .blk em { display: none; } .wrap.c-row .blk { padding: 0 4px; align-items: center; justify-content: center; font-size: 12px; } }
+        /* phones (PHONE_H in the generator): buttons in the thin mid bar, label centred */
+        @media (max-height: 520px) { .wrap.c-row .blk { padding: 0 4px; align-items: center; justify-content: center; font-size: 12px; } }
       </style>
       <div class="wrap c-${this._mode}">
         <div class="map"><svg class="borders" preserveAspectRatio="none"></svg>

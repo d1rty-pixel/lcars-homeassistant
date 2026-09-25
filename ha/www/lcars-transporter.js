@@ -78,6 +78,8 @@ class LcarsTransporter extends HTMLElement {
       `${Math.round(c.min + f * (c.max - c.min))}<i></i></div>`);
     this.shadowRoot.innerHTML = `
       <style>
+        /* phones (PHONE_H in the generator): no LCARS numbers, they are decoration and collide with labels */
+        @media (max-height: 520px) { .blk em { display: none; } }
         :host { display: block; height: 100%; }
         .wrap { display: grid; height: 100%; justify-content: center; gap: 0 clamp(12px, 2.6vw, 48px);
                 padding: 0 14px; box-sizing: border-box;
