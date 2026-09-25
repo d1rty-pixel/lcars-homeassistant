@@ -38,6 +38,9 @@ ha/www/lcars-motion.js         per-device animation switch (?lcars_motion=off, s
                                global segment-bar switch (?lcars_bars=off)
 ha/www/lcars-day-grid.js       the waste timeline's day grid as one light card (was ~200 LCARdS buttons)
 ha/www/lcars-bar.js            segment bars (countdown, time window, level, span, status, weekdays) as light cards, CSS blink
+ha/www/lcars-transporter.js    light channels as vertical transporter-console sliders (Light)
+ha/www/lcars-phases.js         the light schedule over 24 h, a shape per phase with its ramps (Light)
+ha/www/lcars-log.js            device log from HA's logbook with severity colours and a waterfall (Light)
 ha/www/lcars-tank.js           a dosing bottle's fill level as a vertical segment tank (Dosing)
 ha/www/lcars-week.js           next days of several calendars, timeline style (OPS)
 ha/www/lcars-forecast.js       hourly forecast, LCARS style (OPS)
@@ -64,9 +67,10 @@ Credentials: `~/.config/homeassistant/token` (long-lived access token) and SSH
 as `hassio@homeassistant.local`. Neither is stored in this repo. Override the host with
 `HA_HOST` / `HA_SSH`.
 
-**Rebuild after changing the source dashboards.** The Waste and Calendar calendar
-cards are copied from the live `dashboard-muell` / `dashboard-termine` configs at
-build time.
+**Rebuild after changing the source dashboards or the light schedule.** The Waste and
+Calendar calendar cards are copied from the live `dashboard-muell` / `dashboard-termine`
+configs at build time, and the light page's phase graph reads
+`/config/aquarium_light_control.yaml` over SSH (needs PyYAML).
 
 ## Prerequisites on the HA side (state 2026-09-24)
 

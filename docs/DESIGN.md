@@ -12,7 +12,21 @@ are reworked.
 - **Two target screens**: 1920×1080 (desktop) and **1280×800** (Lenovo Tab M10
   Gen 1, Fully Kiosk, landscape). Every page must fit and read well on both;
   check both after layout changes (`tools/screenshot/`, see
-  `docs/OPERATIONS.md`).
+  `docs/OPERATIONS.md`). The tablet's real viewport is shorter than 800 (system
+  bars), so also check 1280×720.
+- **Display priorities** (user decision): content that doesn't fit vertically
+  is **not rendered**, rather than cut off or squeezed. `PRIORITY_MIN_H` maps a
+  priority to the minimum viewport height it needs (1 always, 2 ≥ 760 px,
+  3 ≥ 880 px, 4 ≥ 1000 px). `shown_from(card, p)` hides one card below its
+  priority; `tiered({p: card, ...})` picks one of several variants (e.g. a
+  frame closed or open at the bottom, 10/9/8 list rows). Both use HA's `screen`
+  visibility condition: `hui-card` doesn't create a card that isn't shown, so
+  it costs nothing on the tablet. Current uses: header number columns (4th row,
+  p4), light page device log (p3, else Controls closes the S), power charts on
+  Laundry, Osmosis and Power (p2), Waste and OPS lower frames (closed at p2,
+  open at the bottom below; OPS forecast bars 8 → 6), Agenda list (10/9/8 rows
+  at p3/p2/p1). The fallback for a frame that no longer fits: drop its bottom
+  shoulder first, then leave it out.
 - **Voyager palette**, hex constants at the top of `build_dashboard.py`
   (orange, butterscotch, peach, almond, violet, lilac, bluey, peri, ice, rose,
   red, sunflower, gray, and `BONE` for light blocks). Hex on purpose, so LCARdS
@@ -155,9 +169,36 @@ next to values, restrained colour.
     since on a 0..14 d bar, Last change, Next due as a countdown).
   - *Visual*: the camera in "Visual sensor 01" (numbered pillar facing the
     readings), "Readings" (Feed, Circulation, Illumination, Total power) next to it.
-  - *Light*: "Phase control" (Automation, Current, Scheduled, Next, Ramp bar);
-    below, facing "Profiles" (Fire, Chill, Resume: tap the block) | "Channels"
-    (red/green/blue as horizontal LCARdS segment sliders).
+  - *Light*: on the left a **double S** of three frames (`s_chain()`,
+    `s_joint()`: a frame's bottom shoulder and the next one's top shoulder sit
+    on one shared bar that carries the next frame's title). "Phase control"
+    (pillar left: Current, Scheduled, Next, Ramp; next to them the day's phases
+    as a graph, `lcars-phases.js`: one smooth shape per phase in its colour,
+    rising over the ramp-up and falling over the ramp-down, height = its
+    brightest channel relative to the brightest phase (at least 30 %), no
+    per-channel values; now line with a dot on the curve) runs into "Controls"
+    (pillar right: small LCARS pills Automation on/off, Fire, Chill, and
+    numbered decorative pills without a function), which runs into "Device
+    log" (pillar left, whatever height is left, bottom bar level with the
+    Channels frame's). On the right "Channels" (pillar on the outer edge, so
+    its top bar meets Phase control's): red/green/blue as vertical
+    **transporter controls** (`lcars-transporter.js`; drag a slot, the value is
+    sent when the finger lifts). The phases come from
+    `/config/aquarium_light_control.yaml`, read over SSH at build time (no
+    entity exposes them).
+    Device log (`lcars-log.js`): the last 24 h of the light, its plug and their
+    sensors from HA's logbook, newest first, only whole lines (time, tag, event,
+    a descriptive detail in LCARS wording, e.g. "Illumination cycle nominal ·
+    emitter array R 45 · G 35 · B 40" with the schedule's levels, and a
+    reference code `REF xxxx-nn · SEQ nnnn` derived from the event, so it stays
+    put; below 700 px the code is left out), colour waterfall
+    like the header's number columns, new lines flash. Colours by severity:
+    peri info (phases, light on/off), ice ok (schedule resumed, back online,
+    protection flag cleared), sunflower warning (manual override, automation
+    off, firmware update), butterscotch/amber flap (gone and back within
+    60 s), red error (offline longer, overtemperature/-load/-voltage/-current,
+    plug power off), grey raw BLE notification codes (bursts within 60 s
+    collapsed into one line).
   - *Dosing*: frame "Dosing station" with the row labels as its pillar and a
     small frame per channel inside it (thin pillar alternating right / left
     from Nitrate on, open at the bottom, the channel's name in its top bar,
@@ -185,6 +226,9 @@ next to values, restrained colour.
 |------|----------|
 | `lcars-day-grid.js` | waste collection timeline cells |
 | `lcars-bar.js` | segment bars: `countdown`, `window`, `level`, `span`, `state`, `days` |
+| `lcars-transporter.js` | light channels as vertical transporter-console sliders (drag, sent on release) |
+| `lcars-phases.js` | the light schedule over 24 h: a smooth shape per phase with its ramps, now line |
+| `lcars-log.js` | device log from HA's logbook: severity colours, flap detection, BLE bursts collapsed, waterfall |
 | `lcars-tank.js` | a dosing bottle's fill level as a vertical segment stack with scale and pointer; tap opens more-info |
 | `lcars-week.js` | next days of all calendars (refreshes HA's calendars first) |
 | `lcars-forecast.js` | hourly forecast (weather/subscribe_forecast) |
@@ -205,7 +249,10 @@ registers it as a resource with `?v=<timestamp>`.
 | `clock`, `stardate_block` | foot bar: local date/time, stardate (`FOOT_FONT` sets the bar's size) |
 | `header`, `row`, `column` | older content primitives (calendar pages) |
 | `panel`, `pillar_rows`, `value_text`, `with_bar`, `with_decor_pillar` | reference-style frames and rows |
-| `aq_panel`, `state_row`, `plain_row`, `mode_button`, `channel_slider` | aquarium rows: status/switch rows, LCARS mode buttons, light sliders |
+| `aq_panel`, `state_row`, `plain_row`, `mode_button` | aquarium rows: status/switch rows, LCARS mode buttons |
+| `PRIORITY_MIN_H`, `shown_from`, `tiered` | display priorities: content not rendered below its viewport height |
+| `s_joint`, `s_chain` | frames joined into an S (or double S) through shared bars (light page) |
+| `transporter_card`, `light_phases`, `phases_card`, `light_log_card` | light page cards; `light_phases()` reads the schedule from the HA host |
 | `data_bar`, `countdown_bar`, `window_bar`, `level_bar`, `span_bar`, `state_bar` | segment bar configs (`lcars-bar.js`); `tank_card` (`lcars-tank.js`) |
 | `power_card` | power chart with range buttons (`lcars-power.js`) |
 | `number_columns`, `number_sensors`, `header_buttons` | header decoration |

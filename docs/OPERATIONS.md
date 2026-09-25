@@ -74,7 +74,9 @@ cd "$W" && export HA_TOKEN=$(cat ~/.config/homeassistant/token) WSLENV=HA_TOKEN:
 DSF=1.1 "/mnt/c/Program Files/nodejs/node.exe" shot.js ops 1745 982 out.png 900 600 300 200   # 110 %, clipped
 ```
 
-Check both target sizes after every layout change; for seams, clip a region at
+Check both target sizes (and 1280×720, the tablet with its system bars) after every layout change;
+display priorities switch at 760, 880 and 1000 px viewport height, so check around those too. For seams,
+clip a region at
 `DSF=1` and `DSF=1.1` (110 % zoom).
 
 ## Sounds
@@ -105,10 +107,13 @@ Check both target sizes after every layout change; for seams, clip a region at
   - washing-machine supply switch (Supply block or value on the laundry page; tap opens more-info)
 - **Toggle on a single tap**, as on the original dashboards (hold opens more-info):
   - aquarium modes: the four LCARS buttons in "Modes" (Status page)
-  - CO² coupling and light automation: block or value of their row
+  - CO² coupling and light automation: block or value of their row (Status page); light automation
+    also the Automation pill in "Controls" (Light page)
   - the four dosing schedules: the Schedule pill at the top of a channel's frame
   - the RO unit (`switch.osmoseanlage`): block or value of its row
-  - light profiles Fire / Chill / Resume: their block (applies once, no toggle)
+  - light profiles Fire / Chill: their pill in "Controls" (applies once, no toggle; switching Automation
+    back on resumes the schedule)
+  - light channels: drag a transporter slot (sets a manual override when the finger lifts)
 - **Calendar card text is German.** `/local/global-calendar-card.js` (not in
   this repo, shared with the classic dashboards) hardcodes its UI text
   ("Heute", "Keine Termine …"). Only its calendar labels are translated.

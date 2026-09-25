@@ -21,8 +21,12 @@ import random
 import urllib.parse
 import urllib.request
 import re
+import functools
+import subprocess
 import sys
 import zlib
+
+import yaml
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import ha_ws  # noqa: E402  (raw websocket client, token from ~/.config/homeassistant/token)
@@ -214,6 +218,31 @@ def readout(entity, label, value, colors=None, label_color=LILAC):
             "tap_action": {"action": "more-info"}}
 
 
+# Display priorities: content that doesn't fit a shorter screen is not rendered there, instead of being
+# cut off. HA's hui-card, which wraps every child of a layout card, doesn't create a card whose visibility
+# conditions fail, so a variant that isn't shown costs nothing (better performance on the tablet too).
+# Priority -> minimum viewport height in px; priority 1 is always shown.
+PRIORITY_MIN_H = {1: 0, 2: 760, 3: 880, 4: 1000}
+
+
+def shown_from(card, priority, below=None):
+    """`card` only while the viewport is at least as high as `priority` needs (and lower than what
+    priority `below` needs, if given)."""
+    q = [f"(min-height: {PRIORITY_MIN_H[priority]}px)"] if PRIORITY_MIN_H[priority] else []
+    if below:
+        q.append(f"(max-height: {PRIORITY_MIN_H[below] - 0.02}px)")
+    return dict(card, visibility=card.get("visibility", []) +
+                [{"condition": "screen", "media_query": " and ".join(q) or "all"}])
+
+
+def tiered(variants):
+    """One of several variants of the same content by viewport height: {priority: card}; the variant with
+    the highest priority that fits is rendered, the others aren't. Needs a variant for priority 1."""
+    prios = sorted(variants, reverse=True)
+    cards = [at(shown_from(variants[p], p, prios[i - 1] if i else None), "v") for i, p in enumerate(prios)]
+    return grid('"v"', "1fr", "1fr", cards, gap="0")
+
+
 CASCADE_MS = 1800   # one colour cycle of the number columns
 HEX_ROWS, HEX_COLS = 4, 5
 
@@ -226,12 +255,18 @@ def js_hex(entity):
 
 def number_columns(color_start=ICE, color_text="#223366", color_end="#DFE1E8"):
     """LCARS number columns from real sensors (mostly power meters, see number_sensors()), each shown as
-    a hex code read when the page loads, with a staggered colour waterfall running over them."""
+    a hex code read when the page loads, with a staggered colour waterfall running over them. The last row
+    has priority 4: below its viewport height one row fewer is rendered instead of a cut-off one."""
+    return tiered({4: _number_grid(HEX_ROWS, color_start, color_text, color_end),
+                   1: _number_grid(HEX_ROWS - 1, color_start, color_text, color_end)})
+
+
+def _number_grid(n_rows, color_start, color_text, color_end):
     picks = number_sensors(HEX_ROWS * HEX_COLS)
-    rows = [[js_hex(e) for e in picks[r * HEX_COLS:(r + 1) * HEX_COLS]] for r in range(HEX_ROWS)]
+    rows = [[js_hex(e) for e in picks[r * HEX_COLS:(r + 1) * HEX_COLS]] for r in range(n_rows)]
     return {"type": "custom:lcards-data-grid", "data_mode": "data", "rows": rows,
             "grid": {"grid-template-columns": f"repeat({HEX_COLS}, auto)",
-                     "grid-template-rows": f"repeat({HEX_ROWS}, 1fr)", "gap": "0 14px", "justify-content": "start"},
+                     "grid-template-rows": f"repeat({n_rows}, 1fr)", "gap": "0 14px", "justify-content": "start"},
             "style": {"font_size": 15, "font_weight": "bold", "color": color_start, "align": "left"},
             "animations": [{"trigger": "on_load", "preset": "cascade-color",
                             "params": {"duration": CASCADE_MS, "colors": [color_start, color_text, color_end],
@@ -732,7 +767,12 @@ ATMOS_LABEL_W = 150      # "Temperature" needs more than DATA_LABEL_W next to it
 
 def home_content():
     """OPS in the waste page's language: framed groups, label blocks as pillars, a graphic next to
-    every value, light custom cards for the bars."""
+    every value, light custom cards for the bars. Below priority 2 the lower frames are open at the
+    bottom and the forecast bars are shorter."""
+    return tiered({2: _home(compact=False), 1: _home(compact=True)})
+
+
+def _home(compact):
     w = WEATHER
     # like the waste page: the top frames stay open at the bottom, the lower ones close the page
     atmosphere = panel("Atmosphere", ICE, pillar=ATMOS_LABEL_W, bottom=False, content=pillar_rows([
@@ -756,17 +796,17 @@ def home_content():
     ], filler=ICE, label_w=ATMOS_LABEL_W))
     radar = panel("Precipitation radar", BLUEY, side="right", pillar=DECOR_PILLAR_W, bottom=False,
                   content=radar_card())
-    forecast = panel("Forecast", LILAC, pillar=DECOR_PILLAR_W, content=with_decor_pillar(
-        {"type": "custom:lcars-forecast", "entity": w, "hours": 12, "segments": 8, "font": "Antonio, sans-serif",
+    forecast = panel("Forecast", LILAC, pillar=DECOR_PILLAR_W, bottom=not compact, content=with_decor_pillar(
+        {"type": "custom:lcars-forecast", "entity": w, "hours": 12, "segments": 6 if compact else 8, "font": "Antonio, sans-serif",
          "colours": {"temp": PEACH, "rain": ICE, "off": rgba(PERI, 0.18), "text": PERI, "dim": GRAY, "flash": "#FFFFFF"},
          "blink": [8000, 24000], "off_fraction": 0.025},
         "ops/forecast", [BONE, PERI, ICE], side="left", filler=LILAC))
     # the lower frames face each other: their shoulders meet in the middle
     week = panel("Next 7 days", SUNFLOWER, side="right", pillar=ATMOS_LABEL_W, content=week_calendar(),
-                 join_top=True)
+                 join_top=True, bottom=not compact)
     # sized like the waste page: fits the 1280x800 tablet, the rest of the page stays black
     top_h = f"calc({data_panel_height(5)} - {PANEL_CORNER}px)"
-    bottom_h = data_panel_height(5)
+    bottom_h = f"calc({data_panel_height(5)} - {PANEL_CORNER}px)" if compact else data_panel_height(5)
     lower = grid('"week fc"', "1.15fr 1fr", "1fr", [at(week, "week"), at(forecast, "fc")], gap="0 8px")
     return grid('"atm atm radar" "low low low" ". . ."', "1fr 1fr 1.4fr", f"{top_h} {bottom_h} 1fr",
                 [at(atmosphere, "atm"), at(radar, "radar"), at(lower, "low")],
@@ -881,10 +921,11 @@ def panel_elbow(kind, colour, pillar=PANEL_PILLAR):
 
 
 def panel(title, colour, content, *, side="left", pillar=None, top=True, bottom=True, overflow="hidden",
-          join_top=False):
+          join_top=False, caption=True):
     """Content in its own LCARS bracket: a pillar on `side` with shoulders (elbows) at the ends that
     have a bar. The top bar is interrupted by the title; with top=False the frame is open at the top
-    and the title moves into the bottom bar (a caption). bottom=False leaves the bottom open.
+    and the title moves into the bottom bar (a caption; caption=False: no title, e.g. when the title sits
+    in a bar shared with the frame above, see s_frames()). bottom=False leaves the bottom open.
 
     pillar=<px>: the content brings its own pillar of that width as its column on `side` (e.g. the
     timeline's label blocks, see pillar_rows()); the shoulders widen to match. join_top: its first piece is
@@ -926,7 +967,7 @@ def panel(title, colour, content, *, side="left", pillar=None, top=True, bottom=
         areas.append(line("bl", "bot"))
         rows.append(f"{PANEL_CORNER}px")
         cards += [at(panel_elbow("footer-right" if right else "footer-left", colour, pw), "bl"),
-                  at(bar("bottom", not top), "bot")]
+                  at(bar("bottom", not top and caption), "bot")]
     if pillar:
         # the pillar's blocks keep the same small gap to the top shoulder as between each other; at the
         # bottom the pillar's filler piece (pillar_rows(filler=...)) runs into the shoulder: it overlaps
@@ -1053,14 +1094,20 @@ def data_panel_height(n):
 
 
 def waste_content():
+    """Priority 2 shows the lower frames closed; below it they are open at the bottom (the shoulders are
+    the first thing to go on a short screen)."""
+    return tiered({2: _waste(compact=False), 1: _waste(compact=True)})
+
+
+def _waste(compact):
     timeline = panel(f"Collection timeline · {TIMELINE_DAYS} days", ORANGE, collection_timeline(),
                      pillar=TIMELINE_LABEL_W, bottom=False, join_top=True)
     # The two lower frames face each other: pillars meet in the middle, labels next to them
-    schedule = panel("Next per bin", PEACH, side="right", pillar=DATA_LABEL_W, content=pillar_rows(
+    schedule = panel("Next per bin", PEACH, side="right", pillar=DATA_LABEL_W, bottom=not compact, content=pillar_rows(
         [(label, colour, lcars_code(f"next-per-bin/{label}"),
           with_bar(value_text(js_de_date("entity.state"), e, "right"), countdown_bar(e, colour, "right"), "right"))
          for label, e, colour in BINS], side="right", filler=PEACH))
-    hazmat = panel("Hazmat collection", RED, pillar=DATA_LABEL_W, content=pillar_rows([
+    hazmat = panel("Hazmat collection", RED, pillar=DATA_LABEL_W, bottom=not compact, content=pillar_rows([
         ("Date", BONE, lcars_code("hazmat/date"),
          with_bar(value_text(js_iso_date("entity.state"), HAZMAT["date"]),
                   countdown_bar(HAZMAT["date"], RED, "left"), "left")),
@@ -1073,7 +1120,8 @@ def waste_content():
     n_tl = len(BINS) + 1
     timeline_h = f"calc({PANEL_CORNER}px + {TL_HEAD} + {n_tl} * {TL_ROW} + {TL_AXIS} + {(n_tl + 2) * TL_GAP}px)"
     # Sized to content, not stretched to the viewport; what's left stays black
-    return grid('"t t" "s h" ". ."', "1fr 1fr", f"{timeline_h} {data_panel_height(4)} 1fr",
+    lower_h = f"calc({data_panel_height(4)} - {PANEL_CORNER}px)" if compact else data_panel_height(4)
+    return grid('"t t" "s h" ". ."', "1fr 1fr", f"{timeline_h} {lower_h} 1fr",
                 [at(timeline, "t"), at(schedule, "s"), at(hazmat, "h")], gap="clamp(12px, 2vh, 24px) 8px")
 
 
@@ -1103,7 +1151,7 @@ def state_bar(entity, states, side, threshold=None):
 
 def laundry_content():
     """Laundry in the waste page's language: the unit's frame on top (pillar left, like OPS' atmosphere),
-    the power chart with its range buttons below."""
+    the power chart with its range buttons below (priority 2, like the other charts)."""
     wsh = WASH
     trace = panel("Power trace", ORANGE, pillar=DECOR_PILLAR_W, content=power_card(wsh["power"]))
     supply = value_text("[[[ return entity.state === 'on' ? 'On' : 'Off'; ]]]", wsh["switch"], "left",
@@ -1124,7 +1172,7 @@ def laundry_content():
     ], filler=LILAC))
     # what's left below the chart stays black
     return grid('"u" "t" "."', "1fr", f"{data_panel_height(4)} {chart_height()} 1fr",
-                [at(trace, "t"), at(unit, "u")], gap="clamp(12px, 2vh, 24px) 8px")
+                [at(shown_from(trace, 2), "t"), at(unit, "u")], gap="clamp(12px, 2vh, 24px) 8px")
 
 
 # ── Aquarium (reference style) ──────────────────────────────────────────────────
@@ -1265,65 +1313,233 @@ def visual_content():
 
 
 LIGHT_PROFILES = [("Fire", {"red": 50, "green": 13, "blue": 0}, BUTTERSCOTCH),
-                  ("Chill", {"red": 0, "green": 13, "blue": 50}, ICE)]
+                  ("Chill", {"red": 0, "green": 13, "blue": 50}, BLUEY)]
 LIGHT_CHANNELS = [("red", "Red", RED), ("green", "Green", "#88CC88"), ("blue", "Blue", BLUEY)]
 
 
-def channel_slider(name, colour):
-    """The channel's level as a horizontal segment bar you can drag (LCARdS slider)."""
-    return {"type": "custom:lcards-slider", "entity": CHANNEL.format(name), "preset": "pills-basic",
-            "control": {"min": 0, "max": 100, "step": 1},
-            "style": {"track": {"orientation": "horizontal", "margin": 0,
-                                "segments": {"count": BAR_SEGMENTS, "gap": 3, "shape": {"radius": 0},
-                                             "gradient": {"start": colour, "end": colour},
-                                             "appearance": {"unfilled": {"opacity": 0.18}}}}},
-            # its SVG has a minimum height of its own and would sit centred below the row
-            "uix": {"style": ".slider-container, .slider-container svg { height: 100% !important; "
-                             "min-height: 0 !important; }"}}
+TRANSPORTER_SEGMENTS = 20    # 5 % each
+
+
+def transporter_card():
+    """The light channels as vertical transporter-console sliders (ha/www/lcars-transporter.js)."""
+    return {"type": "custom:lcars-transporter", "min": 0, "max": 100, "step": 1, "segments": TRANSPORTER_SEGMENTS,
+            "channels": [{"entity": CHANNEL.format(name), "label": label, "colour": colour,
+                          "code": lcars_code(f"light/channel/{name}")} for name, label, colour in LIGHT_CHANNELS],
+            "off": BAR_OFF, "slot": rgba(PERI, 0.08), "handle": BONE, "text": PERI, "dim": GRAY, "ink": INK,
+            "label_h": f"calc({DATA_ROW} * 1.4)", "col_w": "clamp(70px, 7vw, 130px)",
+            "blink": [_BLINK.randrange(8000, 24000, 500) for _ in range(TRANSPORTER_SEGMENTS)],
+            "off_fraction": 0.025, "flash": "#FFFFFF", "gap": 3, "font": "Antonio, sans-serif"}
+
+
+LIGHT_CONFIG = "/config/aquarium_light_control.yaml"   # the light schedule (aquarium_light_control)
+HA_SSH = os.environ.get("HA_SSH", "hassio@homeassistant.local")
+
+
+@functools.cache
+def light_phases():
+    """The light schedule's phases, read from the HA host at build time (no HA entity exposes them):
+    start/end in minutes of the day, ramps, levels, a colour per phase. Rebuild after changing it."""
+    out = subprocess.run(["ssh", "-o", "MACs=hmac-sha2-256-etm@openssh.com", HA_SSH, f"sudo cat {LIGHT_CONFIG}"],
+                         capture_output=True, text=True, timeout=30)
+    if out.returncode != 0:
+        raise SystemExit(f"can't read {LIGHT_CONFIG} from {HA_SSH}: {out.stderr.strip()}")
+
+    def minutes(t):
+        t = str(t).strip()
+        if t in ("24:00", "24:00:00"):
+            return 1439                  # like the integration: end of day = 23:59
+        h, m = (t.split(":") + ["0"])[:2]
+        return int(h) % 24 * 60 + int(m)
+
+    return [{"name": p["name"], "start": minutes(p["start"]), "end": minutes(p["end"]),
+             "up": int(p.get("ramp_up_minutes", 0)), "down": int(p.get("ramp_down_minutes", 0)),
+             "levels": {str(k): int(v) for k, v in p.get("levels", {}).items()},
+             "colour": PHASE_STATES.get(p["name"], (None, None, PERI))[2]}
+            for p in yaml.safe_load(out.stdout).get("phases", [])]
+
+
+def phases_card():
+    """The light schedule over 24 h: a smooth shape per phase with its ramps, now line (ha/www/lcars-phases.js)."""
+    return {"type": "custom:lcars-phases", "phases": light_phases(), "min_height": 0.3,
+            "colours": {"grid": rgba(PERI, 0.15), "text": GRAY, "now": ORANGE}, "font": "Antonio, sans-serif"}
+
+
+def s_joint(upper, lower, title):
+    """The shared bar where one frame runs into the next, making an S: `upper` and `lower` are
+    (side, colour, pillar width) of the frame above (open at the bottom) and below (open at the top), their
+    pillars on opposite sides. The upper frame's bottom shoulder and the lower frame's top shoulder sit on
+    the same bar, which carries `title` next to the lower frame's shoulder."""
+    (su, cu, pu), (sl, cl, pl) = upper, lower
+    corner = lambda pw: pw + PANEL_CORNER - PANEL_T + 8          # noqa: E731 (as panel() with a pillar)
+    off = PANEL_CORNER - PANEL_T
+    title_w = int(len(title) * PANEL_T * 0.42) + 18
+    right = sl == "right"                                        # the title sits on the lower frame's side
+    title_card = {"type": "custom:lcards-button", "preset": "text-only", "show_icon": False, "interactive": False,
+                  "text": {"t": {"content": title, "position": "center-right" if right else "center-left",
+                                 "font_size": PANEL_T, "color": cl, "text_transform": "uppercase",
+                                 "padding": {"right" if right else "left": 10}}}}
+    # the long part of the bar in the upper frame's colour, the short piece by the title in the lower one's
+    left_c, right_c = (cu, cl) if right else (cl, cu)
+    bar = grid('"a t b"', f"1fr {title_w}px 14px" if right else f"14px {title_w}px 1fr", "1fr",
+               [at(block(left_c), "a"), at(title_card, "t"), at(block(right_c), "b")], gap="0 6px")
+    # the upper shoulder's bar is at the bottom of its box, the lower one's at the top: offset to share it
+    up = at(panel_elbow(f"footer-{su}", cu, pu), "u" if su == "left" else "l", margin=f"0 0 {off}px 0")
+    low = at(panel_elbow(f"header-{sl}", cl, pl), "l" if sl == "right" else "u", margin=f"{off}px 0 0 0")
+    lw, rw = (corner(pu), corner(pl)) if su == "left" else (corner(pl), corner(pu))
+    return grid('"u m l"', f"{lw}px 1fr {rw}px", "1fr", [up, at(bar, "m", margin=f"{off}px 0"), low], gap="0 6px")
+
+
+def s_chain(parts):
+    """Frames stacked into an S (or a double S): parts = [(frame, height), joint, (frame, height), ...,
+    optionally None last: the rest stays black]. A frame above a joint overlaps it by 2 px, so fractional
+    zoom (110 %) leaves no hairline."""
+    rows, cards = [], []
+    for i, part in enumerate(parts):
+        name = f"r{i}"
+        if part is None:
+            rows.append("1fr")
+            cards.append(at(block(INK), name))       # nothing there; a card keeps the areas simple
+        elif isinstance(part, tuple):
+            frame, height = part
+            last = i == len(parts) - 1
+            cards.append(at(frame, name, **({} if last else {"margin": "0 0 -2px 0"})))
+            rows.append(height)
+        else:
+            cards.append(at(part, name))
+            rows.append(f"{2 * PANEL_CORNER - PANEL_T}px")
+    return grid(" ".join(f'"r{i}"' for i in range(len(parts))), "1fr", " ".join(rows), cards, gap="0")
+
+
+LIGHT_PLUG = "switch.chihiros_wrgb2_slim_90"      # smart plug powering the light (auto power-cycle)
+LIGHT_ENTITY = "light.esszimmer_chihiros_wrgb2_slim_90_ble_xxxxxxxxxxxxxxxxxx_rgb"
+LIGHT_BLE = "sensor.esszimmer_chihiros_wrgb2_slim_90_ble_xxxxxxxxxxxxxxxxxx_last_notification"
+LOG_LEVELS = {"info": PERI, "ok": ICE, "warn": SUNFLOWER, "flap": BUTTERSCOTCH, "error": RED, "ble": GRAY}
+
+
+def light_log_card():
+    """Device log of the light and its plug (ha/www/lcars-log.js): phase changes, automation, light on/off,
+    plug power, flapping/offline, protection flags, firmware, raw BLE notifications (collapsed bursts). Each
+    line gets a descriptive detail; phase lines name the schedule's target levels."""
+    levels = {p["name"]: p["levels"] for p in light_phases()}
+
+    def rgb(name):
+        lv = levels.get(name, {})
+        return f"emitter array R {lv.get('red', 0)} · G {lv.get('green', 0)} · B {lv.get('blue', 0)}"
+
+    ramp = {p["name"]: (p["up"], p["down"]) for p in light_phases()}.get("Daylight", (0, 0))
+    phase = {
+        "Daylight": ["Daylight", "info", f"Illumination cycle nominal · {rgb('Daylight')}"],
+        "Daylight (ramping up)": ["Ramp up", "info", f"Emitter ramp initiated · plateau in {ramp[0]} min"],
+        "Daylight (ramping down)": ["Ramp down", "info", f"Emitter ramp-down initiated · dark in {ramp[1]} min"],
+        "Moonlight": ["Moonlight", "info", f"Nocturnal cycle engaged · {rgb('Moonlight')}"],
+        "Off": ["Off", "info", "Emitter array standing down · all channels at zero"],
+        "Manual Override": ["Manual override", "warn", "Sequencer suspended · channel levels under manual control"],
+    }
+    guards = [("uberhitzung", "Overtemperature", "Temperature ok", "Thermal cutoff tripped · plug protection active",
+               "Thermal limits restored · protection reset"),
+              ("uberlast", "Overload", "Load ok", "Load limit exceeded · relay protection active",
+               "Load within tolerance · protection reset"),
+              ("uberspannung", "Overvoltage", "Voltage ok", "Supply voltage above tolerance · relay protection active",
+               "Supply voltage nominal · protection reset"),
+              ("uberstrom", "Overcurrent", "Current ok", "Current draw above tolerance · relay protection active",
+               "Current draw nominal · protection reset")]
+    link = {"flap": "Link interruption · carrier reacquired, telemetry resumed",
+            "offline": "Link lost · no telemetry from device",
+            "online": "Link restored after {d} · telemetry resumed"}
+    sources = [
+        {"entity": PHASE, "tag": "Phase", "states": phase, "details": link},
+        {"entity": LIGHT_AUTO, "tag": "Auto", "details": link, "states": {
+            "on": ["Schedule", "ok", "Automatic sequencer engaged · following phase table"],
+            "off": ["Manual", "warn", "Automatic sequencer disengaged · awaiting manual input"]}},
+        {"entity": LIGHT_ENTITY, "tag": "Light", "details": link, "states": {
+            "on": ["On", "info", "BLE command acknowledged · emitter array active"],
+            "off": ["Off", "info", "BLE command acknowledged · emitter array dark"]}},
+        {"entity": LIGHT_PLUG, "tag": "Plug", "details": link, "states": {
+            "on": ["Power on", "ok", "Power relay closed · emitter bus energized"],
+            "off": ["Power off", "error", "Power relay open · emitter bus de-energized"]}},
+        *[{"entity": f"binary_sensor.chihiros_wrgb2_slim_90_{key}", "tag": "Plug", "details": link,
+           "states": {"on": [bad, "error", bad_d], "off": [good, "ok", good_d]}}
+          for key, bad, good, bad_d, good_d in guards],
+        {"entity": "update.chihiros_wrgb2_slim_90_firmware", "tag": "Firmware", "details": link, "states": {
+            "on": ["Update available", "warn", "New firmware package staged · install pending"],
+            "off": ["Up to date", "ok", "Firmware verified · no update pending"]}},
+        {"entity": LIGHT_BLE, "tag": "BLE", "burst": True,
+         "default": [None, "ble", "Notification frames received · controller handshake"]},
+    ]
+    return {"type": "custom:lcars-log", "sources": sources, "hours": 24, "refresh_s": 60, "flap_s": 60,
+            "burst_s": 60, "max_lines": 40, "levels": LOG_LEVELS,
+            "colours": {"time": rgba(PERI, 0.55), "bright": "#DFE1E8"},
+            "cascade_ms": 3 * CASCADE_MS, "stagger_ms": 90, "font": "Antonio, sans-serif", "font_size": 15}
 
 
 def light_content():
-    """Phase control on top; below, facing frames: profile buttons | channel sliders."""
-    phase_colours = {k: v[2] for k, v in PHASE_STATES.items() if k != "Off"}
-    control = aq_panel("Phase control", SUNFLOWER, rows=[
-        state_row("Automation", PEACH, "light/auto", LIGHT_AUTO, on_off_js("Schedule", "Manual"),
-                  {"on": ICE, "off": SUNFLOWER}, {"off": SUNFLOWER}, toggle=True),
-        state_row("Current", SUNFLOWER, "light/current", PHASE, js_map(PHASE_STATES), phase_colours, {"Off": GRAY}),
+    """Left, as a double S (s_chain): "Phase control" (phase rows next to the day's phases as a graph) runs
+    into "Controls" (small LCARS buttons: automation on/off, the Fire and Chill profiles, numbered decorative
+    pills), which runs into "Device log" in whatever height is left. Right: the channels as vertical
+    transporter controls, as high as the page, pillar on the outer edge so its top bar meets Phase control's."""
+    rows = pillar_rows([
+        ("Current", SUNFLOWER, lcars_code("light/current"),
+         value_text(js_map(PHASE_STATES), PHASE, "left", {"default": PERI, "Off": GRAY, "Manual Override": SUNFLOWER})),
         plain_row("Scheduled", BONE, "light/scheduled", PHASE, "[[[ return entity.attributes.scheduled_phase || '–'; ]]]"),
         plain_row("Next", BONE, "light/next", PHASE,
                   "[[[ " + JS_HHMM_OF + "const a = entity.attributes; if (!a.next_change) return '–'; "
                   "return (a.next_phase || '?') + ' · ' + hhmm(a.next_change); ]]]"),
-        ("Ramp", BUTTERSCOTCH, lcars_code("light/ramp"),
-         with_bar(value_text("[[[ const a = entity.attributes; const f = a.ramp_fraction; "
-                             "if (f == null || !a.ramp_direction) return '–'; "
-                             "return a.ramp_direction + ' · ' + Math.round(f * 100) + ' %'; ]]]", PHASE),
-                  level_bar(PHASE, BUTTERSCOTCH, "ramp_fraction", 0, 1), "left")),
-    ])
+        plain_row("Ramp", BUTTERSCOTCH, "light/ramp", PHASE,
+                  "[[[ const a = entity.attributes; const f = a.ramp_fraction; "
+                  "if (f == null || !a.ramp_direction) return '–'; "
+                  "return a.ramp_direction + ' · ' + Math.round(f * 100) + ' %'; ]]]"),
+    ], filler=SUNFLOWER, label_w=AQ_LABEL_W)
+    # the graph takes the frame's width right of the values
+    body = grid('"r g"', f"calc(clamp(140px, 11vw, 220px) + {AQ_LABEL_W}px + 16px) 1fr", "1fr",
+                [at(rows, "r"), at(phases_card(), "g", margin="4px 0 8px 0")], gap="0 18px")
+    control = panel("Phase control", SUNFLOWER, pillar=AQ_LABEL_W, content=body, bottom=False)
+
+    def small(card):                  # smaller pill: text and number sized like the dosing buttons
+        card["text"]["label"].update({"font_size": 17, "padding": {"right": 16, "bottom": 4}})
+        card["text"]["code"]["padding"] = {"left": 16, "top": 4}
+        return card
 
     def profile(label, levels, colour):
-        blk = block(colour, label, lcars_code(f"light/profile/{label}"), align="center-right", size=17)
-        blk.update({"interactive": True, "tap_action": {"action": "call-service",
-                                                        "service": "aquarium_light_control.set_override",
-                                                        "service_data": {"levels": levels}}})
-        text = f"R {levels['red']} · G {levels['green']} · B {levels['blue']}"
-        return (blk, colour, None, value_text(f"[[[ return '{text}'; ]]]", PHASE, "right"))
+        card = mode_button(label, LIGHT_AUTO, colour, colour, f"light/profile/{label}")
+        card["style"]["card"]["color"]["background"] = colour
+        card.update({"tap_action": {"action": "call-service", "service": "aquarium_light_control.set_override",
+                                    "service_data": {"levels": levels}}, "hold_action": {"action": "none"}})
+        return small(card)
 
-    resume = block(ICE, "Resume", lcars_code("light/profile/resume"), align="center-right", size=17)
-    resume.update({"interactive": True, "tap_action": {"action": "call-service", "service": "switch.turn_on",
-                                                       "target": {"entity_id": LIGHT_AUTO}}})
-    profiles = aq_panel("Profiles", ROSE, side="right", label_w=DATA_LABEL_W, rows=[
-        *[profile(label, levels, colour) for label, levels, colour in LIGHT_PROFILES],
-        (resume, ICE, None, value_text(on_off_js("Schedule active", "Override"), LIGHT_AUTO, "right",
-                                       {"default": PERI, "off": SUNFLOWER})),
-    ])
-    channels = aq_panel("Channels · sets manual override", BUTTERSCOTCH, label_w=DATA_LABEL_W, rows=[
-        (label, colour, lcars_code(f"light/channel/{name}"),
-         with_bar(value_text("{entity.state}", CHANNEL.format(name)), channel_slider(name, colour), "left",
-                  width="clamp(70px, 6vw, 110px)"))
-        for name, label, colour in LIGHT_CHANNELS])
-    lower = grid('"p c"', "1fr 1.4fr", "1fr", [at(profiles, "p"), at(channels, "c")], gap="0 8px")
-    return grid('"t" "l" "."', "1fr", f"{data_panel_height(5)} {data_panel_height(3)} 1fr",
-                [at(control, "t"), at(lower, "l")], gap="clamp(12px, 2vh, 24px) 8px")
+    def deco(i, colour):              # numbered pill without a function
+        card = block(colour, None, lcars_code(f"light/controls/deco/{i}"))
+        card["style"]["border"] = {"width": 0, "radius": 40}
+        card["text"]["code"]["padding"] = {"left": 16, "top": 4}
+        return card
+
+    buttons = [small(mode_button(on_off_js("Automation", "Manual"), LIGHT_AUTO, ICE, SUNFLOWER, "light/auto")),
+               *[profile(label, levels, colour) for label, levels, colour in LIGHT_PROFILES],
+               *[deco(i, c) for i, c in enumerate([LILAC, PEACH, BONE, PERI, ALMOND])]]
+    names = "abcdefgh"
+    button_grid = grid('"a b c d" "e f g h"', "1fr 1fr 1fr 1fr", "1fr 1fr",
+                       [at(c, n) for c, n in zip(buttons, names)], gap="8px 12px")
+    def controls(bottom):
+        return panel("Controls", ROSE, side="right", pillar=DECOR_PILLAR_W, top=False, bottom=bottom, caption=False,
+                     content=with_decor_pillar(button_grid, "light/controls", [PEACH], filler=ROSE))
+
+    # whatever height is left shows the device log; its bottom bar lines up with the Channels frame's.
+    # Priority 3: on shorter screens (the tablet) it isn't rendered and Controls closes the S itself.
+    log = panel("Device log", LILAC, pillar=DECOR_PILLAR_W, top=False, caption=False,
+                content=with_decor_pillar(light_log_card(), "light/log", [PEACH, BONE], side="left", filler=LILAC))
+    upper_h = f"calc({data_panel_height(5)} - {PANEL_CORNER}px)"
+    to_controls = s_joint(("left", SUNFLOWER, AQ_LABEL_W), ("right", ROSE, DECOR_PILLAR_W), "Controls")
+    double_s = s_chain([(control, upper_h), to_controls,
+                        (controls(False), f"calc({data_panel_height(2)} - {2 * PANEL_CORNER}px)"),
+                        s_joint(("right", ROSE, DECOR_PILLAR_W), ("left", LILAC, DECOR_PILLAR_W), "Device log"),
+                        (log, "1fr")])
+    single_s = s_chain([(control, upper_h), to_controls,
+                        (controls(True), f"calc({data_panel_height(2)} - {PANEL_CORNER}px)"), None])
+    left = tiered({3: double_s, 1: single_s})
+    # pillar on the outer edge: its top bar continues Phase control's across the middle
+    channels = panel("Channels", BUTTERSCOTCH, side="right", pillar=DECOR_PILLAR_W,
+                     content=with_decor_pillar(transporter_card(), "light/channels", [PEACH, ALMOND, SUNFLOWER],
+                                               side="right", filler=BUTTERSCOTCH))
+    return grid('"l ch"', "1.2fr 1fr", "1fr", [at(left, "l"), at(channels, "ch")], gap="0 8px")
 
 
 TANK_SEGMENTS = 20           # 25 ml each in a 500 ml bottle
@@ -1433,7 +1649,8 @@ def chart_height():
 
 
 def power_content():
-    """Power grid (the block colours are the chart's legend) above the mirrored 24 h chart."""
+    """Power grid (the block colours are the chart's legend) above the mirrored 24 h chart (priority 2:
+    too flat to read below its viewport height, so not rendered there)."""
     grid_panel = aq_panel("Power grid", ALMOND, label_w=DATA_LABEL_W, rows=[
         (label, colour, lcars_code(f"power/{label}"),
          with_bar(value_text("{entity.state}", e), data_bar(e, colour, "level", BAR_SEGMENTS, "left", min=0, max=hi),
@@ -1444,7 +1661,7 @@ def power_content():
     trace = panel("Power visualization · 24 h", ORANGE, pillar=DECOR_PILLAR_W,
                   content=with_decor_pillar(chart, "power/chart", [ALMOND, PEACH, BONE], side="left", filler=ORANGE))
     return grid('"g" "t" "."', "1fr", f"{data_panel_height(4)} {chart_height()} 1fr",
-                [at(grid_panel, "g"), at(trace, "t")], gap="clamp(12px, 2vh, 24px) 8px")
+                [at(grid_panel, "g"), at(shown_from(trace, 2), "t")], gap="clamp(12px, 2vh, 24px) 8px")
 
 
 def osmosis_content():
@@ -1467,7 +1684,7 @@ def osmosis_content():
     ])
     trace = panel("Power trace", ORANGE, pillar=DECOR_PILLAR_W, content=power_card(o["power"], "osmosis"))
     return grid('"u" "t" "."', "1fr", f"{data_panel_height(4)} {chart_height()} 1fr",
-                [at(unit, "u"), at(trace, "t")], gap="clamp(12px, 2vh, 24px) 8px")
+                [at(unit, "u"), at(shown_from(trace, 2), "t")], gap="clamp(12px, 2vh, 24px) 8px")
 
 
 def english_labels(card):
@@ -1496,9 +1713,11 @@ def calendar_content():
 
 
 def agenda_content():
-    nxt = column([("h", header("Next per calendar", ORANGE))] +
-                 [("p", agenda_row(ALL_CALS, i, [ORANGE, PEACH, LILAC, PERI, ICE][i % 5], names=BIN_NAMES))
-                  for i in range(10)])
+    def nxt_list(n):
+        return column([("h", header("Next per calendar", ORANGE))] +
+                      [("p", agenda_row(ALL_CALS, i, [ORANGE, PEACH, LILAC, PERI, ICE][i % 5], names=BIN_NAMES))
+                       for i in range(n)])
+    nxt = tiered({3: nxt_list(10), 2: nxt_list(9), 1: nxt_list(8)})      # as many rows as fit
     return cols(nxt, framed("Agenda · 60 days", BLUEY, calendar_card("agenda")), widths=["1fr", "1.4fr"])
 
 
