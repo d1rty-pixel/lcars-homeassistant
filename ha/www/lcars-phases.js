@@ -13,13 +13,16 @@
 //   colours: {grid, text, now}
 //   font: "Antonio, sans-serif"
 // Fluid sizes, the same as the generator's (Len, font() in build_dashboard.py): full size from REF_H
-// viewport height up, shrinking below it: sizes to 60 % (sz), fonts to 80 % (fz; LCARS numbers to 67 %).
-// len(): a size from the config (a number of px or a CSS length) as CSS.
-const REF_H = 720;
-const fluid = (px, lo) => `clamp(${+(px * lo).toFixed(2)}px, ${+(px * 100 / REF_H).toFixed(3)}dvh, ${px}px)`;
+// viewport height up, shrinking linearly below it to a minimum share at MIN_H: sizes to 60 % (sz), fonts to
+// 80 % (fz; LCARS numbers to 67 %). len(): a size from the config (a number of px or a CSS length) as CSS.
+const REF_H = 720, MIN_H = 400;
+const fluid = (px, lo) => {
+  const k = px * (1 - lo) / (REF_H - MIN_H), c = px * lo - k * MIN_H, n = (x) => +x.toFixed(3);
+  return `clamp(${n(px * lo)}px, calc(${n(k * 100)}dvh ${c < 0 ? "-" : "+"} ${n(Math.abs(c))}px), ${px}px)`;
+};
 const fz = (px, lo = 0.8) => fluid(px, lo);
 const sz = (px) => fluid(px, 0.6);
-const scale = () => Math.min(1, Math.max(0.6, window.innerHeight / REF_H));   // sz(px) = px * scale()
+const scale = () => Math.min(1, Math.max(0.6, 0.6 + 0.4 * (window.innerHeight - MIN_H) / (REF_H - MIN_H)));   // sz(px) = px * scale()
 const len = (v) => (typeof v === "number" ? `${v}px` : v);
 
 class LcarsPhases extends HTMLElement {

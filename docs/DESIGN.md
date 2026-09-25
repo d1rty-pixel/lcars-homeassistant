@@ -89,9 +89,14 @@ page.** The migration plan below records how the pages got there.
 
 - **Fluid sizes** (`Len`, `fl()`, `font()` in the generator; `sz()`, `fz()`, `len()` in the cards): every
   size is written at its full value, which it keeps from `REF_H` (720 px) viewport height up, so the
-  tablet and the desktop look exactly as before. Below that it shrinks with the height, down to 60 %
-  (`S_MIN`, reached at 432 px). Fonts shrink to 80 % (`F_MIN`), LCARS numbers in blocks to 67 %
-  (`CODE_LO`), label columns to 75 % (`LABEL_LO`, so their labels keep fitting), sidebar labels to 70 %.
+  tablet and the desktop look exactly as before. Below that it shrinks linearly with the height to its
+  minimum share, reached at `MIN_H` (400 px): 60 % by default (`S_MIN`), fonts 80 % (`F_MIN`), LCARS
+  numbers in blocks 67 % (`CODE_LO`), label columns 75 % (`LABEL_LO`, so their labels keep fitting),
+  sidebar labels 70 %.
+- **The frame shrinks much more than the content** (user decision: small screens get slim frames and
+  shoulders): sidebar/pillar width 50 % (140 → 70 px), mid bar and its titles 47 % (43 → 20), inner
+  curves and elbow extensions 35 %, panel shoulders 50 %, panel pillars and decorative pillars 45 %,
+  main margin 40 %, foot bar 80 % (it carries the phone's menu).
   Rows that already grew with `vh` keep doing so above 720 px and shrink below it (e.g. `DATA_ROW`:
   28 px at 720, 22 px on a phone).
 - A `Len` renders as CSS (`clamp(84px, 19.444vh, 140px)`, sums as `calc()`), and the generator keeps doing
@@ -112,6 +117,8 @@ page.** The migration plan below records how the pages got there.
   (Automation, Fire, Chill); Dosing's Schedule/Refill pills without numbers. Frame titles may be clipped
   where a frame is narrower than its title (Dosing's channel frames).
 - HA pads the view by the safe areas (notch, home indicator); the view's height leaves them out.
+- Heights are `dvh` (the visible height): on iOS `vh` is the height without the browser's toolbars, which
+  made every size too big in Chrome on iOS.
 
 ## Page frame (reference: Media)
 

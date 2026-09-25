@@ -40,10 +40,12 @@ _FOREIGN = {}
 
 # ── Fluid sizes (docs/DESIGN.md "Responsive sizes") ─────────────────────────────
 # One layout for every screen: frame and content sizes follow the viewport height. A size is given at its
-# full value (reached at REF_H and above, i.e. on the tablet and the desktop) and shrinks with the height
-# below that, down to S_MIN of it (phones in landscape). Fonts shrink less (F_MIN), so they stay readable.
+# full value (reached at REF_H and above, i.e. on the tablet and the desktop) and shrinks linearly with the
+# height below that, down to its minimum share at MIN_H (phones in landscape): S_MIN by default, much less
+# for the frame's pieces (FRAME_LO), less for fonts (F_MIN), so text stays readable.
 REF_H = 720          # viewport height from which every size is at its full value
-S_MIN = 0.6          # smallest scale for sizes (reached at 432 px viewport height)
+MIN_H = 400          # viewport height at which every size has reached its minimum
+S_MIN = 0.6          # default minimum share for sizes
 F_MIN = 0.8          # smallest scale for fonts
 PHONE_H = 520        # below this viewport height: the phone placement (no header, menu in the foot bar)
 
@@ -100,8 +102,11 @@ class Len:
 
     @staticmethod
     def _clamp(s, lo):
+        """s at REF_H and above, s * lo at MIN_H and below, linear in between: k * 100dvh + c."""
         a, b = sorted((s * lo, s))
-        return f"clamp({_num(a)}px, {_num(s * 100 / REF_H)}dvh, {_num(b)}px)"
+        k = s * (1 - lo) / (REF_H - MIN_H)
+        c = s * lo - k * MIN_H
+        return f"clamp({_num(a)}px, calc({_num(k * 100)}dvh {'+' if c >= 0 else '-'} {_num(abs(c))}px), {_num(b)}px)"
 
     def __str__(self):
         parts = [self._clamp(v, lo) for lo, v in sorted(self.terms.items())]
@@ -224,9 +229,12 @@ HEADER_FAMILY = (BLUEY, PERI, ICE, LILAC, VIOLET)   # main frame: ORANGE, BUTTER
 ACTIVE = "#F3F3FC"   # near-white, so the active item stands out in every family
 SIDEBAR_COLOURS = (PEACH, BUTTERSCOTCH, ALMOND)   # sub-view blocks, in turn
 
-PILLAR = fl(140)    # width of the vertical frame bars / sidebar
-BAR = 10            # thickness of the horizontal frame bars (LCARdS elbows need at least 10)
-ELBOW_W = PILLAR + fl(44)
+# The frame's pieces shrink much more than the content on short screens (minimum shares at MIN_H):
+PILLAR = Len(140, lo=0.5)       # width of the vertical frame bars / sidebar (70 px on phones)
+BAR = 10                        # thickness of the horizontal frame bars (LCARdS elbows need at least 10)
+ELBOW_EXT = Len(44, lo=0.35)    # how far an elbow reaches beyond its pillar
+ELBOW_W = PILLAR + ELBOW_EXT
+MAIN_MARGIN = Len(18, lo=0.4)   # between the sidebar and the content
 
 THEME = "LCARS Aquarium"
 
@@ -344,7 +352,7 @@ def segments(colors_fr, position):
     return grid(areas, cols, rows, [at(block(c), n) for (c, _), n in zip(colors_fr, names)], gap="0 6px")
 
 
-INNER_CURVE = fl(24)          # one inner radius for every corner around the content
+INNER_CURVE = Len(24, lo=0.35)         # one inner radius for every corner around the content
 FRAME_H = BAR + INNER_CURVE   # height of the frame row above the sidebar/content (the foot row: FOOT_H)
 
 
@@ -472,7 +480,7 @@ SECTIONS = [
 SECTION_TITLES = {"home": "Operations"}   # page title where it differs from the menu label
 
 SHORT_LABELS = {"aquarium": "Aqua", "calendar": "Cal"}   # the phone's section menu in the foot bar
-FOOT_NAV_FONT = 15
+FOOT_NAV_FONT = 14
 NAV_ORDER = ["home", "aquarium", "laundry", "waste", "calendar", "media"]
 NAV_H = fl(43)      # height of the header frame bar, which doubles as the section menu (every page)
 
@@ -560,11 +568,11 @@ def header_buttons(section, colours=HEADER_FAMILY[:4]):
 
 
 FOOT_FONT = 20                    # text in the foot bar; the bar's thickness and the foot row follow it
-FOOT_T = FOOT_FONT + 6            # foot bar thickness = height of the clock and the stardate block
+FOOT_T = Len(FOOT_FONT + 6, lo=0.8)   # foot bar thickness = height of the clock and the stardate block
 FOOT_H = FOOT_T + INNER_CURVE     # foot row: the bar plus the inner curve above it
-CLOCK_W = int(22 * FOOT_T * 0.37) + 24   # "FRI 25/09/2026 · 14:32" at bar height (Antonio digits ~0.37 em)
+CLOCK_W = int(22 * (FOOT_FONT + 6) * 0.37) + 24   # "FRI 25/09/2026 · 14:32" at bar height (Antonio digits ~0.37 em)
 STARDATE_W = int(16 * FOOT_FONT * 0.44) + 80   # label plus room for the code on the left
-CLOCK_W_PHONE = 100               # the phone's foot bar: short time, or the pump alert (see clock(phone=True))
+CLOCK_W_PHONE = 90               # the phone's foot bar: short time, or the pump alert (see clock(phone=True))
 CLOCK_JS = ("[[[ const d = new Date(), p = (n) => String(n).padStart(2, '0'); "
             "return d.toLocaleDateString('en-GB', {weekday: 'short'}) + ' ' + p(d.getDate()) + '/' "
             "+ p(d.getMonth() + 1) + '/' + d.getFullYear() + ' · ' + p(d.getHours()) + ':' + p(d.getMinutes()); ]]]")
@@ -665,9 +673,9 @@ def frame(section, active, content, subtitle, mid_bars=None, mid_t=BAR, right=No
         # the left: a numbered block over a shoulder from the nav bar, as wide as the page's right side below
         rw = right[1]
         top_cards += [at(block(VIOLET, None, lcars_code(f"header-right/{section}")), "rc",
-                         margin=f"0 0 {Len.of(PANEL_GAP + 2)} {fl(44)}"),
+                         margin=f"0 0 {Len.of(PANEL_GAP + 2)} {ELBOW_EXT}"),
                       at(frame_elbow("footer-right", LILAC, rw, nav_h, rw // 2), "re")]
-        top = grid('"cl data rc" "elbow data re" "elbow nav re"', f"{ELBOW_W} 1fr {rw + fl(44)}",
+        top = grid('"cl data rc" "elbow data re" "elbow nav re"', f"{ELBOW_W} 1fr {rw + ELBOW_EXT}",
                    f"{CLASSIC_H} 1fr {nav_h}", top_cards, gap="0 6px")
     else:
         top = grid('"cl data" "elbow data" "elbow nav"', f"{ELBOW_W} 1fr", f"{CLASSIC_H} 1fr {nav_h}", top_cards,
@@ -686,7 +694,7 @@ def frame(section, active, content, subtitle, mid_bars=None, mid_t=BAR, right=No
         areas, widths = '"e b" "e ."', f"{ELBOW_W} 1fr"
         if right:
             cards.append(at(frame_elbow("header-right", right[0], right[1], mid_t, h), "r"))
-            areas, widths = '"e b r" "e . r"', f"{ELBOW_W} 1fr {right[1] + fl(44)}"
+            areas, widths = '"e b r" "e . r"', f"{ELBOW_W} 1fr {right[1] + ELBOW_EXT}"
         mid = grid(areas, widths, f"{Len.of(mid_t)} 1fr", cards, gap="0 6px")
     side = sidebar(section, active, here)
     # the foot bar is as thick as its text and ends in the local date/time (in a gap of the bar, like a
@@ -706,13 +714,13 @@ def frame(section, active, content, subtitle, mid_bars=None, mid_t=BAR, right=No
             foot_colour = right[2] if len(right) > 2 else right[0]    # the pillar that runs into it may differ
             cards.append(at(frame_elbow("footer-right", foot_colour, right[1], FOOT_T, FRAME_H), "r"))
             areas = areas.replace('."', '. r"').replace('clock"', 'clock r"').replace('sd"', 'sd r"')
-            widths += f" {right[1] + fl(44)}"
+            widths += f" {right[1] + ELBOW_EXT}"
         return grid(areas, widths, f"1fr {Len.of(FOOT_T)}", cards + [
             at(elbow("footer-left", ALMOND, bar_height=FOOT_T), "elbow"), at(bars, "bars"),
             at(block(ORANGE), "cap"), at(clock(phone), "clock")], gap="0 6px")
 
     foot = tiered({1: foot_bar(False), 0: foot_bar(True)})
-    main_margin = main_margin or (f"4px 0 4px {fl(18)}" if not right else f"0 0 0 {fl(18)}")
+    main_margin = main_margin or (f"4px 0 4px {MAIN_MARGIN}" if not right else f"0 0 0 {MAIN_MARGIN}")
     return [at(shown_from(top, 1), "top"), at(mid, "mid"), at(side, "side"),
             at(content, "main", margin=main_margin), at(foot, "foot")]
 
@@ -1045,7 +1053,7 @@ def _ops_content(rows, shoulders=True):
                 gap=f"0 {Len.of(FRAME_GAP)}")
 
 
-DECOR_PILLAR_W = fl(90)     # pillar of decorative blocks next to embedded content (radar, forecast)
+DECOR_PILLAR_W = Len(90, lo=0.45)     # pillar of decorative blocks next to embedded content (radar, forecast)
 
 
 def with_decor_pillar(content, key, colours, side="right", filler=None, width=DECOR_PILLAR_W, row=None):
@@ -1158,8 +1166,8 @@ DATA_ROW, DATA_GAP = f"clamp({Len(28, lo=0.8)}, 3.8dvh, 46px)", TL_GAP
 DATA_LABEL_W = Len(130, lo=LABEL_LO)     # label blocks = pillar of the data panels
 
 PANEL_T = fl(26)        # bar thickness of a panel frame; the title sits in it, so it must fit the font
-PANEL_PILLAR = fl(26)   # width of its pillar
-PANEL_CORNER = fl(46)   # size of the shoulder (elbow card)
+PANEL_PILLAR = Len(26, lo=0.45)  # width of its pillar
+PANEL_CORNER = Len(46, lo=0.5)  # size of the shoulder (elbow card)
 PANEL_GAP = TL_GAP  # gap between the pieces of a pillar
 
 
@@ -2197,7 +2205,7 @@ def library_card():
 # The mid bar of the page frame carries the titles and context buttons of the content columns below it
 # (docs/DESIGN.md "Page frame"). top_bars() splits it exactly where those columns split.
 FRAME_GAP = 6          # between the top row's content columns, as between the bar pieces above them
-TOP_BAR_T = fl(43)        # a mid bar that carries buttons
+TOP_BAR_T = Len(43, lo=0.47)       # a mid bar that carries buttons
 
 
 def top_bars(columns, pieces, right_w=None):
@@ -2210,8 +2218,8 @@ def top_bars(columns, pieces, right_w=None):
     bar starts after the left elbow (ELBOW_W + 6) and ends before the right shoulder. With the bar's
     width B as 100 %, every column edge is a * B + b (b a Len), written as CSS calc()."""
     assert sum(n for n, _ in pieces) == len(columns)
-    g, x0, b0 = FRAME_GAP, PILLAR + fl(18), ELBOW_W + 6
-    shoulder = right_w + fl(44) + 6 if right_w else 0
+    g, x0, b0 = FRAME_GAP, PILLAR + MAIN_MARGIN, ELBOW_W + 6
+    shoulder = right_w + ELBOW_EXT + 6 if right_w else 0
     px = [Len.of(0) if isinstance(c, str) else c for c in columns]
     fr = [float(c[:-2]) if isinstance(c, str) else 0 for c in columns]
     free = b0 + shoulder - x0 - sum(px, Len()) - (len(columns) - 1) * g   # content width minus px and gaps = B + free
