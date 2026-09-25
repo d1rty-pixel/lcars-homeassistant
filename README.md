@@ -238,5 +238,10 @@ A git-ignored `CLAUDE.local.md` (or any other ignored file) can hold notes about
 - Radar data and borders: [Deutscher Wetterdienst](https://www.dwd.de) (GeoServer WMS/WFS)
 - The layout is inspired by [Titan.DS](https://www.mewho.com/titan/)
 
+## License
+
+[MIT](LICENSE). The license covers this repo's code and docs, not the projects it builds on
+(LCARdS, HA-LCARS), which have their own licenses, and not DWD's data.
+
 LCARS and Star Trek are trademarks of CBS Studios / Paramount. This is an unofficial fan project with
 no affiliation.
