@@ -217,6 +217,15 @@ next to values, restrained colour.
   - *Osmosis*: like Laundry: "RO unit" (unit with auto-off time and pending
     firmware update, Mode, Power 0..40 W, Energy) and the power trace with
     range buttons. Four rows, so the trace keeps its height on the tablet.
+- **Media** (header: Audio state, Output device): facing frames "Now playing" (orange, pillar left
+  = transport buttons Play/Pause, Back, Next, Shuffle, Repeat; shuffle/repeat ice while on, grey off)
+  and "Library" (violet, pillar right = categories Playlists, Albums, Artists, Recent, Top tracks, then
+  Up/Down paging). Now playing: square cover art, title/artist/album/status, a 40-segment progress bar
+  (tap to seek), a 20-segment volume slider (drag, sent on release), Spotify Connect devices as pills
+  (active one orange with "◂"). Library rows play on tap; artists open first ("Back" row returns). Both
+  are `lcars-player.js`. The entity is `media_player.spotify_*`, looked up live at build time
+  (`spotify_entity()`), so relinking Spotify under another account only needs a rebuild. Classic opens
+  HA's media browser.
 - **Calendar pages** (older style): flat dark-tinted rows with a state-coloured
   left stripe, small section headers.
 
@@ -233,6 +242,7 @@ next to values, restrained colour.
 | `lcars-week.js` | next days of all calendars (refreshes HA's calendars first) |
 | `lcars-forecast.js` | hourly forecast (weather/subscribe_forecast) |
 | `lcars-radar.js` | DWD radar with its own control pillar |
+| `lcars-player.js` | Spotify now playing with transport pillar (`lcars-player`) and library browser (`lcars-library`) |
 | `lcars-power.js` | power chart with its own range-button pillar (LCARdS charts stop at 168 h) |
 | `lcars-motion.js` | not a card: motion switch, `?lcars_bars=` |
 

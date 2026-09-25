@@ -362,12 +362,16 @@ SECTIONS = [
         ("calendar", "Calendar", lcars_code("view/calendar"), BLUEY, "calendar"),
         ("agenda", "Agenda", lcars_code("view/agenda"), PERI, "calendar-agenda"),
     ]),
+    # no original dashboard: Classic opens HA's media browser
+    ("media", "Media", lcars_code("section/media"), ALMOND, "/media-browser/browser", [
+        ("media", "Player", lcars_code("view/media"), ALMOND, "media"),
+    ]),
 ]
 
 
 SECTION_TITLES = {"home": "Operations"}   # page title where it differs from the menu label
 
-NAV_ORDER = ["home", "aquarium", "laundry", "waste", "calendar"]
+NAV_ORDER = ["home", "aquarium", "laundry", "waste", "calendar", "media"]
 NAV_H = 38          # height of the header frame bar, which doubles as the section menu
 
 
@@ -740,6 +744,14 @@ def section_readouts(section):
             number_columns(),
             (header_buttons("waste"), "wide"),
 
+        ]
+    if section == "media":
+        return [
+            readout(SPOTIFY, "Audio", "[[[ return " + JS_MEDIA_STATUS + "; ]]]",
+                    {"playing": ICE, "paused": SUNFLOWER, "default": GRAY}),
+            readout(SPOTIFY, "Output", "[[[ return entity.attributes.source || '—'; ]]]", PEACH),
+            number_columns(),
+            (header_buttons("media"), "wide"),
         ]
     if section == "calendar":
         nxt = "[[[ " + js_events(ALL_CALS) + "const e = ev[0]; if (!e) return '—'; const n = " + \
@@ -1687,6 +1699,60 @@ def osmosis_content():
                 [at(unit, "u"), at(shown_from(trace, 2), "t")], gap="clamp(12px, 2vh, 24px) 8px")
 
 
+# ── Media (Spotify) ─────────────────────────────────────────────────────────────
+def spotify_entity():
+    """The Spotify integration names its media player after the account (media_player.spotify_<name>):
+    take the live one at build time, so linking the account only needs a rebuild."""
+    ids = sorted(st["entity_id"] for st in ha_ws.Client().call({"type": "get_states"})["result"]
+                 if st["entity_id"].startswith("media_player.spotify"))
+    return ids[0] if ids else "media_player.spotify"
+
+
+SPOTIFY = spotify_entity()
+JS_MEDIA_STATUS = ("({playing: 'Playing', paused: 'Paused', buffering: 'Buffering', idle: 'Standby', "
+                   "on: 'Standby', off: 'Off', unavailable: 'Offline'})[entity.state] || entity.state")
+# browse_media categories of the Spotify integration (end of the root children's media_content_id)
+LIBRARY = [("current_user_playlists", "Playlists", PEACH), ("current_user_saved_albums", "Albums", ICE),
+           ("current_user_followed_artists", "Artists", LILAC), ("current_user_recently_played", "Recent", BONE),
+           ("current_user_top_tracks", "Top tracks", ALMOND)]
+
+
+def player_card():
+    """Now playing (ha/www/lcars-player.js) with its transport pillar: Play/Pause, Back, Next, Shuffle, Repeat."""
+    return {"type": "custom:lcars-player", "entity": SPOTIFY,
+            "pillar": {"width": DECOR_PILLAR_W, "gap": PANEL_GAP, "ink": INK, "filler": ORANGE,
+                       "blocks": [{"colour": c, "code": lcars_code(f"media/transport/{i}")}
+                                  for i, c in enumerate([ORANGE, PEACH, PEACH, ICE, ICE])]},
+            "segments": {"progress": 40, "volume": 20},
+            "colours": {"accent": ORANGE, "text": PERI, "value": PEACH, "dim": DIM, "off": rgba(PERI, 0.18),
+                        "on": ICE, "playing": ICE, "paused": SUNFLOWER, "idle": GRAY, "active": ORANGE,
+                        "source": LILAC, "art": ORANGE, "ink": INK},
+            "blink": [_BLINK.randrange(8000, 24000, 500) for _ in range(40)], "off_fraction": 0.025,
+            "flash": "#FFFFFF", "gap": 3, "font": "Antonio, sans-serif"}
+
+
+def library_card():
+    """The Spotify library (ha/www/lcars-library in lcars-player.js): category pillar on the right, rows
+    that play on tap."""
+    return {"type": "custom:lcars-library", "entity": SPOTIFY,
+            "categories": [{"match": m, "label": label, "colour": c, "code": lcars_code(f"media/library/{m}")}
+                           for m, label, c in LIBRARY],
+            "pillar": {"width": ATMOS_LABEL_W, "gap": PANEL_GAP, "ink": INK, "filler": VIOLET, "active": ORANGE,
+                       "up": {"colour": GRAY, "code": lcars_code("media/library/up")},
+                       "down": {"colour": GRAY, "code": lcars_code("media/library/down")}},
+            "row": 40, "row_gap": PANEL_GAP,
+            "colours": {"text": PERI, "dim": DIM, "ink": INK, "rows": [PEACH, LILAC, ICE, ALMOND, PERI, BONE]},
+            "font": "Antonio, sans-serif"}
+
+
+def media_content():
+    """Facing frames: "Now playing" (transport pillar left) | "Library" (category pillar right). A player
+    is the whole page, so both frames fill it."""
+    now = panel("Now playing", ORANGE, pillar=DECOR_PILLAR_W, content=player_card())
+    lib = panel("Library", VIOLET, side="right", pillar=ATMOS_LABEL_W, content=library_card())
+    return grid('"n l"', "1.55fr 1fr", "1fr", [at(now, "n"), at(lib, "l")], gap="0 8px")
+
+
 def english_labels(card):
     """Copy of a calendar card with its calendar labels in English."""
     card = json.loads(json.dumps(card))
@@ -1735,6 +1801,7 @@ VIEWS = [
          "Waste schedule"),
     view("calendar", "calendar", "LCARS Calendar", "calendar", calendar_content(), "Stardate calendar"),
     view("calendar", "agenda", "LCARS Agenda", "calendar-agenda", agenda_content(), "Mission agenda"),
+    view("media", "media", "LCARS Media", "media", media_content(), "Audio playback"),
 ]
 
 CONFIG = {"title": "LCARS",

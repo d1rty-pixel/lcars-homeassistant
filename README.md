@@ -4,7 +4,7 @@ A full-screen LCARS dashboard (Voyager palette, Titan.DS-style layout) built fro
 [LCARdS](https://lcards.unimatrix01.ca) cards. It lives in the HA dashboard
 `lcars-bridge` (sidebar title **LCARS**), e.g. `/lcars-bridge/aquarium-power`.
 
-- The **header frame bar is the section menu**: OPS, Aquarium, Laundry, Waste, Calendar.
+- The **header frame bar is the section menu**: OPS, Aquarium, Laundry, Waste, Calendar, Media.
 - **Sidebar** lists the active section's sub-views. **Classic**, a link to the original dashboard,
   sits on top of the header frame's pillar.
 - The **foot frame bar** ends in the local date/time and a **stardate** block.
@@ -16,6 +16,7 @@ A full-screen LCARS dashboard (Voyager palette, Titan.DS-style layout) built fro
 | Laundry  | Laundry (power trace 24 h / 7 d / 28 d, unit) |
 | Waste    | Overview, Calendar |
 | Calendar | Calendar, Agenda |
+| Media    | Player (Spotify: now playing, transport, volume, output devices, library) |
 
 Every view fills the viewport exactly, so pages never scroll. Header readouts
 change per section. On every page, a pump failure in the aquarium replaces the
@@ -45,6 +46,7 @@ ha/www/lcars-tank.js           a dosing bottle's fill level as a vertical segmen
 ha/www/lcars-week.js           next days of several calendars, timeline style (OPS)
 ha/www/lcars-forecast.js       hourly forecast, LCARS style (OPS)
 ha/www/lcars-radar.js          DWD precipitation radar with LCARS controls (OPS)
+ha/www/lcars-player.js        Spotify player and library browser (Media)
 ha/www/lcars-power.js          power chart over 24 h / 7 d / 28 d with range buttons (Laundry, Osmosis)
 docs/DESIGN.md                 design rules (user decisions), generator structure, how to extend, URL rules
 docs/OPERATIONS.md             changes made on the HA host, backups, tablet, sounds, known limitations
