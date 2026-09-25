@@ -1,49 +1,13 @@
-# Operations: HA-side state, changes made, known limitations
-
-## Changes made on the HA host while building this (2026-09-24)
-
-| What | Detail | Reversible via |
-|------|--------|----------------|
-| LCARdS config entry | Created (the integration was only downloaded). Log level `warn`; it was temporarily `debug` while debugging. | integration options |
-| Time & Date | Config entry with `sensor.time` (re-renders the foot bar's clock and stardate every minute, and the Calendar readouts) | integration |
-| HA-LCARS helpers | `input_boolean.lcars_sound`, `input_boolean.lcars_texture`, `input_number.lcars_vertical`, `input_number.lcars_horizontal` | helpers UI |
-| LCARdS sound helpers | `input_boolean.lcards_sound_enabled/_cards/_ui/_alerts`, `input_number.lcards_sound_volume`, `input_select.lcards_sound_scheme` | helpers UI |
-| Lovelace resources | Antonio font (css), HA-LCARS `lcars.js`, `/local/lcards-registry-fix.js?v=<timestamp>` | dashboards → resources |
-| HA-LCARS 4.0.2 → 4.1.3 | Via HACS. Theme file is now `themes/lcars/lcars.yaml`. | HACS |
-| UIX 8.3.1 | Installed and set up. **HA was restarted once for it.** | HACS / integration |
-| card-mod | **Removed** (HACS). Required by UIX and broken by HA 2026.x. The Müll dashboard's `card_mod:` keys still work through UIX (checked before and after). | reinstall via HACS |
-| Old theme copies | Stale 2024 manual copy moved to `/config/themes_backup/lcars-2024-manual-copy.yaml`; 4.0.2 version with appended profiles in `/config/themes_backup/lcars-4.0.2-with-lcards-profiles.yaml`; plus `/config/themes/lcars.yaml.bak-20260924` (ignored by HA, not `.yaml`) | copy back |
-| View theme | `/config/themes/lcars_aquarium.yaml` ("LCARS Aquarium") | delete file, reload themes |
-| Our scripts | every `ha/www/*.js` in `/config/www/`, each a Lovelace module resource `/local/<file>?v=<unix timestamp>`: registry workaround, motion switch, day grid, bar, week, forecast, radar and power-chart cards. `tools/deploy_ha_files.sh` copies them and creates/updates the resources (`tools/bump_resources.py`). | remove resources + files |
-| Bars helper | `input_boolean.lcars_bars` ("LCARS bars", on): segment bars visible (global emergency switch) | helpers UI |
-| Sounds | `/media/lcars/thelcars_beep1..4.mp3` (thelcars.com, no licence stated, so **not** in git) | delete files |
-| Dashboards | `lcars-bridge` (live). `aquarium-lcars` hidden as "LCARS (alt)". | dashboards UI |
-| Profile theme | Admin user's profile theme was set to "LCARS Default", **reset to default** the same day: profile themes are stored per user (synced to all devices) and restyled every classic dashboard. The LCARS dashboard doesn't need it (view theme + kiosk mode). | profile |
-
-Dashboard config backups are written by `tools/deploy.py` to `build/backups/`
-(git-ignored). Restore one with `tools/deploy.py --restore <file>`.
-
-## Users and devices
-
-- The personal admin user keeps the default HA look. LCARS is opened from
-  the HA sidebar ("LCARS") on any device.
-- `kiosk` (non-admin): meant for LCARS screens. Nothing per-user is
-  needed for LCARdS to work; the dashboard isn't admin-only and every view
-  carries its own theme. Pick the start page per device: the profile's
-  default dashboard (set while logged in as that user) or the kiosk browser's
-  Start URL, e.g. `https://<your-ha>/lcars-bridge/aquarium-status`.
-- Do **not** set an LCARS profile theme for a user who also uses classic dashboards.
-- Older per-device users (an `aquarium` and a short-lived `lcars` user) were deleted.
+# Operations: kiosk tablets, layout checks, sounds, known limitations
 
 ## Kiosk tablets (Fully Kiosk Browser)
 
 - There is **no Fully Kiosk integration** in HA. What a tablet shows is Fully's
   on-device **Start URL** (Settings → Web Content Settings → Start URL).
-  Recommended: `https://<your-ha>/lcars-bridge/aquarium-status?lcars_motion=off`
-  (on the LAN also `http://<ha-ip>:8123/…`).
+  Recommended: `https://<your-ha>/lcars-bridge/<view>?lcars_motion=off`.
 - **Animations off on the tablet**: Fully's renderer crashed with all LCARdS
   animations running. Append `?lcars_motion=off` to the start URL, e.g.
-  `…/lcars-bridge/aquarium-status?lcars_motion=off`. The choice is stored per
+  `…/lcars-bridge/ops?lcars_motion=off`. The choice is stored per
   browser (localStorage) and pauses anime.js' global engine. The "Motion" block
   at the bottom of every sidebar toggles it on any device.
 - **Segment bars off for everyone** (emergency switch): `input_boolean.lcars_bars`,
@@ -98,9 +62,6 @@ clip a region at
 - **Agenda "Next per calendar"** shows only the *next* event of each calendar,
   because HA calendar entities expose just one upcoming event in their state.
   The full list comes from the embedded calendar card next to it.
-- **Osmosis**: the original dashboard's RO-controller card and picture-elements
-  image were dropped. The RO card's `binary_sensor.osmose_*` entities no longer
-  exist.
 - **Hold-to-act** on purpose:
   - dosing "refilled": hold a channel's Refill button in "Dosing station" (sets the
     fill level to the bottle size; tap opens more-info)
@@ -117,10 +78,6 @@ clip a region at
 - **Calendar card text is German.** `/local/global-calendar-card.js` (not in
   this repo, shared with the classic dashboards) hardcodes its UI text
   ("Heute", "Keine Termine …"). Only its calendar labels are translated.
-- **Renamed URLs (2026-09-24)**: `waschen` → `laundry`, `muell` → `waste`,
-  `muell-kalender` → `waste-calendar`, `kalender` → `calendar`,
-  `kalender-agenda` → `calendar-agenda`, `aquarium-osmose` → `aquarium-osmosis`.
-  Old bookmarks break; the tablet start URL `aquarium-status` is unchanged.
 - **Rebuild needed** when the source dashboards' calendar cards change. They are
   copied from `dashboard-muell` / `dashboard-termine` at build time. (Adding HA
   users needs no rebuild: the segment bars are shown to everyone.)
