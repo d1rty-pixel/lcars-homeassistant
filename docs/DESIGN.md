@@ -7,8 +7,13 @@ page.** The migration plan below records how the pages got there.
 
 ## General decisions
 
-- **No page scrolling, ever.** Every view is exactly one viewport. Frames are
-  sized to their content; whatever is left of the page stays black.
+- **No page scrolling, except below `SCROLL_MIN_H`** (user decision). Every view is exactly one viewport;
+  frames are sized to their content, whatever is left of the page stays black. With `layout.scroll: auto`
+  in `site.yaml` (the default), on a viewport lower than `layout.scroll_min_h` (default 520 px, i.e.
+  phones) the **sidebar and the content scroll together** between the fixed header (only its menu bar),
+  mid bar and foot bar: their row is as much higher than the space they get as the viewport is lower than
+  `SCROLL_MIN_H`, so the frame keeps its pieces instead of squeezing them. `scroll: off`: nothing ever
+  scrolls, and phones get the reduced placement described under "Phones".
 - **One layout for every screen** (user decision: one codebase that adapts, like Bootstrap; no separate
   phone design). Sizes follow the viewport height (see "Responsive sizes"); only placement changes, at a
   few breakpoints, through the display priorities.
@@ -20,7 +25,12 @@ page.** The migration plan below records how the pages got there.
 - **Display priorities** (user decision): content that doesn't fit vertically
   is **not rendered**, rather than cut off or squeezed. `PRIORITY_MIN_H` maps a
   priority to the minimum viewport height it needs (0 always, 1 ≥ 520 px, i.e. everywhere but on
-  phones, 2 ≥ 760 px, 3 ≥ 880 px, 4 ≥ 1000 px). `shown_from(card, p)` hides one card below its
+  phones, 2 ≥ 760 px, 3 ≥ 880 px, 4 ≥ 1000 px). With scrolling, a screen lower than `SCROLL_MIN_H` (a phone)
+  shows what the highest priority shows (`SCROLL_PRIORITY`), whatever its height: the page scrolls, so
+  nothing is left out (user: OPS' Forecast/Next 7 days frames and every calendar row). A variant that
+  needs more height than the phone has declares it with `scroll_min_h(card, height)` (a grid row minimum
+  that is 0 on screens that don't scroll; LCARdS passes no `min-height`); the scrolling row
+  (`minmax(…, auto)`) grows by it. `shown_from(card, p)` hides one card below its
   priority; `tiered({p: card, ...})` picks one of several variants (e.g. a
   frame closed or open at the bottom, 10/9/8 list rows); its lowest variant is the fallback on every
   shorter screen. Both use HA's `screen`
@@ -103,21 +113,27 @@ page.** The migration plan below records how the pages got there.
   its arithmetic with it (corners, title widths, `top_bars()` edges), so bar and content stay aligned at
   every height. LCARdS elbows take such CSS lengths and redraw on resize; LCARdS text paddings take px
   only, hence `phone_pill()`.
-- **Phones** (viewport below `PHONE_H`, 520 px; placement, not design): the header is not rendered (its
-  row is 0 px) and the **section menu moves into the foot bar**, with short labels (`SHORT_LABELS`), no
+- **Phones** (viewport below `PHONE_H`, 520 px; placement, not design): of the header only its **menu
+  bar** is rendered (user decision, with scrolling: the navigation stays at the top), as thick as the foot
+  bar, with its elbow (and the right shoulder on pages closed on the right); readouts, number columns and
+  the page title are not. With `scroll: off` the header isn't rendered at all (its row is 0 px) and the
+  **section menu moves into the foot bar**. Either way the menu has short labels (`SHORT_LABELS`), no
   numbers (the bar is only as thick as its text), the active section near-white without "◂". The foot
   bar ends in weekday and time instead of date/time and stardate, and shows the pump alert there ("Red
-  alert", "Pump off", blinking like the header title), since the header isn't there.
+  alert", "Pump off", blinking like the header title), since the header title isn't there.
 - **No LCARS numbers on phones** (user decision): they are decoration and would collide with the labels.
   LCARdS blocks get the number's font size as `code_font()` (`min(size, 0 below PHONE_H)`), the custom
   cards hide their number elements in a media query. The calendar legend's blocks may also shrink to share
   the height.
-- Pills in narrow places get a phone variant with smaller insets (`phone_pill()`, used with `tiered()`).
-- Per page on phones: OPS without Next 7 days; Waste the timeline only; Status the four modes as one
-  column of pills level with Equipment's rows; Light Phase control with four rows and Controls in one row
-  (Automation, Fire, Chill); Dosing without the Weekdays row, its bottles with thin segment gaps, no scale
-  and the reading in ml only. Frame titles may be clipped
-  where a frame is narrower than its title (Dosing's channel frames).
+- Pills in narrow places get a phone variant with smaller insets (`phone_pill()`). What the phone's
+  **width** needs is chosen with `by_screen(other, phone)` (always on phones, scrolling or not); what only
+  its **height** needs with `tiered()` (dropped when the content scrolls). Width: the pills (Dosing, Light
+  Controls in one row), Status' modes as one column.
+- Per page on phones: Status the four modes as one column of pills level with Equipment's rows; Light
+  Controls in one row (Automation, Fire, Chill); Dosing's bottles with thin segment gaps, no scale and the
+  reading in ml only. With `scroll: off` also: OPS without Next 7 days; Waste the timeline only; Light
+  Phase control with four rows; Dosing without the Weekdays row. Frames narrower than their
+  title rather wrap (Dosing's channels, `lcars-flow.js`) than clip it.
 - HA pads the view by the safe areas (notch, home indicator); the view's height leaves them out.
 - Heights are `dvh` (the visible height): on iOS `vh` is the height without the browser's toolbars, which
   made every size too big in Chrome on iOS.
@@ -402,7 +418,9 @@ next to values, restrained colour.
     (`lcars-tank.js`: scale 500/250/LOW, pointer with ml and % at the level,
     red below 50 ml; tap: more-info), Remaining (days until empty at the
     scheduled rate, and the date), Dose (ml · time), Next (today / tomorrow /
-    weekday) and last Weekdays (M–S strip).
+    weekday) and last Weekdays (M–S strip). The channels sit side by side while each column
+    still gets its whole title (`panel_min_w()`), otherwise 2 × 2, each row with its own label column
+    (`lcars-flow.js`, by the card's width, not the device; user decision).
   - *Power* (`power_view()`): "Power grid" (title in the mid bar; label column: Total
     0..350 W, Pump 0..250, Light 0..100, CO² valve 0..2 W; the block colours are
     the chart's legend) and the section "Power visualization · 24 h" (lilacs,
@@ -455,6 +473,7 @@ next to values, restrained colour.
 | `lcars-log.js` | device log from HA's logbook: severity colours, flap detection, BLE bursts collapsed, waterfall |
 | `lcars-tank.js` | a dosing bottle's fill level as a vertical segment stack with scale and pointer; tap opens more-info |
 | `lcars-week.js` | next days of all calendars (refreshes HA's calendars first) |
+| `lcars-flow.js` | cards in columns that wrap into even rows (4 → 2 → 1) when a column would get narrower than `min_w`, each row led by its own label column; its min-height grows a scrolling page |
 | `lcars-month.js` | a month of all calendars: week blocks, day grid, legend; `mode: "controls"`: Back / Today / Next, linked by `group` |
 | `lcars-forecast.js` | hourly or daily forecast (weather/subscribe_forecast); `mode: "toggle"`: just the Hourly / Daily block, linked by window events and localStorage |
 | `lcars-radar.js` | DWD radar; `controls`: `pillar` (own button pillar), `none` (map only), `row` (buttons only, linked to the map by `group`) |

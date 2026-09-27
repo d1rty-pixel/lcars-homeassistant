@@ -21,3 +21,10 @@ calendars:
   - calendar.personal
   - calendar.birthdays
   - calendar.holidays
+
+# Layout (optional). scroll: auto = on screens lower than scroll_min_h px (phones) the sidebar and the
+# content scroll between the fixed frame bars, laid out for scroll_min_h; off = no page ever scrolls
+# (phones get a reduced placement instead: no header, the menu in the foot bar).
+layout:
+  scroll: auto
+  scroll_min_h: 520

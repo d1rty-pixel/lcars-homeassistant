@@ -7,8 +7,9 @@ saves it to Home Assistant through the WebSocket API.
 
 - **One frame on every page.** The header bar is the section menu, the sidebar lists the section's
   sub-views, and the foot bar ends in the local date/time and a stardate.
-- **No scrolling, ever.** Every view fills the viewport exactly. Content that doesn't fit a short
-  screen is left out rather than cut off (display priorities by viewport height).
+- **No scrolling** on tablets and desktops: every view fills the viewport exactly. Content that doesn't
+  fit a short screen is left out rather than cut off (display priorities by viewport height). On phones
+  the sidebar and the content scroll between the fixed frame bars (`layout.scroll` in `site.yaml`).
 - **Tablet-friendly.** Checked at 1920×1080 and 1280×800 (a 10" Android tablet running Fully Kiosk
   Browser). Dense graphics are light custom cards, not hundreds of LCARdS buttons, and every
   animation has a per-device off switch.
@@ -47,6 +48,7 @@ at the top of its file.
 | `lcars-phases` | a light schedule over 24 h, one shape per phase |
 | `lcars-log` | a device log from HA's logbook with severity colours |
 | `lcars-tank` | a fill level as a vertical segment tank |
+| `lcars-flow` | cards in columns that wrap into rows by width, each row with its own label column |
 | `lcars-player`, `lcars-library` | media player with transport, progress, volume, output devices; media-browser library |
 | `lcars-motion.js` | not a card: per-device animation switch (`?lcars_motion=off`), global bar switch |
 | `lcards-registry-fix.js` | not a card: works around a load-order race between LCARdS and HA's element registry |
@@ -141,7 +143,8 @@ view's `*_content()` function:
   modes don't shift them.
 - **Display priorities**: `PRIORITY_MIN_H` maps a priority to the minimum viewport height it needs
 - **Fluid sizes**: `REF_H` (full size from this viewport height up), `S_MIN`/`F_MIN` (how far sizes and
-  fonts shrink below it), `PHONE_H` (below it: phone placement, menu in the foot bar)
+  fonts shrink below it), `PHONE_H` (below it: phone placement, only the header's menu bar); `SCROLL`/`SCROLL_MIN_H` from
+  `site.yaml` `layout` (scrolling below that height)
 - **Click sounds**: `CLICK_SOUNDS`. `None` uses LCARdS' built-in scheme.
 
 The Calendar views copy their calendar card from another dashboard at build time

@@ -36,6 +36,23 @@ const HA = process.env.HA_URL || "http://homeassistant.local:8123";
     expires: Date.now() + 1e12, refresh_token: ""})), process.env.HA_TOKEN, HA);
   await page.goto(`${HA}/${process.env.LCARS_DASHBOARD || "lcars-bridge"}/${view}`, {waitUntil: "networkidle2", timeout: 60000});
   await new Promise((r) => setTimeout(r, 8000));   // fonts, LCARdS render passes
+  if (process.env.SCROLL) {   // SCROLL=<px>|end: scroll every scrolling element (through shadow roots) and log it
+    const log = await page.evaluate((by) => {
+      const out = [];
+      const walk = (root) => root.querySelectorAll("*").forEach((el) => {
+        const oy = getComputedStyle(el).overflowY;
+        if ((oy === "auto" || oy === "scroll") && el.scrollHeight > el.clientHeight + 1) {
+          el.scrollTop = by === "end" ? el.scrollHeight : +by;
+          out.push(`${el.tagName.toLowerCase()}#${el.id} ${el.clientHeight}/${el.scrollHeight} -> ${el.scrollTop}`);
+        }
+        if (el.shadowRoot) walk(el.shadowRoot);
+      });
+      walk(document);
+      return out;
+    }, process.env.SCROLL);
+    console.log(log.join("\n") || "nothing scrolls");
+    await new Promise((r) => setTimeout(r, 1000));
+  }
   await page.screenshot(cx ? {path: out, clip: {x: +cx, y: +cy, width: +cw, height: +ch}} : {path: out});
   await browser.close();
 })().catch((e) => { console.error(e.message); process.exit(1); });

@@ -47,7 +47,15 @@ REF_H = 720          # viewport height from which every size is at its full valu
 MIN_H = 400          # viewport height at which every size has reached its minimum
 S_MIN = 0.6          # default minimum share for sizes
 F_MIN = 0.8          # smallest scale for fonts
-PHONE_H = 520        # below this viewport height: the phone placement (no header, menu in the foot bar)
+PHONE_H = 520        # below this viewport height: the phone placement (compact header or none, see SCROLL)
+# Scrolling (site.yaml layout.scroll): "auto" = below SCROLL_MIN_H viewport height the sidebar and the content
+# scroll between the fixed header (on phones only its menu bar), mid bar and foot bar, and are laid out as if
+# the viewport were SCROLL_MIN_H high; "off" = no page ever scrolls (phones: no header, menu in the foot bar).
+_LAYOUT = SITE.get("layout") or {}
+SCROLL = _LAYOUT.get("scroll", "auto")
+if SCROLL not in ("auto", "off"):
+    raise SystemExit(f"site.yaml layout.scroll: 'auto' or 'off', not {SCROLL!r}")
+SCROLL_MIN_H = int(_LAYOUT.get("scroll_min_h", PHONE_H))
 
 
 def _num(x):
@@ -154,9 +162,26 @@ PHONE = f"(max-height: {PHONE_H}px)"
 NOT_PHONE = f"(min-height: {PHONE_H + 0.02}px)"
 
 
+def on_phone(card, phone=True):
+    """`card` only on phones (phone=False: everywhere else)."""
+    return dict(card, visibility=card.get("visibility", []) +
+                [{"condition": "screen", "media_query": PHONE if phone else NOT_PHONE}])
+
+
+def by_screen(other, phone):
+    """`phone` on phones, `other` everywhere else: for what the phone's width needs (narrow pills), which
+    scrolling doesn't change. What only its height needs belongs in tiered()."""
+    return grid('"v"', "1fr", "1fr", [at(on_phone(other, False), "v"), at(on_phone(phone), "v")], gap="0")
+
+
 def only_below(px, value):
     """CSS: `value` while the viewport is at least `px` high, 0 below (no media query needed)."""
     return f"min({value}, max(0px, calc((100dvh - {px}px) * 1000)))"
+
+
+def only_under(px, value):
+    """CSS: `value` while the viewport is lower than `px`, 0 from there on (the counterpart of only_below())."""
+    return f"min({value}, max(0px, calc(({px}px - 100dvh) * 1000)))"
 
 
 def number_sensors(n, seed=47174):
@@ -337,7 +362,7 @@ PHONE_PILL_INSET = (10, 3)
 
 
 def phone_pill(card):
-    """The phone variant of a pill (use with tiered()): no number and smaller insets, so its label fits a
+    """The phone variant of a pill (use with by_screen()): no number and smaller insets, so its label fits a
     narrow pill. LCARdS takes text paddings in px only, so a pill can't shrink its insets by itself."""
     card = copy.deepcopy(card)
     card["text"].pop("code", None)
@@ -389,16 +414,35 @@ def readout(entity, label, value, colors=None, label_color=LILAC):
 # conditions fail, so a variant that isn't shown costs nothing (better performance on the tablet too).
 # Priority -> minimum viewport height in px: 0 is always shown, 1 everywhere but on phones (PHONE_H).
 PRIORITY_MIN_H = {0: 0, 1: PHONE_H, 2: 760, 3: 880, 4: 1000}
+# With scrolling, a screen lower than SCROLL_MIN_H (a phone) shows what priority SCROLL_PRIORITY shows: the
+# page scrolls there, so nothing is left out (a variant that needs more height than the phone has declares
+# it with scroll_min_h(), and the scrolling row grows by it).
+SCROLL_PRIORITY = max(PRIORITY_MIN_H)
+
+
+def scroll_min_h(card, height):
+    """`card` at least `height` high on screens that scroll (the scrolling row grows by it), with no minimum
+    elsewhere. A grid row's minimum, since LCARdS passes no min-height from view_layout."""
+    if SCROLL == "off":
+        return card
+    return grid('"v"', "1fr", f"minmax({only_under(SCROLL_MIN_H, height)},1fr)", [at(card, "v")], gap="0")
 
 
 def shown_from(card, priority, below=None):
     """`card` only while the viewport is at least as high as `priority` needs (and lower than what
     priority `below` needs, if given)."""
-    q = [f"(min-height: {Len.of(PRIORITY_MIN_H[priority])})"] if PRIORITY_MIN_H[priority] else []
-    if below:
-        q.append(f"(max-height: {Len.of(PRIORITY_MIN_H[below] - 0.02)})")
+    lo, hi = PRIORITY_MIN_H[priority], PRIORITY_MIN_H[below] if below else None
+    if SCROLL == "auto":        # scrolling screens: by SCROLL_PRIORITY, not by their height
+        lo = max(lo, SCROLL_MIN_H)
+    q = [f"(min-height: {Len.of(lo)})"] if lo else []
+    if hi is not None:
+        q.append(f"(max-height: {Len.of(hi - 0.02)})")
+    queries = [" and ".join(q) or "all"] if hi is None or hi > lo else []
+    scroll_h = PRIORITY_MIN_H[SCROLL_PRIORITY]
+    if SCROLL == "auto" and PRIORITY_MIN_H[priority] <= scroll_h and (hi is None or scroll_h < hi):
+        queries.append(f"(max-height: {SCROLL_MIN_H - 0.02}px)")
     return dict(card, visibility=card.get("visibility", []) +
-                [{"condition": "screen", "media_query": " and ".join(q) or "all"}])
+                [{"condition": "screen", "media_query": ", ".join(queries) or "not all"}])
 
 
 def tiered(variants):
@@ -491,9 +535,10 @@ NAV_ORDER = ["home", "aquarium", "laundry", "waste", "calendar", "media"]
 NAV_H = fl(43)      # height of the header frame bar, which doubles as the section menu (every page)
 
 
-def dashboard_nav(active_section, foot=False):
+def dashboard_nav(active_section, foot=False, tail=None):
     """Section menu rendered as the segments of the header frame bar (like the sidebar blocks). foot=True:
-    the phone variant in the foot bar (no numbers: the bar is only as thick as its text)."""
+    the phone variant (no numbers: the bar is only as thick as its text), in the foot bar or, with
+    scrolling, in the phone's header (tail: the colour of the segment that runs the bar out)."""
     by_key = {sec[0]: sec for sec in SECTIONS}
     names, cards = [], []
     for key in NAV_ORDER:
@@ -510,7 +555,7 @@ def dashboard_nav(active_section, foot=False):
         names.append(key)
         cards.append(at(card, key))
     names.append("tail")                       # plain segment running the bar out (to the edge or the shoulder)
-    cards.append(at(block(ORANGE if foot else LILAC), "tail"))
+    cards.append(at(block(tail or (ORANGE if foot else LILAC)), "tail"))
     return grid('"' + " ".join(names) + '"', " ".join(["1fr"] * len(NAV_ORDER)) + (" 0.3fr" if foot else " 1.6fr"),
                 "1fr", cards, gap="0 6px")
 
@@ -708,13 +753,14 @@ def frame(section, active, content, subtitle, mid_bars=None, mid_t=BAR, right=No
     # phone (no header) the foot bar is the section menu and ends in the time (or the pump alert).
     def foot_bar(phone):
         cards = []
+        bars = grid('"a b c"', "3fr 1fr 5fr", "1fr", [at(block(c), n) for c, n in ((ALMOND, "a"), (BUTTERSCOTCH, "b"),
+                                                                                 (ORANGE, "c"))], gap="0 6px")
         if phone:
             areas, widths = '"elbow . . ." "elbow bars cap clock"', f"{ELBOW_W} 1fr 14px {Len.of(CLOCK_W_PHONE)}"
-            bars = dashboard_nav(section, foot=True)
+            if SCROLL == "off":     # the menu is in the foot bar (with scrolling: in the phone's header)
+                bars = dashboard_nav(section, foot=True)
         else:
             areas, widths = '"elbow . . . ." "elbow bars cap clock sd"', f"{ELBOW_W} 1fr 14px {Len.of(CLOCK_W)} {Len.of(STARDATE_W)}"
-            bars = grid('"a b c"', "3fr 1fr 5fr", "1fr", [at(block(c), n) for c, n in ((ALMOND, "a"), (BUTTERSCOTCH, "b"),
-                                                                                     (ORANGE, "c"))], gap="0 6px")
             cards.append(at(stardate_block(), "sd"))
         if right:       # the clock and stardate stay at the end of the bar, before the right shoulder
             foot_colour = right[2] if len(right) > 2 else right[0]    # the pillar that runs into it may differ
@@ -725,20 +771,41 @@ def frame(section, active, content, subtitle, mid_bars=None, mid_t=BAR, right=No
             at(elbow("footer-left", ALMOND, bar_height=FOOT_T), "elbow"), at(bars, "bars"),
             at(block(ORANGE), "cap"), at(clock(phone), "clock")], gap="0 6px")
 
-    foot = tiered({1: foot_bar(False), 0: foot_bar(True)})
+    foot = grid('"v"', "1fr", "1fr", [at(on_phone(foot_bar(False), False), "v"), at(on_phone(foot_bar(True)), "v")],
+                gap="0")
     main_margin = main_margin or (f"4px 0 4px {MAIN_MARGIN}" if not right else f"0 0 0 {MAIN_MARGIN}")
-    return [at(shown_from(top, 1), "top"), at(mid, "mid"), at(side, "side"),
-            at(content, "main", margin=main_margin), at(foot, "foot")]
+    cards = [at(on_phone(top, False), "top"), at(mid, "mid"), at(foot, "foot")]
+    if SCROLL == "off":
+        return cards + [at(side, "side"), at(content, "main", margin=main_margin)]
+    # the phone keeps the header's menu bar (as thick as the foot bar), with its elbow and right shoulder
+    phone_top = [at(elbow("footer-left", LILAC, bar_height=FOOT_T), "elbow"),
+                 at(dashboard_nav(section, foot=True, tail=LILAC), "nav")]
+    areas, widths = '"elbow ." "elbow nav"', f"{ELBOW_W} 1fr"
+    if right:
+        phone_top.append(at(frame_elbow("footer-right", LILAC, right[1], FOOT_T, FRAME_H), "re"))
+        areas, widths = '"elbow . re" "elbow nav re"', f"{ELBOW_W} 1fr {right[1] + ELBOW_EXT}"
+    cards.append(at(on_phone(grid(areas, widths, f"1fr {Len.of(FOOT_T)}", phone_top, gap="0 6px")), "top"))
+    # sidebar and content scroll together (the frame around them stays): below SCROLL_MIN_H their row is
+    # as much higher than the space they get as the viewport is lower than SCROLL_MIN_H, and higher still
+    # where the content needs it (a min-height, e.g. lcars-flow.js' rows once they wrap)
+    body = grid('"side main"', f"{PILLAR} 1fr", f"minmax(calc(100% + max(0px, {SCROLL_MIN_H}px - 100dvh)), auto)",
+                [at(side, "side"), at(content, "main", margin=main_margin)], gap="0", height="100%")
+    return cards + [at(body, "body")]
 
 
 def view(section, key, title, path, content, subtitle, **frame_opts):
     """frame_opts: mid_bars, mid_t, right, main_margin, nav_h (see frame())."""
     mid_h = frame_opts.get("mid_t", BAR) + INNER_CURVE
+    top_h = only_below(PHONE_H, "clamp(140px, 17dvh, 176px)")
+    if SCROLL == "auto":
+        top_h = f"calc({top_h} + {only_under(PHONE_H + 0.02, FOOT_H)})"
     return {"title": title, "path": path, "type": "custom:lcards-layout-view", "theme": THEME,
-            # the header's row is 0 px high on a phone (its card isn't rendered there, see frame())
+            # on a phone the header's row is 0 px high (its card isn't rendered there, see frame()), or as
+            # high as the foot row with scrolling (only the menu bar)
             "layout": {"grid-template-columns": f"{PILLAR} 1fr",
-                       "grid-template-rows": f"{only_below(PHONE_H, 'clamp(140px, 17dvh, 176px)')} {mid_h} 1fr {FOOT_H}",
-                       "grid-template-areas": '"top top" "mid mid" "side main" "foot foot"',
+                       "grid-template-rows": f"{top_h} {mid_h} 1fr {FOOT_H}",
+                       "grid-template-areas": '"top top" "mid mid" ' + ('"side main"' if SCROLL == "off" else '"body body"')
+                                              + ' "foot foot"',
                        # HA pads the view by the safe areas (notch, home indicator): the height leaves them out
                        "grid-gap": "6px 0", "padding": "8px",
                        "height": "calc(100dvh - 16px - var(--safe-area-inset-top, 0px) - var(--safe-area-inset-bottom, 0px))"},
@@ -1007,8 +1074,12 @@ def ops_view():
                                                  middle=(radar_card("row"), "1fr")))])
     # the week is as high as the calendar rows the screen has room for; the forecast (and with it the
     # radar) gets the rest
-    # below priority 2 the shoulders go first (flat bars instead), on phones the week
-    content = tiered({p: _ops_content(n, shoulders=p > 1) for p, n in ((4, 3), (3, 2), (2, 1), (1, 1), (0, 0))})
+    # below priority 2 the shoulders go first (flat bars instead), on phones the week; a scrolling phone
+    # shows all of it (priority 4), the forecast at least six data rows high (time, bars, temperature, rain,
+    # the Hourly/Daily switch)
+    variants = {p: _ops_content(n, shoulders=p > 1) for p, n in ((4, 3), (3, 2), (2, 1), (1, 1), (0, 0))}
+    variants[4] = scroll_min_h(variants[4], _ops_height(3, f"calc({Len.of(PANEL_T)} + 6 * {DATA_ROW})"))
+    content = tiered(variants)
     return dict(content=content, mid_bars=bars, mid_t=TOP_BAR_T, nav_h=NAV_H)
 
 
@@ -1027,6 +1098,14 @@ def bottom_shoulder(colour, label_w=ATMOS_LABEL_W, bar_t=FC_BOTTOM_T, side="left
     if side == "right":
         return grid('"b e"', f"1fr {Len.of(corner)}", "1fr", [at(bar, "b"), at(shoulder, "e")], gap="0 6px")
     return grid('"e b"', f"{Len.of(corner)} 1fr", "1fr", [at(shoulder, "e"), at(bar, "b")], gap="0 6px")
+
+
+def _ops_height(rows, forecast_h):
+    """The height of _ops_content(rows) (with shoulders) with the forecast `forecast_h` high."""
+    top = PANEL_CORNER + PANEL_GAP
+    wk_h = f"{Len.of(top)} + {TL_HEAD} + {rows} * {DATA_ROW} + {Len.of((rows + 1) * PANEL_GAP + 8)}"
+    return (f"calc(5 * {DATA_ROW} + {Len.of(4 * DATA_GAP)} + {SECTION_GAP} + {forecast_h} + "
+            f"{Len.of(PANEL_GAP + PANEL_CORNER + FRAME_GAP)} + {wk_h})")
 
 
 def _ops_content(rows, shoulders=True):
@@ -1246,6 +1325,12 @@ def panel(title, colour, content, *, side="left", pillar=None, top=True, bottom=
                   at(content, "body", overflow=overflow, margin="0 -18px 0 0" if right else "0 0 0 -18px")]
     return grid(" ".join(areas), f"1fr {Len.of(corner)}" if right else f"{Len.of(corner)} 1fr", " ".join(rows), cards,
                 gap="0 6px")
+
+
+def panel_min_w(title):
+    """The narrowest a panel() without its own pillar can get with its whole title and a piece of bar after
+    it (shoulder corner, the bar's first piece, the title, 14 px of bar, the gaps)."""
+    return PANEL_CORNER + 8 + 6 + 14 + 6 + PANEL_T * (len(title) * 0.42) + 18 + 6 + 14
 
 
 def collection_timeline():
@@ -1664,7 +1749,9 @@ def status_view():
     bars = top_bars(STATUS_COLUMNS, [(1, titled_bar("Equipment", STATUS_TOP, TOP_BAR_T)), (1, block(ALMOND)),
                                      (1, titled_bar("Modes", STATUS_MODES, TOP_BAR_T, side="right"))],
                     right_w=AQ_LABEL_W)
-    return dict(content=tiered({2: content(True), 1: content(False), 0: content(False, phone=True)}), mid_bars=bars,
+    return dict(content=by_screen(tiered({2: content(True), 1: content(False)}),
+                                  content(SCROLL == "auto", phone=True)),
+                mid_bars=bars,
                 mid_t=TOP_BAR_T,
                 nav_h=NAV_H, right=(STATUS_MODES, AQ_LABEL_W, ICE))
 
@@ -1974,12 +2061,14 @@ def light_view():
                         (controls(False), f"calc({data_panel_height(2)} - {Len.of(2 * PANEL_CORNER)})"),
                         s_joint(("right", ROSE, DECOR_PILLAR_W), ("left", LILAC, AQ_LABEL_W), "Device log"),
                         (log, "1fr")])
-    single_s = s_chain([(control, upper_h), to_controls,
-                        (controls(True), f"calc({data_panel_height(2)} - {Len.of(PANEL_CORNER)})"), None])
+    def single_s(phone=False):
+        return s_chain([(control, upper_h), to_controls,
+                        (controls(True, phone), f"calc({data_panel_height(2)} - {Len.of(PANEL_CORNER)})"), None])
     # phones: Phase control without its spare row, Controls in one row
     phone_s = s_chain([(control, f"calc({data_panel_height(4)} - {Len.of(2 * PANEL_CORNER)})"), to_controls,
                        (controls(True, phone=True), f"calc({data_panel_height(1)} - {Len.of(PANEL_CORNER)})"), None])
-    left = tiered({3: double_s, 1: single_s, 0: phone_s})
+    # scrolling: the phone has room for all of Phase control (only its Controls stay in one row)
+    left = by_screen(tiered({3: double_s, 1: single_s()}), phone_s if SCROLL == "off" else single_s(phone=True))
     # the channels' pillar is the frame's right side (closed on the right, down into the foot bar)
     channels = with_decor_pillar(transporter_card(), "light/channels", [PEACH, ALMOND, SUNFLOWER], side="right",
                                  filler=LIGHT_CHANNELS_COLOUR)
@@ -2031,16 +2120,16 @@ def _dosing_station(skip=()):
             ("left", "Remaining", BUTTERSCOTCH, DATA_ROW), ("dose", "Dose", PEACH, DATA_ROW),
             ("next", "Next", ALMOND, DATA_ROW), ("days", "Weekdays", BUTTERSCOTCH, DATA_ROW)]
     rows = [r for r in rows if r[0] not in skip]
-    n = len(DOSE_CHANNELS)
     # the label rows line up with the channel frames' bodies: the pieces above and below them are as high
     # as the frames' shoulders (less the grid gap, which the frames don't have)
     shoulder = f"{Len.of(PANEL_CORNER - DATA_GAP)}"
-    chans = " ".join(f"c{i}" for i in range(n))
-    areas = ['"ph ' + chans + '"'] + [f'"p{key} {chans}"' for key, *_ in rows] + ['"pf ' + chans + '"']
-    cards = [at(block(ORANGE), "ph")]   # the column's top piece, level with the channel frames' shoulders
-    cards += [at(block(colour, label, lcars_code(f"dosing/{key}"), align="center-right", size=17), f"p{key}")
-              for key, label, colour, _ in rows]
-    cards.append(at(block(EARTH), "pf"))
+    heights = [shoulder] + [h for *_, h in rows] + [shoulder]
+    labels = grid(" ".join(['"ph"'] + [f'"p{key}"' for key, *_ in rows] + ['"pf"']), "1fr", " ".join(heights),
+                  [at(block(ORANGE), "ph")]   # the column's top piece, level with the channel frames' shoulders
+                  + [at(block(colour, label, lcars_code(f"dosing/{key}"), align="center-right", size=17), f"p{key}")
+                     for key, label, colour, _ in rows]
+                  + [at(block(EARTH), "pf")], gap=f"{Len.of(DATA_GAP)} 0")
+    cards = []
     enabled = "(states['{sw}'] || {{}}).state === 'on' && a.configured_ml && (a.weekdays || []).length"
     for i, ((label, slug, bottle), colour) in enumerate(zip(DOSE_CHANNELS, DOSE_COLOURS)):
         status, fill, sw = f"sensor.dose_{slug}_status", f"number.dose_{slug}_fill_level", f"switch.dose_{slug}_schedule"
@@ -2078,9 +2167,9 @@ def _dosing_station(skip=()):
                                        "target": {"entity_id": fill}, "service_data": {"value": bottle}}})
         for card in (pill, refill):      # half a column each: smaller text, the number above the label
             small_pill(card)
-        buttons = tiered({1: grid('"s r"', "1fr 1fr", "1fr", [at(pill, "s"), at(refill, "r")], gap="0 8px"),
-                          0: grid('"s r"', "1fr 1fr", "1fr", [at(phone_pill(pill), "s"), at(phone_pill(refill), "r")],
-                                  gap="0 4px")})
+        buttons = by_screen(grid('"s r"', "1fr 1fr", "1fr", [at(pill, "s"), at(refill, "r")], gap="0 8px"),
+                            grid('"s r"', "1fr 1fr", "1fr", [at(phone_pill(pill), "s"), at(phone_pill(refill), "r")],
+                                 gap="0 4px"))
         parts = {"sched": buttons, "tank": tank_card(fill, status, bottle, colour), "days": days,
                  "left": remaining, "dose": dose, "next": nxt}
         # open at the bottom: an empty row as high as the label pillar's bottom piece keeps the rows aligned
@@ -2091,11 +2180,15 @@ def _dosing_station(skip=()):
                     "14px 1fr" if right else "1fr 14px", " ".join([h for *_, h in rows] + [shoulder]),
                     [at(parts[key], key, **({"margin": "6px 0"} if key == "tank" else {})) for key, *_ in rows],
                     gap=f"{Len.of(DATA_GAP)} 0")
-        cards.append(at(panel(label, colour, content=body, side="right" if right else "left", bottom=False),
-                        f"c{i}"))
-    station = grid(" ".join(areas), f"{Len.of(DATA_LABEL_W)} " + " ".join(["1fr"] * n),
-                   " ".join([shoulder] + [h for *_, h in rows] + [shoulder]), cards, gap=f"{Len.of(DATA_GAP)} {fl(12)}")
-    return station
+        cards.append(panel(label, colour, content=body, side="right" if right else "left", bottom=False))
+    # the channels side by side while each gets its whole title (lcars-flow.js), else 2 x 2 (phones), each
+    # row of channels with its own label column; a row is at least as high as its fixed rows and a bottle
+    # of three data rows
+    fixed = " + ".join(h for *_, h in rows if h != "1fr")
+    row_min = f"calc({Len.of(2 * (PANEL_CORNER - DATA_GAP))} + {fixed} + 3 * {DATA_ROW} + {Len.of((len(rows) + 1) * DATA_GAP)})"
+    return {"type": "custom:lcars-flow", "label": labels, "cards": cards, "label_w": css(DATA_LABEL_W),
+            "min_w": css(max((panel_min_w(label) for label, *_ in DOSE_CHANNELS), key=lambda x: x.full())),
+            "row_min": row_min, "gap": css(fl(12)), "row_gap": SECTION_GAP}
 
 
 POWER_GRID = [  # (label, entity, colour, W at the end of its bar, sign in the mirrored chart)

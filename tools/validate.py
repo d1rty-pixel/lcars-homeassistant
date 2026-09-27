@@ -135,8 +135,9 @@ def layout_problems(card, where):
 
 def walk(card):
     yield card
-    if isinstance(card.get("card"), dict):
-        yield from walk(card["card"])
+    for key in ("card", "label"):       # label: lcars-flow.js' label column
+        if isinstance(card.get(key), dict):
+            yield from walk(card[key])
     for c in card.get("cards", []):
         yield from walk(c)
 
