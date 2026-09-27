@@ -47,13 +47,13 @@ Done and committed on `framework`:
 7. The old generator, `tools/deploy.py`, `deploy_ha_files.sh`, `diag_view.py`, `gen_registry_fix.py`,
    `bump_resources.py` and `site.example.yaml` are gone.
 
-`lcars-dev` holds the user's configuration built by the framework.
+`lcars-dev` holds the user's configuration built by the framework. **Live since 2026-09-27** (user's go):
+`lcars-bridge` is deployed from `../lcars-site`; the old theme file, the old `/config/www/lcars-*.js`
+files and the hidden old dashboard `aquarium-lcars` are deleted (its config is backed up in
+`../lcars-site/build/backups/`).
 
 ## Open
 
-- **User review**, then deploy the framework build to the live `lcars-bridge` (`lcars deploy` in
-  `../lcars-site`); after that the old theme file `/config/themes/lcars_aquarium.yaml` and the old
-  `/config/www/lcars-*.js` files can be deleted (setup doesn't delete files).
 - Not tested on a fresh HA: HACS downloads and config flows (`lcars setup` on an HA without LCARdS /
   kiosk-mode / Time & Date / the dashboard), the `configuration.yaml` themes include, the restart path.
   Every one of these steps found its state already right on the user's HA. A throwaway HA (container or

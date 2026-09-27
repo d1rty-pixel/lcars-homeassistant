@@ -8,6 +8,7 @@ export PATH=~/.venvs/lcars/bin:$PATH                     # or: pipx install git+
 mkdir -p ~/.config/homeassistant && echo "<long-lived token>" > ~/.config/homeassistant/token
 mkdir my-lcars && cd my-lcars
 lcars init --url http://homeassistant.local:8123         # writes lcars.yaml from what HA has
+                                                         # (or: copy examples/lcars.example.yaml)
 lcars setup                                              # installs and sets up what the dashboard needs
 lcars deploy                                             # builds the dashboard and saves it to HA
 ```

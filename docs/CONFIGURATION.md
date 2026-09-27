@@ -2,7 +2,8 @@
 
 One YAML file describes a whole dashboard: how to reach Home Assistant, the sections of the menu, and
 every view as a tree of components. `lcars init` writes a starting point from what your HA has;
-[`examples/`](../examples/) has a minimal and a complete one. The components themselves are described
+[`examples/lcars.example.yaml`](../examples/lcars.example.yaml) has every setting, commented, and
+[`examples/`](../examples/) a minimal and a complete configuration. The components themselves are described
 in [COMPONENTS.md](COMPONENTS.md).
 
 ```yaml

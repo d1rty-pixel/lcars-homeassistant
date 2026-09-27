@@ -46,6 +46,7 @@ pip install git+https://github.com/d1rty-pixel/lcars-homeassistant   # in a venv
 echo "<long-lived token>" > ~/.config/homeassistant/token            # HA: profile → Security
 mkdir my-lcars && cd my-lcars
 lcars init --url http://homeassistant.local:8123    # a starting lcars.yaml from what your HA has
+                                                    # (or copy examples/lcars.example.yaml and edit it)
 lcars setup                                         # installs and sets up what the dashboard needs
 lcars deploy                                        # builds, validates and saves the dashboard
 ```
@@ -67,7 +68,7 @@ access to HA's configuration (e.g. the Advanced SSH & Web Terminal add-on); with
 | [OPERATIONS.md](docs/OPERATIONS.md) | checking layouts (screenshots), sounds, known limitations |
 | [NOTES.md](docs/NOTES.md) | LCARdS gotchas and their workarounds |
 | [integrations/](docs/integrations/) | what the components expect from weather, calendars, waste collection, power meters, media players, the DWD radar |
-| [examples/](examples/) | a minimal configuration, a household using every component, a plugin |
+| [examples/](examples/) | `lcars.example.yaml` (every setting, commented), a minimal configuration, a household using every component, a plugin |
 
 ## Repository layout
 

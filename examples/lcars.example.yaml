@@ -1,0 +1,126 @@
+# A site configuration with every top-level setting, commented. Copy it to lcars.yaml in a directory of
+# your own (a git repository is a good place), fill in your HA and entities, then:
+#   lcars setup      install and set up what the dashboard needs in Home Assistant
+#   lcars deploy     build, validate and save the dashboard
+# `lcars init --url <your HA>` writes a starting file from what your HA has instead.
+# Reference: docs/CONFIGURATION.md (settings), docs/COMPONENTS.md (everything under `content`).
+
+# ── Connection ───────────────────────────────────────────────────────────────
+homeassistant:
+  url: http://homeassistant.local:8123         # env HA_URL overrides it
+  token_file: ~/.config/homeassistant/token    # a long-lived access token (env HA_TOKEN overrides it)
+  files:                                       # how `lcars setup` copies the cards and the theme to /config
+    method: ssh                                # ssh, local (lcars runs on the HA host) or none (copy by hand)
+    login: root@homeassistant.local            # ssh: e.g. the Advanced SSH & Web Terminal add-on's user
+    # options: ["-p", "22"]                    # ssh: extra options
+    # sudo: true                               # ssh: read/write through sudo (false for a root login)
+    # config_dir: /config                      # where HA's configuration is on that host
+
+# ── The dashboard ────────────────────────────────────────────────────────────
+dashboard:
+  url_path: lcars-bridge        # needs a hyphen; --dashboard <path> builds for another one (a test copy)
+  title: LCARS                  # title, icon, sidebar and admin apply when `lcars setup` creates it
+  icon: mdi:star-four-points
+  show_in_sidebar: true
+  require_admin: false
+  kiosk: true                   # hide HA's header and sidebar (?disable_km shows them)
+  # theme: LCARS Bridge         # the view theme's name
+
+layout:
+  scroll: auto                  # auto: phones scroll between the frame bars and see everything; off: never scroll
+  scroll_min_h: 520             # px of viewport height below which pages scroll
+
+# ── Shared settings of the components ─────────────────────────────────────────
+weather: weather.home           # default entity of `forecast` components
+
+# radar:                        # DWD precipitation radar, Germany only
+#   home: [52.52, 13.40]        # home marker (lat, lon); the map is centred on it
+#   width_km: 170
+#   center: [52.60, 13.30]      # optional: another map centre
+
+calendars:                      # for week, month and next_event (label: default its name in HA)
+  - {entity: calendar.family, label: Family}
+  - {entity: calendar.holidays, label: Holidays, colour: sunflower}
+
+titles: {}                      # event titles to replace, e.g. {"Recycling collection": Recycling}
+
+numbers:                        # the header's number columns (real sensors as hex codes)
+  exclude: []                   # parts of entity IDs to leave out
+  # sensors: [sensor.a, ...]    # or exactly these
+
+# sounds: {card_tap: "media-source://media_source/local/lcars/beep.mp3"}   # default: LCARdS' scheme
+
+# alert:                        # the page title turns into an alert while the entity is in a listed state
+#   entity: binary_sensor.water_leak
+#   states:
+#     "on": {title: Red alert · water leak, short: Leak, colour: red, blink: true}
+
+# vars:                         # values to use anywhere as ${{ vars.name }}
+#   power: sensor.house_power
+
+# data:                         # read when the dashboard is built, used as ${{ data.name... }}
+#   schedule: {ha_file: /config/light_schedule.yaml}   # or {file: x.yaml}, {url: ...}, {value: ...}
+
+# plugins: [plugins/note.py]    # component types of your own (docs/EXTENDING.md)
+
+# ── Sections and views ───────────────────────────────────────────────────────
+sections:
+  - key: home                   # the menu entry
+    label: Home
+    # short: Home               # the phone menu's label
+    # title: Operations         # the page title (default: the label)
+    # link: {label: Classic, url: /lovelace/0}   # the header's top-left block
+    readouts:                   # up to four entries next to the page title
+      - {type: readout, entity: weather.home, label: Outside, value: {attribute: temperature, unit: "°C"}, colour: ice}
+      - {type: next_event, label: Next event, show: title, colour: sunflower}
+      - numbers
+      - decor
+    views:
+      - key: home
+        label: Overview         # its sidebar block
+        subtitle: Habitat overview
+        # label_width: 150      # the page's label column (px at full size)
+        # columns: [1.5fr, 1fr] # the top row's columns, shared with the mid bar
+        bar: [{title: Atmosphere, colour: orange}]   # one piece per column
+        # right: {colour: almond, width: label}      # close the frame on the right
+        content:
+          type: split
+          colour: lilac
+          top:
+            type: stack
+            items:
+              - type: rows
+                rows:
+                  - {label: Temperature, entity: weather.home, value: {attribute: temperature, unit: "°C"},
+                     bar: {mode: level, attribute: temperature, min: -10, max: 35}}
+                  - {label: Humidity, entity: weather.home, value: {attribute: humidity, unit: "%", round: 0},
+                     bar: {mode: level, attribute: humidity, min: 0, max: 100}}
+                  - {label: Daylight, entity: sun.sun, value: {span: [next_rising, next_setting]},
+                     bar: {mode: span, start: next_rising, end: next_setting}}
+              - type: section
+                title: Forecast
+                colour: lilac
+                content: {type: forecast, labels: [violet, lilac], min_rows: 6}
+          bottom:
+            type: frame
+            title: Next 7 days
+            colour: bluey
+            bottom: false
+            show_from: 1
+            content: {type: week, rows: {1: 1, 3: 2, 4: 3}}
+
+  - key: calendar
+    label: Calendar
+    short: Cal
+    readouts:
+      - {type: next_event, label: Next event, show: title}
+      - {type: next_event, label: When, show: when, colour: peach}
+      - {type: next_event, label: Today, show: today, colour: ice}
+      - {type: readout, entity: sensor.time, label: Local time}
+    views:
+      - key: calendar
+        label: Month
+        subtitle: Stardate calendar
+        bar: [{title: Calendar, colour: orange, buttons: {type: month, mode: controls}, buttons_max: 330}]
+        right: {colour: almond, width: label}
+        content: {type: month}
