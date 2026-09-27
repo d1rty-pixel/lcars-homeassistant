@@ -1,95 +1,69 @@
-# Operations: kiosk tablets, layout checks, sounds, known limitations
+# Operations: checking layouts, sounds, known limitations
 
-## Kiosk tablets (Fully Kiosk Browser)
-
-- There is **no Fully Kiosk integration** in HA. What a tablet shows is Fully's
-  on-device **Start URL** (Settings → Web Content Settings → Start URL).
-  Recommended: `https://<your-ha>/lcars-bridge/<view>?lcars_motion=off`.
-- **Animations off on the tablet**: Fully's renderer crashed with all LCARdS
-  animations running. Append `?lcars_motion=off` to the start URL, e.g.
-  `…/lcars-bridge/ops?lcars_motion=off`. The choice is stored per
-  browser (localStorage) and pauses anime.js' global engine. The "Motion" block
-  at the bottom of every sidebar toggles it on any device.
-- **Segment bars off for everyone** (emergency switch): `input_boolean.lcars_bars`,
-  also via `?lcars_bars=off|on|toggle`. It is *stored* in HA, so don't put the
-  parameter in a start URL: Fully reloads it and switches the bars off for all.
-- Kiosk mode and the view theme apply to every user.
-- Sounds play after the first touch. If the tablet stays silent, allow media
-  playback in Fully's web content settings.
-- Layouts are checked at 1920×1080 (desktop), 1280×800 (Lenovo Tab M10
-  Gen 1 in landscape) and a phone in landscape. Sizes and fonts scale with the viewport height (see
-  `docs/DESIGN.md` "Responsive sizes"), header readouts with its width (theme variable
-  `lcars-readout-size`).
-- The waste page used to crash Fully with ~450 LCARdS buttons; dense graphics
-  are now light custom cards (≈60 LCARdS buttons left on that page).
+Kiosk tablets, updates and troubleshooting are in [INSTALL.md](INSTALL.md).
 
 ## Checking layouts
 
-`tools/screenshot/shot.js` renders a view in headless Chrome, logged in with the
-token. From WSL, run it with Windows' `node.exe` from a Windows folder (install
-once with `npm install` there), because puppeteer can't drive Windows Chrome
-across the WSL boundary:
+Check every page after a layout change at **1280×720, 1280×800, 1920×1080 and a phone in landscape
+(734×337 with a 20 px bottom inset: an iPhone 16 in Chrome, measured)**. Tiers switch at 520, 760, 880
+and 1000 px viewport height, so look around those too. No page may scroll except on phones.
+
+`tools/screenshot/shot.js` renders a view in headless Chrome, logged in with the token:
+
+```bash
+cd tools/screenshot && npm install        # once (puppeteer-core)
+HA_TOKEN=$(cat ~/.config/homeassistant/token) HA_URL=http://homeassistant.local:8123 \
+  node shot.js <view-path> 1280 800 out.png
+```
+
+| Environment | Meaning |
+|-------------|---------|
+| `HA_URL`, `HA_TOKEN` | HA and a long-lived token |
+| `LCARS_DASHBOARD` | the dashboard (default `lcars-bridge`), e.g. a test copy |
+| `CHROME` | Chrome's executable (default: the Windows path) |
+| `SAFE=top,right,bottom,left` | safe-area insets in px, as HA pads its views by them: `0,0,20,0` for the phone above, `0,59,21,59` for an iPhone's HA app |
+| `DSF` | device scale factor, e.g. `1.1` for 110 % zoom (hairline seams show there) |
+| `SCROLL=<px>\|end` | scrolls every scrolling element before the shot and logs visible/total heights, to check a phone's scrolled part or confirm "nothing scrolls" |
+
+Extra arguments `clip-x clip-y clip-w clip-h` clip the shot. Each run uses its own browser profile, so
+several can run at once.
+
+**From WSL**, run it with Windows' `node.exe` from a Windows folder (puppeteer can't drive Windows'
+Chrome across the WSL boundary), and pass the environment through `WSLENV`:
 
 ```bash
 W=$(wslpath "$(cmd.exe /c echo %TEMP% | tr -d '\r')")/lcars-shot
-mkdir -p "$W" && cp tools/screenshot/{shot.js,package.json} "$W/" && (cd "$W" && cmd.exe /c "npm install")   # npm.cmd can't be run from bash
-cd "$W" && export HA_TOKEN=$(cat ~/.config/homeassistant/token) WSLENV=HA_TOKEN:DSF
-"/mnt/c/Program Files/nodejs/node.exe" shot.js waste 1280 800 "$(wslpath -w "$W")\\waste-1280.png"
-"/mnt/c/Program Files/nodejs/node.exe" shot.js waste 1920 1080 "$(wslpath -w "$W")\\waste-1920.png"
-DSF=1.1 "/mnt/c/Program Files/nodejs/node.exe" shot.js ops 1745 982 out.png 900 600 300 200   # 110 %, clipped
+mkdir -p "$W" && cp tools/screenshot/{shot.js,package.json} "$W/" && (cd "$W" && cmd.exe /c "npm install")
+cd "$W" && export HA_TOKEN=$(cat ~/.config/homeassistant/token) HA_URL=http://homeassistant.local:8123 \
+  WSLENV=HA_TOKEN:HA_URL:LCARS_DASHBOARD:SAFE:DSF:SCROLL
+"/mnt/c/Program Files/nodejs/node.exe" shot.js ops 1280 800 "$(wslpath -w "$W")\\ops-1280.png"
 ```
 
-Check the target sizes (and 1280×720, the tablet with its system bars) after every layout change, and a
-phone: `SAFE=0,0,20,0 … shot.js <view> 734 337 out.png` (iPhone 16 in landscape in Chrome, measured;
-the HA app: `SAFE=0,59,21,59 … 852 393`; `SAFE` sets the safe-area insets HA pads the view by;
-`SCROLL=<px>|end` scrolls every scrolling element before the shot and logs visible/total heights, so a
-phone's scrolled part can be checked and "nothing scrolls" confirmed on the larger sizes). Display priorities switch at 520 (phones), 760, 880 and 1000 px
-viewport height, so check around those too. `LCARS_DASHBOARD=<url_path>` points `deploy.py`, the build
-and `shot.js` at another dashboard, e.g. a hidden test copy, so a layout can be checked before the live
-dashboard gets it. For seams,
-clip a region at
-`DSF=1` and `DSF=1.1` (110 % zoom).
+`lcars diag` adds a view that shows what a device's browser reports (window and visual viewport,
+`100vh`/`dvh`/`svh`/`lvh`, safe-area insets as the browser and as HA see them): open `<dashboard>/diag`
+on the device. Run it again after each deploy (a deploy replaces the whole configuration).
 
 ## Sounds
 
-- LCARdS' built-in scheme `lcards_default` is active. Its `tap.mp3` is
-  byte-identical to thelcars.com `beep1.mp3`; `beep2.mp3` equals `key_ok_3` /
-  `toggle_on`. `beep3` and `beep4` have no LCARdS counterpart.
-- The UI category is **off** on purpose. Menu clicks would otherwise play the tap
-  sound plus the page-navigation sound. It also applies to **every** dashboard
-  (LCARdS is loaded globally), so turning it on makes the classic pages beep too.
-  Card sounds only fire on LCARdS cards.
-- Audition or override sounds in **LCARdS Config → Sound**, per event, using
-  bundled assets or "Browse HA Media" for the `/media/lcars` files.
-- To bake the thelcars.com beeps into the dashboard, set `CLICK_SOUNDS` in the
-  generator and deploy.
+- LCARdS plays its built-in scheme (`lcards_default`) once its sound helpers exist and are on (LCARdS
+  config panel → Helpers, then Sound). The light cards' buttons play LCARdS' tap sound too.
+- LCARdS is loaded on every dashboard, so its UI sounds (navigation, dialogs) play on HA's other pages
+  too. Keeping the UI category off avoids a menu click playing the tap and the navigation sound.
+- Override sounds per event in LCARdS' config panel, or bake them into this dashboard with the site's
+  `sounds` (e.g. `{card_tap: "media-source://media_source/local/lcars/beep1.mp3"}`).
+- Browsers play sounds only after the first touch; allow media playback in a kiosk browser.
 
-## Known limitations (by design or data)
+## Known limitations
 
-- **Hold-to-act** on purpose:
-  - dosing "refilled": hold a channel's Refill button in "Dosing station" (sets the
-    fill level to the bottle size; tap opens more-info)
-  - washing-machine supply switch (Supply block or value on the laundry page; tap opens more-info)
-- **Toggle on a single tap**, as on the original dashboards (hold opens more-info):
-  - aquarium modes: the four LCARS buttons in "Modes" (Status page)
-  - CO² coupling and light automation: block or value of their row (Status page); light automation
-    also the Automation pill in "Controls" (Light page)
-  - the four dosing schedules: the Schedule pill at the top of a channel's frame
-  - the RO unit (`switch.osmoseanlage`): block or value of its row
-  - light profiles Fire / Chill: their pill in "Controls" (applies once, no toggle; switching Automation
-    back on resumes the schedule)
-  - light channels: drag a transporter slot (sets a manual override when the finger lifts)
-- **Rebuild needed** when the calendars' labels in the source dashboard's
-  calendar card change: the labels are read from `dashboard-termine` at build
-  time (`calendar_list()`). (Adding HA
-  users needs no rebuild: the segment bars are shown to everyone.)
-- **New calendar events** show up in "Next 7 days" within 10 minutes (or on
-  reload): the card asks HA to refresh the calendars before each fetch, because
-  HA's Google calendar sync alone lagged behind.
-- **Radar** covers Germany (DWD composite); abroad the map stays empty. Borders
-  are fetched from the DWD WFS at build time.
-- **LCARdS updates**: run `tools/gen_registry_fix.py`, then
-  `tools/deploy_ha_files.sh` (it sets a fresh `?v=` on the resources). Otherwise
-  new LCARdS elements hit the load race again.
-- **HA-LCARS updates** rewrite `themes/lcars/lcars.yaml`. That's harmless now,
-  since nothing of ours lives in it.
+- **Hold-to-act** on purpose where a tap would be too easy to trigger: actions configured with `hold`
+  (e.g. marking a tank refilled, switching a supply). A tap opens more-info there.
+- **Rebuild needed** after changes to what is read at build time: `data` sources, the radar's location
+  (its borders), entity patterns (`media_player.spotify_*`), the sensors of the number columns.
+- **Calendars**: new events show up in the week and month within 10 minutes (or on reload); the cards
+  ask HA to refresh the calendars before each fetch, because HA's Google calendar sync alone lags.
+- **Radar**: DWD's composite covers Germany; elsewhere the map stays empty. Other providers would be a
+  new option of the radar card.
+- **LCARdS updates**: run `lcars files` afterwards (the registry workaround needs the new version's
+  element names). Browsers refetch changed cards by their `?v=`.
+- **Missing entities** show their value templates as raw text (`[[[ … ]]]`); `lcars build` lists them.
+- **History charts** need long-term statistics: the sensor must have a `state_class`.

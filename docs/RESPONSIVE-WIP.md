@@ -4,6 +4,11 @@ Status notes for this branch. Read this first when continuing; delete it (and it
 before merging to `main`. Installation-specific details (test dashboard, how to reach it) are in the
 git-ignored `CLAUDE.local.md`.
 
+**Since 2026-09-27 the generator is the framework** (`docs/FRAMEWORK-WIP.md`): what this file calls the
+generator's functions lives in `lcars/` now (`Len` etc. in `engine/sizes.py`; `shown_from()`, `tiered()`,
+`by_screen()`, `scroll_min_h()` in `engine/screen.py`; `frame()` in `frame.py`; the pages' layouts are
+components, and per-tier variants come from `responsive()`). `site.yaml` became the site's `lcars.yaml`.
+
 ## Goal and user decisions
 
 - The dashboards must also work on an **iPhone 16 in landscape**, in **Chrome on iOS** (the user's browser;
@@ -141,9 +146,9 @@ Screenshot at that size: `SAFE=0,0,20,0 … shot.js <view> 734 337 out.png` (see
 
 ```bash
 ssh-add ~/.ssh/id_ed25519
-LCARS_DASHBOARD=lcars-dev python3 tools/deploy.py        # build + validate + save to the test dashboard
-bash tools/deploy_ha_files.sh                            # cards (shared with the live dashboard!)
-LCARS_DASHBOARD=lcars-dev python3 tools/diag_view.py     # re-add the diag view after each deploy
+cd <site> && lcars --dashboard lcars-dev deploy         # build + validate + save to the test dashboard
+lcars setup                                             # cards (shared with the live dashboard!)
+lcars --dashboard lcars-dev diag                        # re-add the diag view after each deploy
 ```
 
 Card changes go live for the real dashboard too (same files): keep them identical at ≥ 720 px height.

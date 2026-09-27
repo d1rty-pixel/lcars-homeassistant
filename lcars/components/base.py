@@ -84,10 +84,11 @@ class Component:
     pillar:    a pillar of numbered blocks next to it (see with_pillar())
     key:       the key its LCARS numbers derive from (default: from its place in the configuration)
     margin:    CSS margin around it within its cell
+    height:    its height in a stack, split or columns (height_spec(): data rows, fill, {timeline: n}, CSS)
     """
     type_name = "?"
     fields = {}
-    common = {"type": None, "show_from": 0, "phone": True, "pillar": None, "key": None, "margin": None}
+    common = {"type": None, "show_from": 0, "phone": True, "pillar": None, "key": None, "margin": None, "height": None}
 
     def __init__(self, node, where):
         self.where = where
@@ -105,6 +106,7 @@ class Component:
             setattr(self, attr, node.get(k, None if default is REQUIRED else copy_default(default)))
         self.show_from = int(self.show_from or 0)
         self.sensitive = False
+        self.height_field = height_spec(self.height_cfg, f"{where}.height")
         self.parse()
         if self.pillar is not None:
             self.pillar = PillarSpec(self.pillar, f"{where}.pillar")
@@ -158,6 +160,22 @@ class Component:
 
 
 REQUIRED = object()
+
+
+def height_spec(value, where):
+    """A height from a configuration: a number of data rows (a label column's rows and gaps), "fill",
+    {timeline: n} (as high as a day timeline of n series with its shoulder), or CSS."""
+    if value is None:
+        return None
+    if value == "fill":
+        return "1fr"
+    if isinstance(value, (int, float)):
+        return sizes.rows_h(value) if float(value).is_integer() else f"calc({sizes.DATA_ROW} * {value:g})"
+    if isinstance(value, dict) and "timeline" in value:
+        return sizes.chart_height(int(value["timeline"]))
+    if isinstance(value, str):
+        return css_expr(value, None, where)
+    raise ConfigError(f"{where}: expected a height (rows, fill, {{timeline: n}} or CSS), got {value!r}")
 
 
 def copy_default(v):

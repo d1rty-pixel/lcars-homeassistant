@@ -6,7 +6,7 @@ from ..engine.palette import ALMOND, INK, ORANGE_FAMILY, EARTH
 from ..engine.screen import only_under, SCROLL_MIN_H  # noqa: F401  (re-exported for components)
 from ..engine.sizes import (DATA_GAP, DATA_ROW, DECOR_W, FRAME_GAP, Len, PANEL_CORNER, PANEL_GAP, PANEL_PILLAR, PANEL_T,
                             SECTION_GAP, css, data_panel_height, fl, rows_h, title_width)
-from .base import REQUIRED, Component, ConfigError, colour, component, row_height, width
+from .base import REQUIRED, Component, ConfigError, colour, component, height_spec, row_height, width
 
 
 # ── Building blocks (functions) ─────────────────────────────────────────────────
@@ -188,22 +188,6 @@ def s_chain(parts):
     return grid(" ".join(f'"r{i}"' for i in range(len(parts))), "1fr", " ".join(rows), cards, gap="0")
 
 
-def height_spec(value, where):
-    """A height from a configuration: a number of data rows (a label column's rows and gaps), "fill",
-    {timeline: n} (as high as a day timeline of n series with its shoulder), or CSS."""
-    if value is None:
-        return None
-    if value == "fill":
-        return "1fr"
-    if isinstance(value, (int, float)):
-        return rows_h(value) if float(value).is_integer() else f"calc({DATA_ROW} * {value:g})"
-    if isinstance(value, dict) and "timeline" in value:
-        return sizes.chart_height(int(value["timeline"]))
-    if isinstance(value, str):
-        return value
-    raise ConfigError(f"{where}: expected a height (rows, fill, {{timeline: n}} or CSS), got {value!r}")
-
-
 def item_height(comp, ctx):
     """The height a component takes in a stack: its `height` field, else what it needs, else None (fill)."""
     h = getattr(comp, "height_field", None)
@@ -222,11 +206,9 @@ def edge(comp, side, ctx):
 
 # ── Components ──────────────────────────────────────────────────────────────────
 class _Sized(Component):
-    """A component that can be given a height in a stack (`height`)."""
-    common = {**Component.common, "height": None}
+    """A layout component (parse_more(): its own field checks)."""
 
     def parse(self):
-        self.height_field = height_spec(self.height_cfg, f"{self.where}.height")
         self.parse_more()
 
     def parse_more(self):

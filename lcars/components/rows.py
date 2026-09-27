@@ -98,7 +98,7 @@ class Rows(Component):
 
     side: where the label blocks are (the frame's pillar); filler: a colour that continues the pillar
     below the last row; label_width: the column's width (default: the page's label column)."""
-    fields = {"rows": REQUIRED, "side": "left", "filler": None, "label_width": None, "height": None}
+    fields = {"rows": REQUIRED, "side": "left", "filler": None, "label_width": None}
 
     def parse(self):
         if not isinstance(self.rows, list) or not self.rows:
@@ -121,8 +121,6 @@ class Rows(Component):
                 spec["content"] = build(r["content"], f"{w}.content")
             self.specs.append(spec)
         self.filler = colour(self.filler, f"{self.where}.filler")
-        from .layout import height_spec
-        self.height_field = height_spec(self.height_cfg, f"{self.where}.height")
         self.sensitive = any(s["show_from"] for s in self.specs)
 
     def label_w(self, ctx):

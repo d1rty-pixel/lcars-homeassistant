@@ -1,7 +1,8 @@
 # Notes: root causes and LCARdS gotchas
 
 All of this was verified live against HA 2026.9.3, LCARdS 2026.9.0,
-HA-LCARS 4.1.3 and UIX 8.3.1 in Chrome.
+HA-LCARS 4.1.3 and UIX 8.3.1 in Chrome. The framework works around every one of
+these; they matter when you write components or cards of your own.
 
 ## "Konfigurationsfehler" everywhere: registry load-order race
 
@@ -18,15 +19,15 @@ Root cause:
    `document.createElement('lcards-button')` yields a real `LCARdSButton`, but the
    polyfill's `get()`/`whenDefined()` return nothing, so HA renders error cards.
 
-Workaround: `ha/www/lcards-registry-fix.js`, a Lovelace resource. HA loads those
+Workaround: `lcars/www/lcards-registry-fix.js`, a Lovelace resource. HA loads those
 after `app.js`. The script re-defines each natively defined LCARdS class with the
 polyfill. The polyfill's `define()` skips the native define when the tag already
-exists, so this is safe. The script needs the explicit tag list, so regenerate
-it with `tools/gen_registry_fix.py` after LCARdS updates.
+exists, so this is safe. The script needs the explicit tag list, which `lcars setup`
+(and `lcars files`) writes for the installed LCARdS version: run it after LCARdS updates.
 
 This is not reported upstream yet.
 
-## Why a separate view theme ("LCARS Aquarium")
+## Why a separate view theme ("LCARS Bridge")
 
 - HA-LCARS injects card styles through UIX. They paint every standard card
   lavender (quaternary background), so the embedded calendar, to-do, weather and
@@ -52,16 +53,16 @@ This is not reported upstream yet.
 - `border.width` as an object needs all four sides. Missing sides fall back to
   the theme width and draw an outline.
 - Grid `1fr` tracks are `minmax(auto, 1fr)`: card min-heights (presets set a
-  theme `min_height`) inflate rows past the viewport. The generator rewrites every
-  `Nfr` to `minmax(0,Nfr)` and sets `min_height: 0` on LCARdS cards.
+  theme `min_height`) inflate rows past the viewport. The framework rewrites every
+  `Nfr` to `minmax(0,Nfr)` and sets `min_height: 0` on LCARdS cards (`finalize()`).
 - Jinja `{% %}` blocks render as `[object Object]`, and `{{ }}` is flaky. Use
   `[[[ JS ]]]` or `{entity.state}` tokens. The token already includes the unit.
 - The `gauge` slider does not render vertically, so use vertical `pills-basic`
   with `control.locked: true` for read-only level columns.
 - The `text-reveal` animation made the text disappear for good, so it is not used.
-- The official `lcards-schema.json` has generator bugs: `$ref` where lists belong,
+- The official `lcards-schema.json` has bugs from its generator: `$ref` where lists belong,
   `enum: []` for text `position` and slider `preset`, and no
-  `additionalProperties: false`. `tools/validate.py` works around all three. Also,
+  `additionalProperties: false`. `lcars/validate.py` works around all three. Also,
   `sounds` is declared only on the slider, although every card reads it (from
   `LCARdSCard`), so the validator copies it onto the other cards.
 - Charts: `data_sources: {x: {entity, history: {hours: 24}}}`, then
@@ -69,20 +70,20 @@ This is not reported upstream yet.
   and `style.formatters`, or the axis shows float noise.
 - Chart sizing: lcards-chart gives ApexCharts the container's pixel size once and
   never resizes, so charts rendered during layout settling came out too narrow.
-  `FLUID` sets width/height to 100 % and turns the animation off, because ApexCharts
+  The `chart` component sets width/height to 100 % and turns the animation off, because ApexCharts
   ignores parent resizes while it animates. Frame charts with `overflow: hidden`:
   the Apex canvas sticks out ~24 px below the SVG, and the scrollbars from
   `overflow: auto` shrink the container.
 - Chart history is capped: the data source preloads `history.hours` clamped to
-  1–168 (7 days), from hourly *mean* statistics. Longer ranges (the laundry
-  page's 28 d) need a custom card (`ha/www/lcars-power.js` reads
+  1–168 (7 days), from hourly *mean* statistics. Longer ranges (28 d) need a
+  custom card (`lcars/www/lcars-history.js` reads
   `recorder/statistics_during_period` itself).
 - Chart legend names come from the `data_sources` key on live updates
   (`series_names` only applies to the first render), so key sources by display name.
-- ApexCharts' log y-axis rejects negatives. The mirrored power chart maps values
+- ApexCharts' log y-axis rejects negatives. The mirrored `chart` maps values
   with an `expression` processor (`sign * log10(1 + W)`, applied to history too)
-  and draws W ticks as `chart_options.annotations`. The schema declares only
-  `type`/`from` on processors, so `tools/validate.py` adds `expression`/`sources`.
+  and draws the ticks as `chart_options.annotations`. The schema declares only
+  `type`/`from` on processors, so `lcars/validate.py` adds `expression`/`sources`.
 
 ## Testing caveat
 
@@ -97,7 +98,7 @@ page before capturing. Missing cards in a screenshot are usually not real.
   `text.*.color` is not evaluated.
 - The result is substituted *after* token resolution, so a template must return
   a final colour: `rgba(...)`, not `alpha(#hex, 0.16)`.
-- The official schema's colour pattern rejects template strings; `tools/validate.py`
+- The official schema's colour pattern rejects template strings; `lcars/validate.py`
   skips that error for strings under `style` starting with `[[[`.
 
 ## Layout cards: no repeat()
@@ -111,7 +112,7 @@ Spell tracks out.
 
 LCARdS `font_size` takes px or `var(--…)`, and `font_size_percent` scales with
 the card *height* only. For text that must shrink with the viewport *width*
-(header readouts on the 1280 px tablet), the view theme defines
+(header readouts on a 1280 px tablet), the view theme defines
 `lcars-readout-size: clamp(…vw…)` and the cards use `var(--lcars-readout-size)`.
 
 ## Things LCARdS layout cards can't do
@@ -128,22 +129,24 @@ the card *height* only. For text that must shrink with the viewport *width*
 
 An `lcards-slider`'s SVG keeps a minimum height of its own (56 px). In a row
 lower than that the viewBox is scaled into the taller box and drawn centred,
-i.e. well below the row. The light channels override it through UIX
-(`.slider-container, .slider-container svg { height: 100%; min-height: 0 }`).
+i.e. well below the row. Override it through UIX
+(`.slider-container, .slider-container svg { height: 100%; min-height: 0 }`), or use
+the `sliders` component (a light card).
 
-## Performance on the kiosk tablet
+## Performance on kiosk tablets
 
 Every LCARdS button is its own SVG-rendered element with template processing.
-Hundreds of them (the waste timeline had ~200) crash Fully Kiosk's renderer on
-the Tab M10. Dense grids of plain cells belong in a small custom card with a
-CSS grid (`ha/www/lcars-day-grid.js`, `ha/www/lcars-bar.js`); keep LCARdS for
-the frame and the things people interact with. Custom cards that animate must
-honour the motion switch themselves (localStorage `lcars-motion`), since it only
-pauses anime.js. Waste page: 444 → 60 LCARdS buttons.
+Hundreds of them (a 28-day timeline of LCARdS buttons had ~200) crashed Fully
+Kiosk's renderer on a Lenovo Tab M10. Dense grids of plain cells belong in a small
+custom card with a CSS grid (`lcars/www/lcars-day-grid.js`, `lcars/www/lcars-bar.js`);
+keep LCARdS for the frame and the things people interact with. Custom cards that
+animate must honour the motion switch themselves (localStorage `lcars-motion`),
+since it only pauses anime.js. The page with that timeline went from 444 to 60
+LCARdS buttons.
 
 Custom cards get no click sounds for free: LCARdS plays them in its own action
-handler. Buttons in `ha/www/` cards call
-`window.lcards.core.soundManager.play("card_tap")` themselves (radar, power
+handler. Buttons in `lcars/www/` cards call
+`window.lcards.core.soundManager.play("card_tap")` themselves (radar, history
 chart); the sound helpers still apply.
 
 ## DWD radar (maps.dwd.de)

@@ -3,7 +3,8 @@ theme and the cards, read files a view is built from.
 
 Methods (site `homeassistant.files`):
   ssh    through an SSH login (e.g. the "Advanced SSH & Web Terminal" add-on) with sudo where needed.
-         The host needs no scp/sftp: files go through `cat` and `tee`.
+         The host needs no scp/sftp: files go through `cat` and `tee`. config_dir: where HA's
+         configuration is on that host, if not /config.
   local  the tool runs on the HA host itself (e.g. in the Terminal add-on): /config is a local directory.
   none   no file access: `lcars setup` prints what to copy by hand.
 """
@@ -69,10 +70,14 @@ class LocalHost(Host):
 class SSHHost(Host):
     method = "ssh"
 
-    def __init__(self, login, options=(), sudo=True):
+    def __init__(self, login, options=(), sudo=True, config_dir="/config"):
         self.login = login
         self.options = list(options)
         self.sudo = "sudo " if sudo else ""
+        self.config_dir = config_dir
+
+    def _p(self, path):
+        return path if not path.startswith("/config") else self.config_dir + path[len("/config"):]
 
     def _run(self, command, data=None):
         try:
@@ -87,21 +92,22 @@ class SSHHost(Host):
         return out.stdout
 
     def read(self, path):
-        return self._run(f"{self.sudo}cat {shlex.quote(path)}")
+        return self._run(f"{self.sudo}cat {shlex.quote(self._p(path))}")
 
     def write(self, path, data):
+        path = self._p(path)
         self._run(f"{self.sudo}mkdir -p {shlex.quote(os.path.dirname(path))} && "
                   f"{self.sudo}tee {shlex.quote(path)} >/dev/null", data if isinstance(data, bytes) else data.encode())
 
     def exists(self, path):
         try:
-            self._run(f"{self.sudo}test -e {shlex.quote(path)}")
+            self._run(f"{self.sudo}test -e {shlex.quote(self._p(path))}")
             return True
         except HostError:
             return False
 
     def remove(self, path):
-        self._run(f"{self.sudo}rm -f {shlex.quote(path)}")
+        self._run(f"{self.sudo}rm -f {shlex.quote(self._p(path))}")
 
     def describe(self):
         return f"ssh {self.login}"
@@ -121,7 +127,7 @@ def from_config(cfg):
         login = os.environ.get("HA_SSH", files.get("login"))
         if not login:
             raise HostError("homeassistant.files: method ssh needs a login (user@host)")
-        return SSHHost(login, files.get("options", []), files.get("sudo", True))
+        return SSHHost(login, files.get("options", []), files.get("sudo", True), files.get("config_dir", "/config"))
     if method == "local":
         return LocalHost(files.get("config_dir", "/config"))
     if method == "none":

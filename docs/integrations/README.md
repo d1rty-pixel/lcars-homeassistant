@@ -1,18 +1,16 @@
 # Integrations
 
-What each view expects from Home Assistant, and how the original installation set it up. Entity IDs
-are the generator's defaults. Change the constants in `generator/build_dashboard.py` (or `site.yaml`
-where noted) to match yours.
+What the components expect from Home Assistant, and how to set up the integrations that feed them.
+Any integration that provides the right kind of entity works; these are the ones the framework was
+built and tested with.
 
-| Integration | Used by | Doc |
-|-------------|---------|-----|
-| Spotify (built-in) | Media → Player | [spotify.md](spotify.md) |
-| DWD radar (no HA integration, direct WMS/WFS) | OPS → Precipitation radar | [dwd-radar.md](dwd-radar.md) |
-| Weather (any `weather.*`, e.g. Met.no) and Sun | OPS → Atmosphere, Forecast | [weather.md](weather.md) |
-| Calendars (Google, local, holidays, …) | OPS → Next 7 days, Calendar section | [calendars.md](calendars.md) |
-| Waste Collection Schedule (HACS) | Waste section | [waste-collection.md](waste-collection.md) |
-| Power-metering smart plugs (e.g. Shelly) | Laundry, Aquarium → Power / Osmosis | [power-metering.md](power-metering.md) |
-| Aquarium integrations, Chihiros light, ESPHome camera | Aquarium section | [aquarium.md](aquarium.md) |
+| Integration | Components | Doc |
+|-------------|------------|-----|
+| Weather (any `weather.*` with a forecast, e.g. Met.no) and Sun | `rows` with weather attributes, `forecast` | [weather.md](weather.md) |
+| Calendars (Google, Local Calendar, CalDAV, holidays, …) | `week`, `month`, `next_event` | [calendars.md](calendars.md) |
+| Waste Collection Schedule (HACS) | `timeline`, `rows` with countdown bars | [waste-collection.md](waste-collection.md) |
+| Power-metering smart plugs and meters (e.g. Shelly) | `rows` with level bars, `history`, `chart` | [power-metering.md](power-metering.md) |
+| Media players (Spotify and others) | `player`, `library` | [spotify.md](spotify.md) |
+| DWD radar (no HA integration: DWD's public WMS/WFS) | `radar` | [dwd-radar.md](dwd-radar.md) |
 
-Base requirements (LCARdS, HA-LCARS, UIX, kiosk-mode, Time & Date) are in the main
-[README](../../README.md#requirements).
+What the dashboard itself needs (LCARdS, kiosk-mode, Time & Date, …) is in [INSTALL.md](../INSTALL.md).

@@ -1,7 +1,7 @@
 # Waste collection
 
-Used by the **Waste** section: the 28-day collection timeline, "Next per bin", the hazmat frame, the
-header readouts, and the waste calendars in OPS and the Calendar section.
+Used by the `timeline` component (the next weeks' collections as a grid), label columns with countdown
+bars, readouts of the next pickup, and the waste calendars in `week` and `month`.
 
 ## Setup
 
@@ -38,15 +38,43 @@ sensors:
 When *every* type uses a dedicated calendar, the combined calendar entity is no longer created. The
 views don't need it.
 
-## In the generator
+## In lcars.yaml
 
-- `BINS`: (label, sensor, colour) per bin. The timeline, "Next per bin" and the countdown bars
-  (2 days per segment, 28 days) follow it.
-- `WASTE_CALS`: the per-bin calendars (and the hazmat one).
-- `NEXT_PICKUP`: the overview sensor. `JS_NEXT_BIN` parses its "`<bin> am <date>`" state, so keep that
-  format or adapt the parser.
-- `BIN_NAMES`: bin names as they appear in states and event titles, mapped to short labels.
-- `HAZMAT`: an optional **hazardous-waste collection** frame fed by three separate sensors: a date
-  (`yyyy-mm-dd`), a time window (`HH:MM - HH:MM`) and a location. The original installation reads
-  them with a `rest` sensor from the waste company's API. Remove the frame from `_waste()` if you
-  have no such data.
+A sensor of Waste Collection Schedule has an attribute per upcoming date (`yyyy-mm-dd` keys, the default
+`details_format: upcoming`), which is what `timeline` reads; its state (`dd.mm.yyyy` with the
+`value_template` above) is what a countdown bar and a `{date: state}` value read:
+
+```yaml
+- type: split
+  colour: orange
+  top:
+    type: timeline
+    days: 28
+    series:
+      - {label: Residual, entity: sensor.waste_residual, colour: "#AAAACC"}
+      - {label: Organic, entity: sensor.waste_organic, colour: almond}
+  bottom:
+    type: frame
+    title: Next per bin
+    colour: peach
+    bottom: false
+    content:
+      type: rows
+      filler: peach
+      rows:
+        - {label: Residual, colour: "#AAAACC", entity: sensor.waste_residual, value: {date: state}, bar: countdown}
+        - {label: Organic, colour: almond, entity: sensor.waste_organic, value: {date: state}, bar: countdown}
+```
+
+The overview sensor's state ("`<bins> am <date>`" with the template above) as a readout of the next bin:
+
+```yaml
+- type: readout
+  entity: sensor.waste_next_pickup
+  label: Next pickup
+  value: "[[[ return String(entity.state).split(' am ')[0]; ]]]"
+```
+
+A series whose *state* is its date (e.g. a hazardous-waste collection read with a `rest` sensor) takes
+`match: state` in the timeline. Give the calendars the bins' colours in the site's `calendars`, and
+translate or shorten the event titles with `titles`.
