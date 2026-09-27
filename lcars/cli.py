@@ -7,6 +7,7 @@
     lcars build               build the dashboard (build/lcars_dashboard.json)
     lcars deploy              build, validate, back up the live dashboard, save
     lcars restore FILE        save a backup (or any built config) as the dashboard
+    lcars diag                add a view that shows what a device's browser reports about its screen
 
 Options: -c/--config FILE (default ./lcars.yaml, or $LCARS_CONFIG), --dashboard URL_PATH (a test copy).
 """
@@ -96,6 +97,12 @@ def cmd_files(args):
     return run(config_path(args), fix=True, args=args, only=("files", "resources", "themes"))
 
 
+def cmd_diag(args):
+    from .diag import add_view
+    add_view(load_site(args))
+    return 0
+
+
 def cmd_init(args):
     from .setup import init
     return init(args.dir or ".", args)
@@ -117,6 +124,7 @@ def main(argv=None):
     s = sub.add_parser("setup", help="install and set up what the dashboard needs")
     s.add_argument("-y", "--yes", action="store_true", help="don't ask before restarting Home Assistant")
     sub.add_parser("files", help="copy the cards and the theme to Home Assistant")
+    sub.add_parser("diag", help="add a diagnostic view (viewport, safe areas) to the dashboard")
     i = sub.add_parser("init", help="write a starting configuration")
     i.add_argument("dir", nargs="?")
     i.add_argument("--url", help="Home Assistant's URL")
@@ -124,7 +132,8 @@ def main(argv=None):
     args.yes = getattr(args, "yes", False)
     try:
         r = {"build": lambda a: (cmd_build(a), 0)[1], "deploy": cmd_deploy, "restore": cmd_restore,
-             "doctor": cmd_doctor, "setup": cmd_setup, "files": cmd_files, "init": cmd_init}[args.cmd](args)
+             "doctor": cmd_doctor, "setup": cmd_setup, "files": cmd_files, "init": cmd_init,
+             "diag": cmd_diag}[args.cmd](args)
         return r or 0
     except ConfigError as e:
         print(f"configuration: {e}", file=sys.stderr)

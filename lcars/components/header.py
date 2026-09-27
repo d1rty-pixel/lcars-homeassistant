@@ -65,16 +65,17 @@ class NextEvent(HeaderItem):
 
 
 def number_sensors(site, n, seed=47174):
-    """n sensors for the number columns, read live at build time: power/energy meters first, topped up with a
-    fixed-seed random pick of other sensors whose value is a non-zero number (zeros would all show as
-    0000). The site's numbers.exclude (parts of entity IDs) leaves sensors out, numbers.sensors names them."""
+    """n sensors for the number columns, read live at build time: a fixed-seed random pick of power/energy
+    meters, then of other sensors with a number as their state; sensors at zero (they would all show as
+    0000) only where there aren't enough others. numbers.exclude (parts of entity IDs) leaves sensors out,
+    numbers.sensors names them instead."""
     import random
     cfg = site.numbers
     if cfg.get("sensors"):
         picks = list(cfg["sensors"])
         return (picks * (n // max(1, len(picks)) + 1))[:n]
     exclude = [str(x) for x in cfg.get("exclude", [])]
-    power, other = [], []
+    power, other, zero = [], [], []
     for st in site.states():
         eid, attrs = st["entity_id"], st["attributes"]
         if not eid.startswith("sensor.") or any(x in eid for x in exclude):
@@ -83,14 +84,17 @@ def number_sensors(site, n, seed=47174):
             value = float(st["state"])
         except ValueError:
             continue
-        if (attrs.get("device_class") in ("power", "energy") or attrs.get("unit_of_measurement") in
+        if value == 0:
+            zero.append(eid)
+        elif (attrs.get("device_class") in ("power", "energy") or attrs.get("unit_of_measurement") in
                 ("W", "kW", "Wh", "kWh")):
             power.append(eid)
-        elif value != 0:
+        else:
             other.append(eid)
     rng = random.Random(seed)
-    picks = rng.sample(sorted(power), min(n, len(power)))
-    picks += rng.sample(sorted(other), min(n - len(picks), len(other)))
+    picks = []
+    for pool in (power, other, zero):     # meters first; zeros (they all show as 0000) only to fill up
+        picks += rng.sample(sorted(pool), min(n - len(picks), len(pool)))
     rng.shuffle(picks)
     return (picks + ["sensor.time"] * n)[:n]
 

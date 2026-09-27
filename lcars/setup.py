@@ -547,6 +547,8 @@ def init(directory, args):
     conf = ha.result({"type": "get_config"})
     by_domain = {}
     for s in states:
+        if s["state"] in ("unavailable", "unknown") and s["entity_id"].split(".")[0] != "sensor":
+            continue
         by_domain.setdefault(s["entity_id"].split(".")[0], []).append(s)
     text = starter_config(url, conf, by_domain)
     os.makedirs(directory, exist_ok=True)
@@ -563,7 +565,10 @@ def starter_config(url, conf, by_domain):
     player = (players or by_domain.get("media_player") or [{}])[0].get("entity_id")
     lat, lon = conf.get("latitude"), conf.get("longitude")
     in_germany = lat is not None and 47.2 <= lat <= 55.1 and 5.8 <= lon <= 15.1
-    power = [s["entity_id"] for s in by_domain.get("sensor", []) if s["attributes"].get("device_class") == "power"][:4]
+    names = {s["entity_id"]: s["attributes"].get("friendly_name") or s["entity_id"].split(".", 1)[1]
+             for ss in by_domain.values() for s in ss}
+    power = [s["entity_id"] for s in by_domain.get("sensor", []) if s["attributes"].get("device_class") == "power"
+             and s["state"] not in ("unavailable", "unknown")][:4]
     doc = {
         "homeassistant": {"url": url, "token_file": "~/.config/homeassistant/token",
                           "files": {"method": "ssh", "login": "root@" + (re.sub(r"^https?://|:\d+$", "", url) or "homeassistant.local")}},
@@ -575,7 +580,7 @@ def starter_config(url, conf, by_domain):
     if in_germany:
         doc["radar"] = {"home": [round(lat, 2), round(lon, 2)], "width_km": 170}
     if cals:
-        doc["calendars"] = [{"entity": c} for c in cals]
+        doc["calendars"] = [{"entity": c, "label": names.get(c, c)} for c in cals]
     sections = []
     if weather:
         rows = [
@@ -616,7 +621,7 @@ def starter_config(url, conf, by_domain):
             "key": "power", "label": "Power", "subtitle": "Power distribution",
             "bar": [{"title": "Power grid", "colour": "orange"}],
             "content": {"type": "stack", "items": [
-                {"type": "rows", "rows": [{"label": e.split(".", 1)[1].replace("_", " ")[:14], "entity": e,
+                {"type": "rows", "rows": [{"label": names[e][:18], "entity": e,
                                            "bar": {"mode": "level", "min": 0, "max": 2000}} for e in power]},
                 {"type": "section", "title": "Power trace", "colour": "lilac", "height": {"timeline": 5},
                  "content": {"type": "history", "entity": power[0], "buttons": ["violet", "lilac", "peri"],

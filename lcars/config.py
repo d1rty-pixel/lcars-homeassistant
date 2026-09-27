@@ -303,7 +303,7 @@ class Site:
         for i, c in enumerate(raw.get("calendars") or []):
             if isinstance(c, str):
                 c = {"entity": c}
-            self.calendars.append({"entity": c["entity"], "label": c.get("label", c["entity"].split(".", 1)[1]),
+            self.calendars.append({"entity": c["entity"], "label": c.get("label"),
                                    "colour": colour(c.get("colour"), f"calendars[{i}].colour") or next(others),
                                    "code": lcars_code(f"week/{c['entity']}")})
         self.alert = Alert(raw["alert"]) if raw.get("alert") else None
@@ -334,6 +334,14 @@ class Site:
         if self._states is None:
             self._states = self.ha().result({"type": "get_states"})
         return self._states
+
+    def friendly_name(self, entity):
+        """The entity's name in HA (or its object ID where HA doesn't know it)."""
+        try:
+            st = next((s for s in self.states() if s["entity_id"] == entity), None)
+        except Exception:
+            st = None
+        return (st or {}).get("attributes", {}).get("friendly_name") or entity.split(".", 1)[1].replace("_", " ")
 
     def resolve(self, entity):
         """An entity ID, or the first live entity matching a pattern (media_player.spotify_*)."""

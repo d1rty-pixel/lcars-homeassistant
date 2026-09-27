@@ -102,11 +102,18 @@ class Timeline(Component):
 
 
 def calendar_list(site, entities=None):
-    """The calendars (site `calendars`) with label, colour and LCARS number; `entities`: only these."""
+    """The calendars (site `calendars`) with label, colour and LCARS number; `entities`: only these. A
+    calendar without a label gets its name in HA."""
     cals = site.calendars
     if entities:
         cals = [c for c in cals if c["entity"] in entities]
-    return [dict(c) for c in cals]
+    out = []
+    for c in cals:
+        c = dict(c)
+        if not c.get("label"):
+            c["label"] = site.friendly_name(c["entity"])
+        out.append(c)
+    return out
 
 
 @component("week")

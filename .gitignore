@@ -4,4 +4,4 @@ __pycache__/
 node_modules/
 site.yaml
 CLAUDE.local.md
-__pycache__/
+*.egg-info/
