@@ -5,10 +5,6 @@ A framework for LCARS dashboards in Home Assistant, on top of LCARdS: a Python p
 view theme it installs into HA. There is no dashboard YAML to edit by hand: change the framework or a
 site's `lcars.yaml`, build and deploy.
 
-**Branch `framework`: work in progress. Read `docs/FRAMEWORK-WIP.md` first** (and
-`docs/RESPONSIVE-WIP.md` for the responsive work it continues). Remove this line and those files before
-merging.
-
 ## Where things are
 
 - `lcars/`: the framework. `config.py` (the YAML and the model), `build.py`, `frame.py` (the page
