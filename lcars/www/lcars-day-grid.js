@@ -1,20 +1,22 @@
-// LCARS day grid: the waste page's collection timeline as one lightweight card.
+// LCARS day grid: the next days as a timeline, a row per series with a cell lit on each day with an event
+// (e.g. waste collections), as one lightweight card.
 //
-// Replaces ~200 LCARdS buttons (one per cell) with a single element and a plain CSS grid, which the
-// Fully Kiosk tablet can render. The look matches the former LCARdS version: weekday header, one row
-// per series, day numbers underneath, weekends dimmer, today lighter.
+// One element and a plain CSS grid instead of an LCARdS button per cell (~200 for four weeks, too many for
+// a kiosk tablet's renderer): weekday header, one row per series, day numbers underneath, weekends dimmer,
+// today lighter.
 //
-// Config (written by generator/build_dashboard.py):
+// Config (the framework writes it from a `timeline` component, lcars/components/data.py):
 //   type: custom:lcars-day-grid
 //   days: 28
 //   rows: ["22px", "28px", ...]     # grid-template-rows: header, one per series, axis
 //   gap: "4px 4px"
 //   series: [{entity, colour, match: "attribute" | "state"}]
-//     attribute: a pickup on day ds when entity.attributes[ds] exists ('yyyy-mm-dd' keys)
-//     state:     a pickup on day ds when entity.state === ds
+//     attribute: an event on day ds when entity.attributes[ds] exists ('yyyy-mm-dd' keys, e.g. Waste
+//                Collection Schedule's sensors)
+//     state:     an event on day ds when the state is that date ('yyyy-mm-dd', or a timestamp on it)
 //   colours: {empty, weekend, today, text, text_weekend, text_today}
 //   font: "Antonio, sans-serif", font_size: 15
-// Fluid sizes, the same as the generator's (Len, font() in build_dashboard.py): full size from REF_H
+// Fluid sizes, the same as the framework's (Len, font() in lcars/engine/sizes.py): full size from REF_H
 // viewport height up, shrinking linearly below it to a minimum share at MIN_H: sizes to 60 % (sz), fonts to
 // 80 % (fz; LCARS numbers to 67 %). len(): a size from the config (a number of px or a CSS length) as CSS.
 const REF_H = 720, MIN_H = 400;
@@ -71,7 +73,8 @@ class LcarsDayGrid extends HTMLElement {
     for (const s of c.series) {
       const st = this._hass.states[s.entity];
       for (const day of days) {
-        const hit = st && (s.match === "state" ? st.state === day.ds : st.attributes[day.ds] !== undefined);
+        const hit = st && (s.match === "state" ? String(st.state).slice(0, 10) === day.ds
+                                                : st.attributes[day.ds] !== undefined);
         const bg = hit ? s.colour : day.today ? col.today : day.we ? col.weekend : col.empty;
         cells.push(`<div class="cell" style="background:${bg}"></div>`);
       }

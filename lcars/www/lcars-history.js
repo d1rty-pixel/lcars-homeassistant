@@ -1,22 +1,26 @@
-// LCARS power chart: a power sensor over 24 h, 7 d or 28 d as one lightweight card.
+// LCARS history: a sensor over 24 h, 7 d or 28 d as one lightweight card (e.g. a power meter).
 //
-// Looks like the aquarium power chart (smooth filled area on a log scale, dashed W lines with labels,
-// no legend), but draws plain SVG: LCARdS charts preload at most 168 h of history. Data comes from HA's
-// long-term statistics (recorder/statistics_during_period, the peak of each period), refreshed every
-// 5 min. A pillar of LCARS buttons picks the range; the choice is stored per device (localStorage).
+// A smooth filled area with dashed, labelled lines at the ticks and no legend, drawn as plain SVG (LCARdS
+// charts preload at most 168 h of history). Data comes from HA's long-term statistics
+// (recorder/statistics_during_period: the peak of each period by default), refreshed every 5 min. A
+// pillar of LCARS buttons picks the range; the choice is stored per device (localStorage). Also
+// registered as lcars-power (its name before the framework).
 //
-// Config (written by generator/build_dashboard.py):
-//   type: custom:lcars-power
-//   entity: sensor.x_power
+// Config (written by the framework from a `history` component, lcars/components/data.py):
+//   type: custom:lcars-history
+//   entity: sensor.x_power            # a sensor with long-term statistics (a state_class)
 //   ranges: [{label: "24h", hours: 24, period: "5minute"}, ...]
-//   ticks: [1, 10, 100, 1000]         # W lines
-//   max: 2500                         # W at the top of the (log) scale
+//   scale: log | linear               # log (default): log10(1 + value), for values across magnitudes
+//   ticks: [1, 10, 100, 1000]         # labelled lines
+//   min: 0, max: 2500                 # the scale (min: linear only)
+//   unit: "W"                         # default: the entity's unit_of_measurement
+//   stat: max | mean | min            # which statistic of each period (default max: peaks stay visible)
 //   pillar: {width, gap, side: left | right, blocks: [{colour, code}], active, filler, ink,
 //            row: "28px"}             # optional: buttons one row high (like label blocks), the filler below;
 //                                     # without it they share the height and the filler is 14 px
 //   colours: {line, fill_opacity, grid, axis, text}
 //   font: "Antonio, sans-serif"
-// Fluid sizes, the same as the generator's (Len, font() in build_dashboard.py): full size from REF_H
+// Fluid sizes, the same as the framework's (Len, font() in lcars/engine/sizes.py): full size from REF_H
 // viewport height up, shrinking linearly below it to a minimum share at MIN_H: sizes to 60 % (sz), fonts to
 // 80 % (fz; LCARS numbers to 67 %). len(): a size from the config (a number of px or a CSS length) as CSS.
 const REF_H = 720, MIN_H = 400;
@@ -29,17 +33,18 @@ const sz = (px) => fluid(px, 0.6);
 const scale = () => Math.min(1, Math.max(0.6, 0.6 + 0.4 * (window.innerHeight - MIN_H) / (REF_H - MIN_H)));   // sz(px) = px * scale()
 const len = (v) => (typeof v === "number" ? `${v}px` : v);
 
-const RANGE_KEY = "lcars-power-range";
+const RANGE_KEY = "lcars-history-range", OLD_RANGE_KEY = "lcars-power-range";
 // LCARdS' click sound (its sound manager honours the sound helpers), as on LCARdS buttons
 const lcarsTapSound = () => {
   try { window.lcards.core.soundManager.play("card_tap"); } catch (e) { /* LCARdS not loaded: silent */ }
 };
 
-class LcarsPower extends HTMLElement {
+class LcarsHistory extends HTMLElement {
   setConfig(config) {
     this._config = config;
     this._data = null;
-    try { this._range = +localStorage.getItem(RANGE_KEY) || 0; } catch (e) { this._range = 0; }
+    try { this._range = +(localStorage.getItem(RANGE_KEY) ?? localStorage.getItem(OLD_RANGE_KEY)) || 0; }
+    catch (e) { this._range = 0; }
     if (this._range >= config.ranges.length) this._range = 0;
     if (!this.shadowRoot) this._build();
   }
@@ -74,7 +79,7 @@ class LcarsPower extends HTMLElement {
     const chart = `<div class="chart"><svg></svg></div>`;
     this.shadowRoot.innerHTML = `
       <style>
-        /* phones (PHONE_H in the generator): no LCARS numbers, they are decoration and collide with labels */
+        /* phones (PHONE_H in lcars/engine/sizes.py): no LCARS numbers, they are decoration and collide with labels */
         @media (max-height: 520px) { .blk em { display: none; } }
         :host { display: block; height: 100%; }
         .wrap { display: grid; height: 100%; gap: 0 16px; font-family: ${c.font}; text-transform: uppercase;
@@ -124,10 +129,10 @@ class LcarsPower extends HTMLElement {
     try {
       const res = await this._hass.callWS({
         type: "recorder/statistics_during_period", start_time: start.toISOString(), end_time: end.toISOString(),
-        statistic_ids: [c.entity], period: r.period, types: ["max"],
+        statistic_ids: [c.entity], period: r.period, types: [c.stat || "max"],
       });
       if (range !== this._range) return;   // switched while loading
-      this._data = (res[c.entity] || []).map((s) => ({t: s.start, v: s.max}));
+      this._data = (res[c.entity] || []).map((s) => ({t: s.start, v: s[c.stat || "max"]}));
       this._from = start.getTime();
       this._to = end.getTime();
       this._draw();
@@ -166,19 +171,23 @@ class LcarsPower extends HTMLElement {
     if (!w || !h) return;
     svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
     const axisH = 22, top = 8, plotH = h - axisH - top;
-    const lg = (v) => Math.log10(1 + Math.max(0, v));
-    const y = (v) => top + plotH * (1 - lg(v) / lg(c.max));
+    const st = this._hass && this._hass.states[c.entity];
+    const unit = c.unit ?? ((st && st.attributes.unit_of_measurement) || "");
+    const lo = c.scale === "linear" ? (c.min ?? 0) : 0;
+    const f = c.scale === "linear" ? (v) => (v - lo) / ((c.max - lo) || 1)
+                                   : (v) => Math.log10(1 + Math.max(0, v)) / Math.log10(1 + c.max);
+    const y = (v) => top + plotH * (1 - Math.min(1, Math.max(0, f(v))));
     const parts = [];
     for (const t of c.ticks) {
       parts.push(`<line x1="0" x2="${w}" y1="${y(t)}" y2="${y(t)}" stroke="${col.grid}" stroke-dasharray="4" opacity="0.6"/>`,
-                 `<text x="4" y="${y(t) - 4}">${t} W</text>`);
+                 `<text x="4" y="${y(t) - 4}">${t}${unit ? " " + unit : ""}</text>`);
     }
-    const zero = y(0);
+    const zero = y(lo);
     if (this._data && this._data.length) {
       const span = this._to - this._from;
       const x = (t) => ((t - this._from) / span) * w;
-      const pts = this._data.map((s) => [x(s.t), y(s.v ?? 0)]);
-      const line = LcarsPower._smooth(pts);
+      const pts = this._data.map((s) => [x(s.t), y(s.v ?? lo)]);
+      const line = LcarsHistory._smooth(pts);
       const x0 = pts[0][0].toFixed(1), x1 = pts[pts.length - 1][0].toFixed(1);
       parts.push(`<path d="${line}L${x1} ${zero}L${x0} ${zero}Z" fill="${col.line}" opacity="${col.fill_opacity}"/>`,
                  `<path d="${line}" fill="none" stroke="${col.line}" stroke-width="2"/>`);
@@ -206,4 +215,5 @@ class LcarsPower extends HTMLElement {
   }
 }
 
-if (!customElements.get("lcars-power")) customElements.define("lcars-power", LcarsPower);
+if (!customElements.get("lcars-history")) customElements.define("lcars-history", LcarsHistory);
+if (!customElements.get("lcars-power")) customElements.define("lcars-power", class extends LcarsHistory {});

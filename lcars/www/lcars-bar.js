@@ -1,10 +1,11 @@
-// LCARS segment bar: the waste page's countdown / time-window bars as one lightweight card.
+// LCARS segment bar: a value as a row of segments (countdown, time window, level, span, weekdays, status),
+// as one lightweight card.
 //
 // Replaces two LCARdS buttons per segment (a static base plus a blinking overlay) with plain divs:
 // no colour transitions, and lit segments blink hard on/off through a CSS animation (steps, no fade).
 // The per-device motion switch (localStorage "lcars-motion" = "off", see lcars-motion.js) stops it.
 //
-// Config (written by generator/build_dashboard.py):
+// Config (the framework writes it from a row's `bar` or a `bar` component; lcars/components/rows.py):
 //   type: custom:lcars-bar
 //   entity: sensor.x
 //   mode: countdown          # days until the date in the state ('dd.mm.yyyy' or 'yyyy-mm-dd'),
@@ -14,7 +15,7 @@
 //         span               # one segment per hour, lit between the times of day in the ISO timestamps
 //                            #   `start_attr` and `end_attr` (e.g. sun.sun next_rising / next_setting)
 //         days               # one segment per weekday (Mon first), lit for the weekdays listed in
-//                            #   `attribute` (0 = Monday, e.g. a dosing schedule's weekdays)
+//                            #   `attribute` (0 = Monday, e.g. a schedule's weekdays)
 //         state              # a status: every segment lit in states[state] (e.g. {on: ice}), none if
 //                            #   the state isn't listed; with `threshold`, a number above it is "on",
 //                            #   else "off"
@@ -34,7 +35,7 @@
 //   gap: 3
 //   labels: ["M", "T", ...]  # optional text per segment (e.g. weekday letters): ink on lit segments,
 //   ink: "#000", label_colour: "#9999FF", font: "Antonio, sans-serif"   # `label_colour` on unlit ones
-// Fluid sizes, the same as the generator's (Len, font() in build_dashboard.py): full size from REF_H
+// Fluid sizes, the same as the framework's (Len, font() in lcars/engine/sizes.py): full size from REF_H
 // viewport height up, shrinking linearly below it to a minimum share at MIN_H: sizes to 60 % (sz), fonts to
 // 80 % (fz; LCARS numbers to 67 %). len(): a size from the config (a number of px or a CSS length) as CSS.
 const REF_H = 720, MIN_H = 400;
@@ -110,7 +111,7 @@ class LcarsBar extends HTMLElement {
       const count = n == null || n < 0 ? 0 : Math.max(1, Math.ceil(n / (c.days_per_segment || 2)));
       for (let j = 0; j < c.segments; j++) lit.push(j < count);
     }
-    // lit colour per state (e.g. a water-change countdown in the status colour)
+    // lit colour per state (e.g. a countdown in its status colour)
     const byState = c.mode !== "state" && c.states && c.states[state];
     return byState ? lit.map((on) => on === true ? byState : on) : lit;
   }

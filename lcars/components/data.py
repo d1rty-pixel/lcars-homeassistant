@@ -55,11 +55,11 @@ class Bar(Component):
     """A segment bar on its own (lcars-bar.js): entity plus the bar fields (docs/COMPONENTS.md "Bars")."""
     fields = {"entity": REQUIRED, "mode": REQUIRED, "segments": None, "colour": None, "attribute": None, "min": None,
               "max": None, "states": None, "threshold": None, "days_per_segment": None, "start": None, "end": None,
-              "labels": None, "alarm": None, "low": None, "side": "left"}
+              "labels": None, "alarm": None, "side": "left"}
 
     def render(self, ctx):
         spec = {k: getattr(self, k) for k in ("mode", "segments", "colour", "attribute", "min", "max", "states",
-                                              "threshold", "days_per_segment", "start", "end", "labels", "alarm", "low")
+                                              "threshold", "days_per_segment", "start", "end", "labels", "alarm")
                 if getattr(self, k) is not None}
         return bar_card(spec, self.entity, PERI, self.side, ctx.key or self.where, self.where)
 
@@ -272,12 +272,14 @@ class Radar(Component):
 
 @component("history")
 class History(Component):
-    """A sensor over 24 h / 7 d / 28 d from HA's long-term statistics (lcars-power.js): smooth filled area on
-    a log scale with labelled lines, no legend. Its range buttons are a pillar of their own (pillar
-    colours), or, with column, blocks of the label column (one data row high each; the active one
-    near-white). unit / ticks / max: the scale."""
+    """A sensor over 24 h / 7 d / 28 d from HA's long-term statistics (lcars-history.js): a smooth filled area
+    with labelled lines, no legend. Its range buttons (buttons: their colours) are blocks of the label
+    column (one data row high each, the active one near-white), or, with column: false, a pillar of their
+    own. scale: log (default, for values across magnitudes, e.g. power) or linear; ticks, min, max, unit
+    (default: the entity's), stat: max (default), mean or min of each period."""
     fields = {"entity": REQUIRED, "buttons": ["almond", "peach", "bone"], "filler": "orange", "column": True,
-              "ticks": [1, 10, 100, 1000], "max": 2500, "unit": "W", "colour": "almond"}
+              "scale": "log", "ticks": [1, 10, 100, 1000], "min": None, "max": 2500, "unit": None, "stat": "max",
+              "colour": "almond"}
 
     def render(self, ctx):
         ranges = [("24h", 24, "5minute"), ("7d", 168, "hour"), ("28d", 672, "hour")]
@@ -290,14 +292,19 @@ class History(Component):
                              for c, (label, _, _) in zip(colours_, ranges)]}
         if self.column:
             pillar.update({"gap": DATA_GAP, "row": DATA_ROW})
-        card = {"type": "custom:lcars-power", "entity": self.entity,
+        card = {"type": "custom:lcars-history", "entity": self.entity,
                 "ranges": [{"label": label, "hours": hours, "period": period} for label, hours, period in ranges],
                 "ticks": list(self.ticks), "max": self.max, "pillar": pillar,
                 "colours": {"line": colour(self.colour, self.where), "fill_opacity": 0.35, "grid": GRAY, "axis": DIM,
                             "text": DIM},
                 "font": FONT}
-        if self.unit != "W":
-            card["unit"] = self.unit
+        if self.scale != "log":
+            card["scale"] = self.scale
+        for k in ("min", "unit"):
+            if getattr(self, k) is not None:
+                card[k] = getattr(self, k)
+        if self.stat != "max":
+            card["stat"] = self.stat
         return card
 
     def edge(self, side, ctx):
@@ -381,11 +388,12 @@ def minutes(t):
 
 @component("schedule")
 class Schedule(Component):
-    """A day's schedule of phases over 24 h (lcars-phases.js): one smooth shape per phase that rises over its
-    ramp-up and falls over its ramp-down, its height the phase's brightest level; a line at the time now.
-    phases: [{name, start, end, ramp_up_minutes, ramp_down_minutes, levels: {channel: 0..100}}] (e.g. from
-    a file on the HA host through the site's `data`); colours: {phase name: colour}; min_share: the
-    lowest a phase's shape is drawn, as a share of the graph's height (dim phases stay visible)."""
+    """A day's schedule of phases over 24 h (lcars-schedule.js), e.g. a light's day and night phases or heating
+    periods: one smooth shape per phase that rises over its ramp-up and falls over its ramp-down, its
+    height the phase's level; a line at the time now. phases: [{name, start, end ("HH:MM"),
+    ramp_up_minutes, ramp_down_minutes, level or levels: {channel: value}, colour}] (inline, or from a file
+    on the HA host through the site's `data`); colours: {phase name: colour} for phases without one;
+    min_share: the lowest a phase's shape is drawn, as a share of the graph's height."""
     fields = {"phases": REQUIRED, "colours": None, "min_share": 0.3}
 
     def parse(self):
@@ -394,11 +402,16 @@ class Schedule(Component):
         self.colour_map = colour_map(self.colours, f"{self.where}.colours") or {}
 
     def render(self, ctx):
-        phases = [{"name": p["name"], "start": minutes(p["start"]), "end": minutes(p["end"]),
-                   "up": int(p.get("ramp_up_minutes", 0)), "down": int(p.get("ramp_down_minutes", 0)),
-                   "levels": {str(k): int(v) for k, v in (p.get("levels") or {}).items()},
-                   "colour": self.colour_map.get(p["name"], PERI)} for p in self.phases]
-        return {"type": "custom:lcars-phases", "phases": phases, "min_height": self.min_share,
+        phases = []
+        for p in self.phases:
+            ph = {"name": p["name"], "start": minutes(p["start"]), "end": minutes(p["end"]),
+                  "up": int(p.get("ramp_up_minutes", p.get("up", 0))), "down": int(p.get("ramp_down_minutes", p.get("down", 0))),
+                  "levels": {str(k): v for k, v in (p.get("levels") or {}).items()},
+                  "colour": colour(p.get("colour"), f"{self.where}.phases") or self.colour_map.get(p["name"], PERI)}
+            if "level" in p:
+                ph["level"] = p["level"]
+            phases.append(ph)
+        return {"type": "custom:lcars-schedule", "phases": phases, "min_height": self.min_share,
                 "colours": {"grid": rgba(PERI, 0.15), "text": GRAY, "now": ORANGE}, "font": FONT}
 
 
@@ -421,16 +434,23 @@ class Log(Component):
 
 @component("tank")
 class Tank(Component):
-    """A fill level as a vertical stack of segments with a scale and a pointer (lcars-tank.js): entity (the
-    level), capacity and low (in the entity's unit), status (optional: an entity whose attributes
-    bottle_size_ml / low_level_ml override them), colour; red below `low`. Tap: more-info."""
-    fields = {"entity": REQUIRED, "capacity": REQUIRED, "low": 0, "status": None, "colour": "peach", "segments": 20}
+    """A fill level (a tank, a bottle, a battery) as a vertical stack of segments with a scale and a pointer
+    (lcars-tank.js): entity (the level), capacity and low (in its unit), unit (default: the entity's),
+    colour; red below `low`. status / status_attributes: an entity whose attributes override capacity and
+    low, e.g. {capacity: size_ml, low: low_ml}. Tap: more-info."""
+    fields = {"entity": REQUIRED, "capacity": REQUIRED, "low": 0, "unit": None, "status": None,
+              "status_attributes": None, "colour": "peach", "segments": 20}
 
     def render(self, ctx):
-        return {"type": "custom:lcars-tank", "entity": self.entity, "status": self.status, "capacity": self.capacity,
+        card = {"type": "custom:lcars-tank", "entity": self.entity, "status": self.status, "capacity": self.capacity,
                 "low": self.low, "segments": self.segments, "colour": colour(self.colour, self.where), "alarm": RED,
                 "off": BAR_OFF, "text": PERI, "dim": GRAY, "blink": blink(ctx.key + "/tank", self.segments),
                 "off_fraction": 0.025, "flash": WHITE, "gap": 3, "font": FONT}
+        if self.unit is not None:
+            card["unit"] = self.unit
+        if self.status_attributes:
+            card["status_attributes"] = dict(self.status_attributes)
+        return card
 
 
 @component("player")
@@ -438,8 +458,9 @@ class Player(Component):
     """A media player (lcars-player.js). part: now (cover, track, progress, volume), devices (the output
     devices as a button column), transport (only Play/Pause, Back, Next, Shuffle, Repeat, e.g. in the mid
     bar), or full (now playing with its own transport pillar and device pills). entity: a media_player
-    (a pattern like media_player.spotify_* takes the first match when the dashboard is built)."""
-    fields = {"entity": REQUIRED, "part": "full"}
+    (a pattern like media_player.spotify_* takes the first match when the dashboard is built); name: the
+    service's name in status texts ("Spotify refused · Repeat"; default "Player")."""
+    fields = {"entity": REQUIRED, "part": "full", "name": None}
 
     def render(self, ctx):
         transport = {"now": "none", "devices": "none", "transport": "row", "full": "pillar"}[self.part]
@@ -458,6 +479,8 @@ class Player(Component):
             card["sources"] = "none"
         if self.part == "devices":
             card.update({"sources": "column", "source_row": 64})
+        if self.name:
+            card["name"] = self.name
         return card
 
 
@@ -465,11 +488,12 @@ class Player(Component):
 class Library(Component):
     """A media library from HA's media browser (lcars-library in lcars-player.js): a pillar of categories
     (the frame's right side), rows that play on tap. categories: [{match (the end of a root entry's
-    media_content_id), label, colour, pinned: [ids listed first]}]."""
-    fields = {"entity": REQUIRED, "categories": REQUIRED, "filler": "almond", "paging": "butterscotch"}
+    media_content_id), label, colour, pinned: [ids listed first]}]; name: as for a player."""
+    fields = {"entity": REQUIRED, "categories": REQUIRED, "filler": "almond", "paging": "butterscotch", "name": None}
 
     def render(self, ctx):
         return {"type": "custom:lcars-library", "entity": ctx.site.resolve(self.entity),
+                **({"name": self.name} if self.name else {}),
                 "categories": [{"match": c["match"], "label": c["label"],
                                 "colour": colour(c.get("colour"), f"{self.where}.categories", PEACH),
                                 "code": lcars_code(f"media/library/{c['match']}"),

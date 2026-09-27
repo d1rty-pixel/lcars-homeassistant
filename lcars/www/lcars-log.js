@@ -1,9 +1,11 @@
 // LCARS device log: recent events of a device's entities from HA's logbook, as one lightweight card.
 //
 // Newest first, one event per line (time, tag, text, a descriptive detail, a reference code), coloured by
-// severity. As many whole lines as fit are shown; below 700 px the reference code is left out. The reference code (REF xxxx-nn · SEQ nnnn) is derived
-// from the event's time and tag, so it looks random but stays put between refreshes. A brightening wave runs down the lines like the header's number columns (colour waterfall) and a
-// new line flashes once; both stop with the per-device motion switch (localStorage "lcars-motion" = "off").
+// severity. As many whole lines as fit are shown; below 700 px the reference code is left out. The
+// reference code (REF xxxx-nn · SEQ nnnn) is derived from the event's time and tag, so it looks random but
+// stays put between refreshes. A brightening wave runs down the lines like the header's number columns
+// (colour waterfall) and a new line flashes once; both stop with the per-device motion switch
+// (localStorage "lcars-motion" = "off").
 //
 // Events are derived from state changes (logbook/<start>?entity=a,b,...), refetched every `refresh_s`:
 //   - an entity going `unavailable` and back within `flap_s` is one "flap" line; longer is an "error"
@@ -15,7 +17,7 @@
 //     line listing the distinct values and the count
 //   - details for availability lines: `details: {flap, offline, online}`, `{d}` = the duration
 //
-// Config (written by generator/build_dashboard.py):
+// Config (written by the framework from a `log` component, lcars/components/data.py):
 //   type: custom:lcars-log
 //   sources: [{entity, tag, states, default, burst, details}]
 //   hours: 24, refresh_s: 60, flap_s: 60, burst_s: 60, max_lines: 40
@@ -23,7 +25,7 @@
 //   colours: {time, bright}          # time column; the colour the waterfall brightens to
 //   cascade_ms: 5400, stagger_ms: 90
 //   font: "Antonio, sans-serif", font_size: 15
-// Fluid sizes, the same as the generator's (Len, font() in build_dashboard.py): full size from REF_H
+// Fluid sizes, the same as the framework's (Len, font() in lcars/engine/sizes.py): full size from REF_H
 // viewport height up, shrinking linearly below it to a minimum share at MIN_H: sizes to 60 % (sz), fonts to
 // 80 % (fz; LCARS numbers to 67 %). len(): a size from the config (a number of px or a CSS length) as CSS.
 const REF_H = 720, MIN_H = 400;

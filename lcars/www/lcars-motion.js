@@ -1,7 +1,7 @@
-// LCARS dashboard: per-device switch for all LCARdS animations (e.g. off on the kiosk tablet).
+// LCARS dashboard: per-device switch for all LCARdS animations (e.g. off on a kiosk tablet).
 //
 // - ?lcars_motion=off / ?lcars_motion=on in the URL stores the choice in this browser's localStorage,
-//   so it can go into the Fully Kiosk start URL.
+//   so it can go into a kiosk browser's start URL.
 // - The "Motion" block in the sidebar navigates to the current view with ?lcars_motion=toggle (LCARdS
 //   buttons support navigate, not fire-dom-event); that flips the choice and reloads without the param.
 // - "off" pauses anime.js' global engine (window.lcards.animejs.engine), which drives every LCARdS

@@ -12,7 +12,8 @@ S_MIN = 0.6          # default minimum share for sizes
 F_MIN = 0.8          # smallest scale for fonts
 LABEL_LO = 0.75      # label columns shrink less than the frame, so their labels keep fitting
 CODE_LO = 0.67       # LCARS numbers in blocks shrink to 67 % (and are hidden on phones, see code_font())
-PHONE_H = 520        # below this viewport height: the phone placement (see engine/screen.py)
+PHONE_H = 520        # below this viewport height: the phone placement (see engine/screen.py; the cards in
+                     # lcars/www use the same 520 px in their media queries)
 
 
 def _num(x):
@@ -22,7 +23,7 @@ def _num(x):
 class Len:
     """A CSS length: px that scale with the viewport height (see REF_H), each down to its own minimum share
     `lo`, plus fixed px. Supports + and - with Len and numbers (px) and * / by numbers; str() gives the
-    CSS. The generator keeps doing its arithmetic with these, and the result stays exact at every height."""
+    CSS. The framework keeps doing its arithmetic with these, and the result stays exact at every height."""
 
     def __init__(self, s=0.0, f=0.0, lo=S_MIN):
         self.terms = {lo: s} if s else {}     # lo -> scaled px
@@ -190,10 +191,3 @@ def chart_height(n):
 def title_width(title, size):
     """Width of a title in a bar at font size `size` (Antonio is narrow: ~0.42 em per character)."""
     return size * (len(title) * 0.42) + 18
-
-
-def configure(layout):
-    """Apply the site's layout settings (see lcars/config.py). Only the phone height is configurable:
-    REF_H and MIN_H are baked into the sizes above when this module loads."""
-    global PHONE_H
-    PHONE_H = int(layout.get("phone_h", PHONE_H))

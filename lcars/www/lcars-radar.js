@@ -1,13 +1,14 @@
-// LCARS radar: DWD precipitation radar (composite + nowcast) as one lightweight card.
+// LCARS radar: the precipitation radar of Germany's weather service DWD (composite + nowcast; it covers
+// Germany and its borders) as one lightweight card.
 //
 // Frames come from the DWD WMS (maps.dwd.de, layer Radar_wn-product_1x1km_ger, EPSG:4326) as plain
-// images for the card's own bounding box; borders are SVG paths precomputed by the generator (the WMS
-// forbids custom styles). LCARS buttons play/pause and step through the frames: in the card's own pillar,
+// images for the card's own bounding box; borders are SVG paths the framework fetches from the DWD WFS
+// when it builds the dashboard (the WMS forbids custom styles). LCARS buttons play/pause and step through the frames: in the card's own pillar,
 // or in a second card that shows only the buttons (e.g. embedded in a frame bar), linked by `group`: the
 // buttons send commands, the map answers with its state (window events "lcars-radar").
 // The per-device motion switch (localStorage "lcars-motion" = "off") stops autoplay; buttons still work.
 //
-// Config (written by generator/build_dashboard.py):
+// Config (written by the framework from a `radar` component, lcars/components/data.py):
 //   type: custom:lcars-radar
 //   center: [lat, lon], width_km: 160, home: [lat, lon]   # map centre, map width, home marker
 //   layer: "dwd:Radar_wn-product_1x1km_ger"
@@ -17,10 +18,10 @@
 //   pillar: {width, gap, blocks: [{colour, code}], filler, ink}   # blocks: play/pause, back, next, now
 //   controls: "pillar"               # "pillar" (map + its pillar, default), "none" (map only), "row" (only the
 //                                    # buttons, side by side); "none" and "row" cards talk through `group`
-//   group: "ops"
+//   group: "ops"                     # the view's key
 //   colours: {past, now, future, text, dim, home}
 //   font: "Antonio, sans-serif"
-// Fluid sizes, the same as the generator's (Len, font() in build_dashboard.py): full size from REF_H
+// Fluid sizes, the same as the framework's (Len, font() in lcars/engine/sizes.py): full size from REF_H
 // viewport height up, shrinking linearly below it to a minimum share at MIN_H: sizes to 60 % (sz), fonts to
 // 80 % (fz; LCARS numbers to 67 %). len(): a size from the config (a number of px or a CSS length) as CSS.
 const REF_H = 720, MIN_H = 400;
@@ -108,7 +109,7 @@ class LcarsRadar extends HTMLElement {
       `<div class="blk" data-i="${i}" style="background:${b.colour}"><em>${b.code}</em><span></span></div>`).join("");
     this.shadowRoot.innerHTML = `
       <style>
-        /* phones (PHONE_H in the generator): no LCARS numbers, they are decoration and collide with labels */
+        /* phones (PHONE_H in lcars/engine/sizes.py): no LCARS numbers, they are decoration and collide with labels */
         @media (max-height: 520px) { .blk em { display: none; } }
         :host { display: block; height: 100%; }
         .wrap { display: grid; height: 100%; grid-template-columns: minmax(0, 1fr) ${len(p.width)}; gap: 0 16px;
@@ -133,7 +134,7 @@ class LcarsRadar extends HTMLElement {
         .wrap.c-row .pillar { grid-template-rows: minmax(0, 1fr); grid-template-columns: repeat(${p.blocks.length}, minmax(0, 1fr)); }
         .wrap.c-row .blk { font-size: ${fz(16)}; padding: 0 8px 3px; }
         .wrap.c-row .blk em { font-size: ${fz(10, 0.67)}; top: 2px; }
-        /* phones (PHONE_H in the generator): buttons in the thin mid bar, label centred */
+        /* phones (PHONE_H in lcars/engine/sizes.py): buttons in the thin mid bar, label centred */
         @media (max-height: 520px) { .wrap.c-row .blk { padding: 0 4px; align-items: center; justify-content: center; font-size: 12px; } }
       </style>
       <div class="wrap c-${this._mode}">

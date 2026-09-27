@@ -1,18 +1,21 @@
-// LCARS light phases: the light schedule over 24 h as one lightweight card.
+// LCARS schedule: a day's schedule of phases over 24 h (a light's day and night phases, heating periods,
+// ...), as one lightweight card.
 //
 // One smooth shape per phase in the phase's colour: it rises over the ramp-up, holds, and falls over the
-// ramp-down, computed like aquarium_light_control's scheduler (phases in config order, first match wins,
-// ramp from 0 up at the start and back to 0 at the end, uncovered time is off). A phase's height is its
-// brightest channel relative to the brightest phase, at least `min_height` so dim phases stay visible.
-// A "now" line marks the time, with a dot where it meets the curve. Re-renders every minute.
+// ramp-down (phases in config order, the first that covers a minute wins; a ramp runs from 0 up at the
+// start and back to 0 at the end; time no phase covers is off). A phase's height is its level (its highest
+// channel's) relative to the highest phase's, at least `min_height` so low phases stay visible. A "now"
+// line marks the time, with a dot where it meets the curve. Re-renders every minute. Also registered as
+// lcars-phases (its name before the framework).
 //
-// Config (written by generator/build_dashboard.py from /config/aquarium_light_control.yaml):
-//   type: custom:lcars-phases
-//   phases: [{name, start, end, up, down, levels: {red: 45, ...}, colour}]   # start/end in minutes
+// Config (written by the framework from a `schedule` component, lcars/components/data.py):
+//   type: custom:lcars-schedule
+//   phases: [{name, start, end, up, down, levels: {red: 45, ...} or level: 45, colour}]   # start/end, up,
+//                                                                     # down in minutes of the day
 //   min_height: 0.3
 //   colours: {grid, text, now}
 //   font: "Antonio, sans-serif"
-// Fluid sizes, the same as the generator's (Len, font() in build_dashboard.py): full size from REF_H
+// Fluid sizes, the same as the framework's (Len, font() in lcars/engine/sizes.py): full size from REF_H
 // viewport height up, shrinking linearly below it to a minimum share at MIN_H: sizes to 60 % (sz), fonts to
 // 80 % (fz; LCARS numbers to 67 %). len(): a size from the config (a number of px or a CSS length) as CSS.
 const REF_H = 720, MIN_H = 400;
@@ -25,7 +28,7 @@ const sz = (px) => fluid(px, 0.6);
 const scale = () => Math.min(1, Math.max(0.6, 0.6 + 0.4 * (window.innerHeight - MIN_H) / (REF_H - MIN_H)));   // sz(px) = px * scale()
 const len = (v) => (typeof v === "number" ? `${v}px` : v);
 
-class LcarsPhases extends HTMLElement {
+class LcarsSchedule extends HTMLElement {
   setConfig(config) {
     this._config = config;
     this._key = null;
@@ -65,8 +68,8 @@ class LcarsPhases extends HTMLElement {
   _render(now) {
     const c = this._config;
     const col = c.colours;
-    const esc = LcarsPhases._esc;
-    const peak = (p) => Math.max(0, ...Object.values(p.levels));
+    const esc = LcarsSchedule._esc;
+    const peak = (p) => (p.level != null ? +p.level : Math.max(0, ...Object.values(p.levels || {})));
     const top = Math.max(1, ...c.phases.map(peak));
     const height = (p) => Math.max(c.min_height ?? 0.3, peak(p) / top);
     const ease = (f) => f * f * (3 - 2 * f);                  // smooth ramps
@@ -134,4 +137,5 @@ class LcarsPhases extends HTMLElement {
   }
 }
 
-if (!customElements.get("lcars-phases")) customElements.define("lcars-phases", LcarsPhases);
+if (!customElements.get("lcars-schedule")) customElements.define("lcars-schedule", LcarsSchedule);
+if (!customElements.get("lcars-phases")) customElements.define("lcars-phases", class extends LcarsSchedule {});

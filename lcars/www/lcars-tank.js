@@ -1,16 +1,20 @@
-// LCARS tank: a dosing bottle's fill level as a vertical stack of segments, as one lightweight card.
+// LCARS tank: a fill level (a tank, a bottle, a battery) as a vertical stack of segments, as one lightweight
+// card.
 //
-// Segments fill from the bottom like the liquid in the bottle; lit segments flash white briefly like
+// Segments fill from the bottom like the liquid in a tank; lit segments flash white briefly like
 // lcars-bar.js (off with the per-device motion switch, localStorage "lcars-motion" = "off"). A scale next
 // to the stack marks full, half and the low-level threshold (in the alarm colour); a pointer at the
-// current level carries the value in ml and the percentage. Below the threshold the lit segments turn to
-// the alarm colour. Tap: more-info of the fill level.
+// current level carries the value with its unit and the percentage. Below the threshold the lit segments
+// turn to the alarm colour. Tap: more-info of the level. Where the card itself is small (e.g. a row of
+// frames wrapped on a phone), it drops the scale and the percentage and draws thin gaps.
 //
-// Config (written by generator/build_dashboard.py):
+// Config (written by the framework, lcars/components/data.py):
 //   type: custom:lcars-tank
-//   entity: number.x_fill_level        # fill level in ml
-//   status: sensor.x_status            # optional: bottle_size_ml / low_level_ml attributes override the config
-//   capacity: 500, low: 50             # ml
+//   entity: number.x_fill_level        # the level
+//   capacity: 500, low: 50             # in the level's unit
+//   unit: "ml"                         # default: the entity's unit_of_measurement
+//   status: sensor.x_status            # optional: an entity whose attributes override capacity and low,
+//   status_attributes: {capacity: "size_ml", low: "low_ml"}   # named here
 //   segments: 20
 //   colour: "#FFCC99"
 //   alarm: "#DD4444"
@@ -19,7 +23,7 @@
 //   blink: [ms, ...], off_fraction: 0.025, flash: "#FFFFFF"
 //   gap: 3
 //   font: "Antonio, sans-serif"
-// Fluid sizes, the same as the generator's (Len, font() in build_dashboard.py): full size from REF_H
+// Fluid sizes, the same as the framework's (Len, font() in lcars/engine/sizes.py): full size from REF_H
 // viewport height up, shrinking linearly below it to a minimum share at MIN_H: sizes to 60 % (sz), fonts to
 // 80 % (fz; LCARS numbers to 67 %). len(): a size from the config (a number of px or a CSS length) as CSS.
 const REF_H = 720, MIN_H = 400;
@@ -56,9 +60,10 @@ class LcarsTank extends HTMLElement {
 
   _render(st, status) {
     const c = this._config;
-    const a = (status && status.attributes) || {};
-    const cap = +a.bottle_size_ml || c.capacity;
-    const low = a.low_level_ml != null ? +a.low_level_ml : c.low;
+    const a = (status && status.attributes) || {}, names = c.status_attributes || {};
+    const cap = (names.capacity && +a[names.capacity]) || c.capacity;
+    const low = names.low && a[names.low] != null ? +a[names.low] : c.low;
+    const unit = c.unit ?? ((st && st.attributes.unit_of_measurement) || "");
     const v = st ? parseFloat(st.state) : NaN;
     const f = isNaN(v) ? 0 : Math.min(1, Math.max(0, v / cap));
     const count = isNaN(v) || f <= 0 ? 0 : Math.max(1, Math.round(f * c.segments));   // nothing lit when empty
@@ -82,11 +87,11 @@ class LcarsTank extends HTMLElement {
     const value = isNaN(v)
       ? `<div class="ptr"><b>–</b></div>`
       : `<div class="ptr"><b style="color:${colour === c.alarm ? c.alarm : c.text}">` +
-        `${Math.round(v)}<small> ML</small></b><span>${Math.round(f * 100)} %</span></div>`;
+        `${Math.round(v)}<small>${unit ? " " + unit : ""}</small></b><span>${Math.round(f * 100)} %</span></div>`;
 
     this.shadowRoot.innerHTML = `
       <style>
-        :host { display: block; height: 100%; cursor: pointer; }
+        :host { display: block; height: 100%; cursor: pointer; container-type: size; }
         .tank { display: grid; height: 100%; grid-template-columns: minmax(40px, 36%) 44px minmax(0, 1fr);
                 gap: 0 8px; font-family: ${c.font}; text-transform: uppercase; line-height: 1; }
         .stack { display: grid; gap: ${len(c.gap ?? 3)}; grid-template-rows: repeat(${c.segments}, minmax(0, 1fr)); }
@@ -100,9 +105,9 @@ class LcarsTank extends HTMLElement {
         .ptr b { font-size: var(--lcars-data-size, 24px); }
         .ptr small { font-size: 0.6em; }
         .ptr span { font-size: calc(var(--lcars-data-size, 24px) * 0.7); color: ${c.dim}; }
-        /* phones (PHONE_H in the generator): the bottle is short and narrow there, so thin gaps, no scale,
-           the reading without its percentage */
-        @media (max-height: 520px) {
+        /* a small tank (by the card's own size, not the device's): thin gaps, no scale, the reading without
+           its percentage */
+        @container (max-height: 110px) or (max-width: 150px) {
           .tank { grid-template-columns: minmax(20px, 45%) minmax(0, 1fr); }
           .stack { gap: 1px; }
           .scale, .ptr span { display: none; }

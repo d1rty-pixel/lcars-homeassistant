@@ -1,10 +1,10 @@
-// LCARS forecast: the next hours of a weather entity's hourly forecast as one lightweight card.
+// LCARS forecast: a weather entity's hourly or daily forecast as one lightweight card.
 //
 // HA no longer puts forecasts into weather attributes; like the standard forecast card this subscribes
 // to weather/subscribe_forecast. One column per hour, top to bottom: hour, condition code, a vertical
 // temperature bar (scaled to the shown hours), temperature, precipitation.
 //
-// Config (written by generator/build_dashboard.py):
+// Config (written by the framework from a `forecast` component, lcars/components/data.py):
 //   type: custom:lcars-forecast
 //   entity: weather.forecast_home
 //   hours: 12
@@ -21,7 +21,7 @@
 //                                    # temperature (bar + °C, the rest of the height), rain; rain: null
 //                                    # puts the mm under the °C instead (two rows)
 //   font: "Antonio, sans-serif"
-// Fluid sizes, the same as the generator's (Len, font() in build_dashboard.py): full size from REF_H
+// Fluid sizes, the same as the framework's (Len, font() in lcars/engine/sizes.py): full size from REF_H
 // viewport height up, shrinking linearly below it to a minimum share at MIN_H: sizes to 60 % (sz), fonts to
 // 80 % (fz; LCARS numbers to 67 %). len(): a size from the config (a number of px or a CSS length) as CSS.
 const REF_H = 720, MIN_H = 400;
@@ -105,7 +105,7 @@ class LcarsForecast extends HTMLElement {
     const c = this._config, g = c.toggle || {};
     this.shadowRoot.innerHTML = `
       <style>
-        /* phones (PHONE_H in the generator): no LCARS numbers, they are decoration and collide with labels */
+        /* phones (PHONE_H in lcars/engine/sizes.py): no LCARS numbers, they are decoration and collide with labels */
         @media (max-height: 520px) { .blk em { display: none; } }
         :host { display: block; height: 100%; }
         .blk { position: relative; height: 100%; box-sizing: border-box; display: flex; align-items: center;
@@ -179,7 +179,7 @@ class LcarsForecast extends HTMLElement {
     });
     this.shadowRoot.innerHTML = `
       <style>
-        /* phones (PHONE_H in the generator): no LCARS numbers, they are decoration and collide with labels */
+        /* phones (PHONE_H in lcars/engine/sizes.py): no LCARS numbers, they are decoration and collide with labels */
         @media (max-height: 520px) { .blk em { display: none; } }
         :host { display: block; height: 100%; }
         .grid { display: grid; height: 100%; gap: 0 6px; grid-template-columns: repeat(${hours.length}, minmax(0, 1fr));

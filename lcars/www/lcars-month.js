@@ -9,16 +9,16 @@
 // Back / Today / Next: a second card with mode "controls" shows only those buttons (e.g. in a frame bar);
 // it and the month card talk through window events ("lcars-month"), linked by `group`.
 //
-// Config (written by generator/build_dashboard.py):
+// Config (written by the framework from a `month` component, lcars/components/data.py):
 //   type: custom:lcars-month
 //   calendars: [{entity, label, colour, code}]
-//   titles: {"Biotonne": "Organic", ...}     # event titles to replace
-//   weeks: {colours: [...], head: "#FF9900", code_prefix: "WK"}   # the week label column
+//   titles: {"Recycling collection": "Recycling", ...}   # event titles to replace (the site's `titles`)
+//   weeks: {colours: [...], head: "#FF9900", prefix: "Wk", codes: [...] x6}   # the week label column
 //   label_w: 150, legend_w: 150, legend_filler: "#FFAA90", head: "28px", gap: 4
 //   colours: {empty, weekend, today, other, text, text_weekend, text_today, dim, ink}
 //   font: "Antonio, sans-serif"
 //   mode: "controls", group: "calendar", controls: [{colour, code}] x3   # back, today, next
-// Fluid sizes, the same as the generator's (Len, font() in build_dashboard.py): full size from REF_H
+// Fluid sizes, the same as the framework's (Len, font() in lcars/engine/sizes.py): full size from REF_H
 // viewport height up, shrinking linearly below it to a minimum share at MIN_H: sizes to 60 % (sz), fonts to
 // 80 % (fz; LCARS numbers to 67 %). len(): a size from the config (a number of px or a CSS length) as CSS.
 const REF_H = 720, MIN_H = 400;
@@ -91,7 +91,7 @@ class LcarsMonth extends HTMLElement {
     const names = [["Back", "back"], ["Today", "today"], ["Next", "next"]];
     this.shadowRoot.innerHTML = `
       <style>
-        /* phones (PHONE_H in the generator): no LCARS numbers, they are decoration and collide with labels */
+        /* phones (PHONE_H in lcars/engine/sizes.py): no LCARS numbers, they are decoration and collide with labels */
         @media (max-height: 520px) { .blk em { display: none; } }
         :host { display: block; height: 100%; }
         .row { display: grid; height: 100%; gap: 6px; grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -100,7 +100,7 @@ class LcarsMonth extends HTMLElement {
                color: ${(c.colours || {}).ink || "#000"}; font-size: ${fz(16)}; cursor: pointer; user-select: none;
                -webkit-user-select: none; }
         .blk em { position: absolute; left: 6px; top: 2px; font-style: normal; font-size: ${fz(10, 0.67)}; }
-        /* phones (PHONE_H in the generator): buttons in the thin mid bar, label centred */
+        /* phones (PHONE_H in lcars/engine/sizes.py): buttons in the thin mid bar, label centred */
         @media (max-height: 520px) { .row .blk { align-items: center; } }
         .blk:active { filter: brightness(1.3); }
       </style>
@@ -222,7 +222,7 @@ class LcarsMonth extends HTMLElement {
       .join("") + `<div style="background:${c.legend_filler}"></div>`;
     this.shadowRoot.innerHTML = `
       <style>
-        /* phones (PHONE_H in the generator): no LCARS numbers, they are decoration and collide with labels */
+        /* phones (PHONE_H in lcars/engine/sizes.py): no LCARS numbers, they are decoration and collide with labels */
         @media (max-height: 520px) { .blk em { display: none; } }
         :host { display: block; height: 100%; }
         .wrap { display: grid; height: 100%; gap: 0 16px; grid-template-columns: minmax(0, 1fr) ${len(c.legend_w)};
@@ -239,7 +239,7 @@ class LcarsMonth extends HTMLElement {
         .blk span { overflow: hidden; text-overflow: ellipsis; }
         /* legend: the label at the bottom, clear of the code at the top, so long names fit */
         .legend .blk { font-size: ${fz(15)}; align-items: flex-end; padding-bottom: 3px; }
-        /* phones (PHONE_H in the generator): legend blocks may shrink to their label, label centred */
+        /* phones (PHONE_H in lcars/engine/sizes.py): legend blocks may shrink to their label, label centred */
         @media (max-height: 520px) { .legend .blk { align-items: center; padding-bottom: 0; } }
         .cell { display: flex; flex-direction: column; gap: 3px; min-width: 0; min-height: 0; overflow: hidden;
                 padding: 4px 5px; box-sizing: border-box; }

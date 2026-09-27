@@ -17,19 +17,21 @@ from .sizes import Len, only_under
 
 SCROLL = "auto"      # "auto": phones scroll the sidebar and the content; "off": nothing ever scrolls
 SCROLL_MIN_H = 520   # below this viewport height the page scrolls (scroll: auto)
-PRIORITY_MIN_H = {0: 0, 1: 520, 2: 760, 3: 880, 4: 1000}
+PRIORITY_MIN_H = {0: 0, 1: sizes.PHONE_H, 2: 760, 3: 880, 4: 1000}
 TIERS = (0, 1, 2, 3, 4)
 SCROLL_PRIORITY = max(PRIORITY_MIN_H)
 
 
 def configure(layout):
-    """Apply the site's layout settings: scroll, scroll_min_h (and phone_h, see sizes.configure())."""
+    """Apply the site's layout settings: scroll (auto or off), scroll_min_h."""
     global SCROLL, SCROLL_MIN_H
+    unknown = set(layout) - {"scroll", "scroll_min_h"}
+    if unknown:
+        raise ValueError(f"layout: unknown setting(s) {', '.join(sorted(unknown))} (scroll, scroll_min_h)")
     SCROLL = layout.get("scroll", "auto")
     if SCROLL not in ("auto", "off"):
         raise ValueError(f"layout.scroll: 'auto' or 'off', not {SCROLL!r}")
     SCROLL_MIN_H = int(layout.get("scroll_min_h", sizes.PHONE_H))
-    PRIORITY_MIN_H[1] = sizes.PHONE_H
 
 
 def phone_query():

@@ -292,7 +292,6 @@ class Site:
         self.kiosk = d.get("kiosk", True)
         self.header_code = raw.get("header_code", "LCARS 47174")
         self.layout = raw.get("layout") or {}
-        sizes.configure(self.layout)
         screen.configure(self.layout)
         self.sounds = raw.get("sounds")
         self.weather = raw.get("weather", "weather.home")

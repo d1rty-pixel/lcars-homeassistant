@@ -1,17 +1,17 @@
 // LCARS week: upcoming events of several calendars over the next days, as one lightweight card.
 //
-// Styled like the waste page's collection timeline: a label block per calendar (the frame's pillar),
+// Styled like the day timeline (lcars-day-grid.js): a label block per calendar (the frame's pillar),
 // a column per day with weekday and date, and each day with events filled in the calendar's colour with
 // the event title. Only calendars with events in the window get a row (at most max_rows, soonest first).
 // Calendar entities only expose their next event, so events come from HA's calendar REST API. Before
 // each fetch (on load, then every 10 min) the card asks HA to refresh the calendars
 // (homeassistant.update_entity): HA's Google calendar sync otherwise lags behind new events.
 //
-// Config (written by generator/build_dashboard.py):
+// Config (written by the framework from a `week` component, lcars/components/data.py):
 //   type: custom:lcars-week
 //   days: 7
 //   calendars: [{entity, label, colour, code}]
-//   titles: {"Biotonne": "Organic", ...}   # event titles to replace (the waste calendars' German names)
+//   titles: {"Recycling collection": "Recycling", ...}   # event titles to replace (the site's `titles`)
 //   max_rows: 5
 //   label_w: 150                     # pillar width (px)
 //   side: left | right               # which side the label pillar is on
@@ -19,7 +19,7 @@
 //   head: "28px", row: "30px", gap: 4
 //   colours: {empty, weekend, today, text, text_weekend, text_today, ink}
 //   font: "Antonio, sans-serif"
-// Fluid sizes, the same as the generator's (Len, font() in build_dashboard.py): full size from REF_H
+// Fluid sizes, the same as the framework's (Len, font() in lcars/engine/sizes.py): full size from REF_H
 // viewport height up, shrinking linearly below it to a minimum share at MIN_H: sizes to 60 % (sz), fonts to
 // 80 % (fz; LCARS numbers to 67 %). len(): a size from the config (a number of px or a CSS length) as CSS.
 const REF_H = 720, MIN_H = 400;
@@ -148,7 +148,7 @@ class LcarsWeek extends HTMLElement {
     const n = rows.length || 1;
     this.shadowRoot.innerHTML = `
       <style>
-        /* phones (PHONE_H in the generator): no LCARS numbers, they are decoration and collide with labels */
+        /* phones (PHONE_H in lcars/engine/sizes.py): no LCARS numbers, they are decoration and collide with labels */
         @media (max-height: 520px) { .blk em { display: none; } }
         :host { display: block; height: 100%; }
         .grid { display: grid; height: 100%; gap: ${len(c.gap)} ${len(c.gap)};

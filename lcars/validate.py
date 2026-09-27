@@ -2,7 +2,7 @@
 fails; `python3 -m lcars.validate build/lcars_dashboard.json` checks a file).
 
 Two passes per LCARdS card:
-  1. jsonschema types/enums (the schema's known generator bug `enum: []` is ignored)
+  1. jsonschema types/enums (the known bug of LCARdS' schema generator, `enum: []`, is ignored)
   2. strict unknown-key check (the schema has no additionalProperties:false,
      so invented keys would otherwise pass silently)
 and every layout card's areas against its tracks.
@@ -27,7 +27,7 @@ def load_schemas():
     defs = raw["$defs"]
 
     def res(x, depth=0):
-        # the generator hoists even list values (oneOf, properties) behind $ref, so resolve inline
+        # LCARdS' schema generator hoists even list values (oneOf, properties) behind $ref: resolve inline
         if depth > 60:
             return {}
         if isinstance(x, dict):
@@ -163,7 +163,7 @@ def validate(cfg):
                             and e.instance.startswith("[[[")):
                         continue
                     # Schema gap: font_size only allows px/em/var(), but LCARdS writes it into CSS, so
-                    # clamp()/calc() work (the generator's fluid sizes, see Len).
+                    # clamp()/calc() work (the framework's fluid sizes, lcars/engine/sizes.py).
                     if (list(e.absolute_path)[-1:] == ["font_size"] and isinstance(e.instance, str)
                             and re.match(r"^(clamp|calc|min|max)\(", e.instance)):
                         continue

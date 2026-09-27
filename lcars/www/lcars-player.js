@@ -1,32 +1,35 @@
-// LCARS media player: a Spotify (or any) media_player as two lightweight cards.
+// LCARS media player: a media_player entity as two lightweight cards.
 //
 // custom:lcars-player  - now playing: cover art, track / artist / album / device, a segmented progress bar
 //                        (tap to seek) with elapsed and remaining time, a segmented volume slider (drag, sent
-//                        when the finger lifts, like lcars-transporter.js) and the output devices (Spotify
-//                        Connect: the entity's source_list) as pills. Its own pillar of LCARS buttons holds
-//                        the transport: Play/Pause, Back, Next, Shuffle, Repeat.
+//                        when the finger lifts, like lcars-transporter.js) and the output devices (the entity's
+//                        source_list, e.g. Spotify Connect devices) as pills. Its own pillar of LCARS buttons
+//                        holds the transport: Play/Pause, Back, Next, Shuffle, Repeat.
 // custom:lcars-library - the media library from HA's media browser (media_player/browse_media): a pillar of
 //                        category buttons (Playlists, Albums, ...) and as many whole rows as fit, paged with
 //                        the Up/Down buttons. Tapping a row plays it (media_player.play_media); a row that can
 //                        only be expanded (e.g. an artist) opens it, "Back" returns.
 //
-// Idle Spotify: with no active Spotify Connect device, HA's Spotify entity reports only "select source",
-// and HA then refuses play_media and media browsing. Both cards therefore first activate a device when
-// needed (activate()): select_source transfers playback to the device last used in this browser (else
-// the first listed), which wakes it paused, not playing, and then they wait for the full feature set.
+// Idle players: some integrations (Spotify, with no active Spotify Connect device) report only "select
+// source", and HA then refuses play_media and media browsing. Both cards therefore first activate a
+// device when needed (activate()): select_source transfers playback to the device last used in this
+// browser (else the first listed), which wakes it paused, not playing, and then they wait for the full
+// feature set. Players that always offer play_media never need it.
 //
-// Refused commands: Spotify rejects some commands in some contexts (e.g. repeat_set with 403 "Restriction
-// violated"; HA doesn't expose Spotify's "disallows"). Services are called over the websocket, so HA shows
-// no generic error toast; the button flashes red and every card of the entity shows "Spotify refused · ..."
-// in its status for a few seconds (window event "lcars-player-note").
-// The library keeps its last lists per browser, so it still shows entries while Spotify is idle.
+// Refused commands: services may reject a command in some contexts (Spotify, e.g. repeat_set with 403
+// "Restriction violated"; HA doesn't expose Spotify's "disallows"). Services are called over the websocket,
+// so HA shows no generic error toast; the button flashes red and every card of the entity shows "<name>
+// refused · ..." in its status for a few seconds (window event "lcars-player-note"). <name>: the config's
+// `name` (default "Player").
+// The library keeps its last lists per browser, so it still shows entries while the player is idle.
 //
 // Neither card scrolls. Lit progress segments flash white briefly like lcars-bar.js (off with the per-device
 // motion switch, localStorage "lcars-motion" = "off"). Clicks play LCARdS' tap sound.
 //
-// Config (written by generator/build_dashboard.py):
+// Config (written by the framework from `player` and `library` components, lcars/components/data.py):
 //   type: custom:lcars-player
-//   entity: media_player.spotify_x
+//   entity: media_player.x
+//   name: "Spotify"                  # the service's name in status texts (default "Player")
 //   pillar: {width, gap, ink, filler, blocks: [{colour, code}] x5}   # play, back, next, shuffle, repeat
 //   transport: "pillar"              # where the transport buttons go: "pillar" (own pillar left of the body,
 //                                    # default), "bottom" (a row under the body), "none" (body only), or
@@ -41,7 +44,8 @@
 //   font: "Antonio, sans-serif"
 //
 //   type: custom:lcars-library
-//   entity: media_player.spotify_x
+//   entity: media_player.x
+//   name: "Spotify"
 //   categories: [{match: "current_user_playlists", label: "Playlists", colour, code,
 //                 pinned: ["current_user_saved_tracks"]}]
 //                                    # match: end of a root child's media_content_id or media_content_type;
@@ -51,7 +55,7 @@
 //   row: 44, row_gap: 4              # px
 //   colours: {text, dim, rows: [colour, ...], ink}
 //   font: "Antonio, sans-serif"
-// Fluid sizes, the same as the generator's (Len, font() in build_dashboard.py): full size from REF_H
+// Fluid sizes, the same as the framework's (Len, font() in lcars/engine/sizes.py): full size from REF_H
 // viewport height up, shrinking linearly below it to a minimum share at MIN_H: sizes to 60 % (sz), fonts to
 // 80 % (fz; LCARS numbers to 67 %). len(): a size from the config (a number of px or a CSS length) as CSS.
 const REF_H = 720, MIN_H = 400;
@@ -97,7 +101,7 @@ const store = {
   set(key, v) { try { localStorage.setItem(key, JSON.stringify(v)); } catch (e) { /* this page only */ } },
 };
 const features = (hass, entity) => ((hass && hass.states[entity]) || {attributes: {}}).attributes.supported_features || 0;
-// The device activate() would wake: the one last used here if Spotify still lists it, else the first listed
+// The device activate() would wake: the one last used here if the player still lists it, else the first listed
 const wakeDevice = (hass, entity) => {
   const list = ((hass.states[entity] || {}).attributes || {}).source_list || [];
   const last = store.get(DEVICE_KEY);
@@ -106,10 +110,10 @@ const wakeDevice = (hass, entity) => {
 // Make sure the player has an active device, so HA offers play/browse: transfer playback to wakeDevice()
 // (Spotify keeps it paused) and wait until HA reports the features. getHass returns the current hass
 // object (it is replaced on every state change). Resolves with the device woken (or null if none needed).
-const activate = async (getHass, entity) => {
+const activate = async (getHass, entity, name = "Player") => {
   if (features(getHass(), entity) & F.PLAY_MEDIA) return null;
   const dev = wakeDevice(getHass(), entity);
-  if (!dev) throw new Error("No output device · open Spotify on a device");
+  if (!dev) throw new Error(`No output device · open ${name} on a device`);
   await getHass().callService("media_player", "select_source", {entity_id: entity, source: dev});
   for (let i = 0; i < 40 && !(features(getHass(), entity) & F.PLAY_MEDIA); i++) {
     await new Promise((r) => setTimeout(r, 250));
@@ -183,7 +187,7 @@ class LcarsPlayer extends HTMLElement {
     }).join("");
     this.shadowRoot.innerHTML = `
       <style>
-        /* phones (PHONE_H in the generator): no LCARS numbers, they are decoration and collide with labels */
+        /* phones (PHONE_H in lcars/engine/sizes.py): no LCARS numbers, they are decoration and collide with labels */
         @media (max-height: 520px) { em { display: none; } .list .row b { color: transparent; } }
         :host { display: block; height: 100%; }
         .wrap { display: grid; height: 100%; gap: 0 16px; font-family: ${c.font}; text-transform: uppercase;
@@ -258,7 +262,7 @@ class LcarsPlayer extends HTMLElement {
         .wrap.t-bottom .pillar { order: 2; }
         .wrap.t-row .blk { font-size: ${fz(16)}; padding: 0 8px 3px; }
         .wrap.t-row .blk em { font-size: ${fz(10, 0.67)}; top: 2px; }
-        /* phones (PHONE_H in the generator): buttons in the thin mid bar, label centred */
+        /* phones (PHONE_H in lcars/engine/sizes.py): buttons in the thin mid bar, label centred */
         @media (max-height: 520px) { .wrap.t-row .blk { padding: 0 4px; align-items: center; justify-content: center; font-size: 12px; } }
         @keyframes blink { 0% { background: ${k.accent}; }
                            ${Math.round((1 - (c.off_fraction ?? 0.025)) * 1000) / 10}%, 100% { background: ${c.flash ?? "#FFFFFF"}; } }
@@ -314,7 +318,7 @@ class LcarsPlayer extends HTMLElement {
         setTimeout(() => el.classList.remove("err"), 1200);
       }
       window.dispatchEvent(new CustomEvent(NOTE_EVENT, {detail: {entity: this._config.entity,
-        text: `Spotify refused · ${SERVICE_NAMES[service] || service}`}}));
+        text: `${this._config.name || "Player"} refused · ${SERVICE_NAMES[service] || service}`}}));
     });
   }
 
@@ -335,18 +339,18 @@ class LcarsPlayer extends HTMLElement {
     }
   }
 
-  // Idle: wake the output device, then resume what Spotify played last on it
+  // Idle: wake the output device, then resume what the player played last on it
   async _wake() {
     const c = this._config;
     this._note = "Connecting…";
     this._render();
     try {
-      await activate(() => this._hass, c.entity);
+      await activate(() => this._hass, c.entity, c.name);
       await this._hass.callService("media_player", "media_play", {entity_id: c.entity});
       this._note = null;
     } catch (e) {
       // e.g. nothing to resume on that device: the library starts something instead
-      this._note = (e && e.message) || "Spotify unavailable";
+      this._note = (e && e.message) || `${c.name || "Player"} unavailable`;
     }
     this._render();
   }
@@ -431,7 +435,7 @@ class LcarsPlayer extends HTMLElement {
     root.getElementById("vline").classList.toggle("na", !can(F.VOLUME_SET));
     if (this._vol === null) this._showVolume(a.volume_level);
 
-    // output devices (Spotify Connect)
+    // output devices (source_list, e.g. Spotify Connect)
     const srcs = a.source_list || [];
     const key = JSON.stringify([srcs, a.source, can(F.SELECT_SOURCE)]);
     if (key !== this._srcKey) {
@@ -445,7 +449,7 @@ class LcarsPlayer extends HTMLElement {
                              `<em>${String(i + 1).padStart(2, "0")}-${code4(s)}</em>` +
                              `<span>${esc(s)}${s === a.source ? " ◂" : ""}</span></div>`).join("");
       root.getElementById("srcs").innerHTML = none
-        ? `<div class="none">No output devices${st ? " · open Spotify on a device" : ""}</div>`
+        ? `<div class="none">No output devices${st ? ` · open ${this._config.name || "Player"} on a device` : ""}</div>`
         : srcs.map((s) => `<div class="src${s === a.source ? " on" : ""}" data-s="${esc(s)}">` +
                           `${esc(s)}${s === a.source ? " ◂" : ""}</div>`).join("");
     }
@@ -507,7 +511,7 @@ class LcarsLibrary extends HTMLElement {
     this._hass = hass;
     this._canBrowse = !!(features(hass, e) & F.BROWSE_MEDIA);
     if (!hass.states[e]) return this._message("Library offline · media player not found");
-    // first state, or Spotify just became active: (re)load from HA
+    // first state, or the player just became active: (re)load from HA
     if (!had || (this._canBrowse && !could)) this._load();
   }
 
@@ -529,7 +533,7 @@ class LcarsLibrary extends HTMLElement {
       `<div class="blk cat" data-i="${i}" style="--c:${cat.colour}"><em>${esc(cat.code)}</em><span></span></div>`).join("");
     this.shadowRoot.innerHTML = `
       <style>
-        /* phones (PHONE_H in the generator): no LCARS numbers, they are decoration and collide with labels */
+        /* phones (PHONE_H in lcars/engine/sizes.py): no LCARS numbers, they are decoration and collide with labels */
         @media (max-height: 520px) { em { display: none; } .list .row b { color: transparent; } }
         :host { display: block; height: 100%; }
         .wrap { display: grid; height: 100%; gap: 0 16px; font-family: ${c.font}; text-transform: uppercase;
@@ -601,27 +605,27 @@ class LcarsLibrary extends HTMLElement {
     this._updateButtons();
   }
 
-  // Idle Spotify: wake the device first (see activate()), then play
+  // An idle player: wake the device first (see activate()), then play
   async _play(item) {
     const c = this._config;
     try {
       if (!(features(this._hass, c.entity) & F.PLAY_MEDIA)) this._status(`Connecting ${wakeDevice(this._hass, c.entity) || ""}…`);
-      await activate(() => this._hass, c.entity);
+      await activate(() => this._hass, c.entity, c.name);
       await this._hass.callService("media_player", "play_media", {entity_id: c.entity,
         media_content_id: item.media_content_id, media_content_type: item.media_content_type});
       this._status(null);
     } catch (e) {
-      this._status((e && e.message) || "Spotify unavailable");
+      this._status((e && e.message) || `${c.name || "Player"} unavailable`);
     }
   }
 
   async _connect() {
     try {
       this._message("Connecting…");
-      await activate(() => this._hass, this._config.entity);
+      await activate(() => this._hass, this._config.entity, this._config.name);
       this._load();
     } catch (e) {
-      this._message((e && e.message) || "Spotify unavailable");
+      this._message((e && e.message) || `${this._config.name || "Player"} unavailable`);
     }
   }
 
@@ -660,15 +664,15 @@ class LcarsLibrary extends HTMLElement {
     const cat = this._config.categories[this._cat];
     const token = (this._token = {});
     if (!this._canBrowse) {
-      // HA can't browse an idle Spotify: show this category's last list (tapping an entry wakes a device)
+      // HA can't browse an idle player: show this category's last list (tapping an entry wakes a device)
       const cached = this._stack.length ? null : store.get(this._cacheKey());
       if (!cached) {
         this._items = null;
-        const dev = wakeDevice(this._hass, this._config.entity);
+        const dev = wakeDevice(this._hass, this._config.entity), name = esc(this._config.name || "Player");
         this.shadowRoot.querySelector(".list").innerHTML = dev
           ? `<div class="row head" data-connect="1"><b style="background:${this._config.colours.dim}">Connect</b>` +
-            `<span>Spotify on standby · tap to wake ${esc(dev)}</span></div>`
-          : `<div class="msg">Spotify on standby · open Spotify on a device</div>`;
+            `<span>${name} on standby · tap to wake ${esc(dev)}</span></div>`
+          : `<div class="msg">${name} on standby · open ${name} on a device</div>`;
         return;
       }
       this._items = cached.items;

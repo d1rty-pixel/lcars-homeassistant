@@ -14,7 +14,7 @@ BAR_MODES = {        # mode -> default segments
     "countdown": BAR_SEGMENTS, "window": 24, "level": BAR_SEGMENTS, "span": 24, "state": BAR_SEGMENTS, "days": 7,
 }
 BAR_FIELDS = {"mode", "segments", "colour", "attribute", "min", "max", "states", "threshold", "days_per_segment",
-              "start", "end", "labels", "alarm", "low"}
+              "start", "end", "labels", "alarm"}
 
 
 def data_bar(entity, colour_, mode, segments, side, key, **extra):
@@ -39,7 +39,7 @@ def bar_card(spec, entity, default_colour, side, key, where):
         raise ConfigError(f"{where}: unknown bar field(s) {', '.join(sorted(unknown))}")
     mode = spec["mode"]
     extra = {}
-    for k in ("attribute", "min", "max", "threshold", "days_per_segment", "labels", "low"):
+    for k in ("attribute", "min", "max", "threshold", "days_per_segment", "labels"):
         if k in spec:
             extra[k] = spec[k]
     if "start" in spec:
@@ -48,8 +48,11 @@ def bar_card(spec, entity, default_colour, side, key, where):
         extra["end_attr"] = spec["end"]
     if "states" in spec:
         extra["states"] = colour_map(spec["states"], f"{where}.states")
-    if "alarm" in spec:
-        extra["alarm"] = colour(spec["alarm"], f"{where}.alarm")
+    if "alarm" in spec:      # level: {below: 50, colour: red}: lit segments in that colour below the value
+        a = spec["alarm"]
+        if not isinstance(a, dict) or "below" not in a:
+            raise ConfigError(f"{where}.alarm: {{below: <value>, colour: <colour>}}")
+        extra["alarm"] = {"below": a["below"], "colour": colour(a.get("colour", "red"), f"{where}.alarm.colour")}
     if mode == "days":
         extra.update({"ink": INK, "label_colour": GRAY, "font": "Antonio, sans-serif"} if "labels" in spec else {})
     c = colour(spec.get("colour"), f"{where}.colour", PERI if mode == "state" else default_colour)

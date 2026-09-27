@@ -1,12 +1,12 @@
 // LCARS flow: cards in columns that wrap into more rows when they don't fit side by side, each row led by
-// its own copy of a label column (e.g. the Dosing station: four channel frames, 2 x 2 on a phone).
+// its own copy of a label column (e.g. four channel frames of a device, 2 x 2 on a phone).
 //
 // The number of columns is the largest divisor of the card count (4 -> 4, 2, 1) whose columns are at
 // least min_w wide, so the rows stay even. It follows the card's own width (ResizeObserver), not the
 // device. Every row is at least row_min high; the rows share the height beyond that. The card's
-// min-height is what its rows need, so a scrolling page grows by it (generator: frame(), scrolling).
+// min-height is what its rows need, so a scrolling page grows by it (lcars/frame.py, scrolling).
 //
-// Config (written by generator/build_dashboard.py):
+// Config (the framework writes it from a `matrix` component, lcars/components/layout.py):
 //   type: custom:lcars-flow
 //   label: {card}                 # the label column, one instance per row
 //   cards: [{card}, ...]
@@ -109,4 +109,4 @@ class LcarsFlow extends HTMLElement {
   }
 }
 
-customElements.define("lcars-flow", LcarsFlow);
+if (!customElements.get("lcars-flow")) customElements.define("lcars-flow", LcarsFlow);

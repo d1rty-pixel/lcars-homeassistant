@@ -6,7 +6,7 @@
 // segments flash white briefly like lcars-bar.js (off with the per-device motion switch, localStorage
 // "lcars-motion" = "off").
 //
-// Config (written by generator/build_dashboard.py):
+// Config (written by the framework from a `sliders` component, lcars/components/data.py):
 //   type: custom:lcars-transporter
 //   channels: [{entity, label, colour, code}]
 //   min: 0, max: 100, step: 1
@@ -20,7 +20,7 @@
 //   blink: [ms, ...], off_fraction: 0.025, flash: "#FFFFFF"
 //   gap: 3
 //   font: "Antonio, sans-serif"
-// Fluid sizes, the same as the generator's (Len, font() in build_dashboard.py): full size from REF_H
+// Fluid sizes, the same as the framework's (Len, font() in lcars/engine/sizes.py): full size from REF_H
 // viewport height up, shrinking linearly below it to a minimum share at MIN_H: sizes to 60 % (sz), fonts to
 // 80 % (fz; LCARS numbers to 67 %). len(): a size from the config (a number of px or a CSS length) as CSS.
 const REF_H = 720, MIN_H = 400;
@@ -78,7 +78,7 @@ class LcarsTransporter extends HTMLElement {
       `${Math.round(c.min + f * (c.max - c.min))}<i></i></div>`);
     this.shadowRoot.innerHTML = `
       <style>
-        /* phones (PHONE_H in the generator): no LCARS numbers, they are decoration and collide with labels */
+        /* phones (PHONE_H in lcars/engine/sizes.py): no LCARS numbers, they are decoration and collide with labels */
         @media (max-height: 520px) { .blk em { display: none; } }
         :host { display: block; height: 100%; }
         .wrap { display: grid; height: 100%; justify-content: center; gap: 0 clamp(12px, 2.6vw, 48px);
