@@ -12,11 +12,13 @@ const puppeteer = require("puppeteer-core");
 
 const [, , view, w, h, out, cx, cy, cw, ch] = process.argv;
 const HA = process.env.HA_URL || "http://homeassistant.local:8123";
+const PROFILE = require("os").tmpdir() + "/lcars-shot-profile-" + process.pid;
 
 (async () => {
   const browser = await puppeteer.launch({
     executablePath: process.env.CHROME || "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
-    headless: true, userDataDir: require("os").tmpdir() + "/lcars-shot-profile",
+    // a profile per run, so several shots can run at once
+    headless: true, userDataDir: PROFILE,
     args: ["--no-first-run", "--hide-scrollbars"],
   });
   const page = await browser.newPage();
@@ -55,4 +57,5 @@ const HA = process.env.HA_URL || "http://homeassistant.local:8123";
   }
   await page.screenshot(cx ? {path: out, clip: {x: +cx, y: +cy, width: +cw, height: +ch}} : {path: out});
   await browser.close();
+  require("fs").rmSync(PROFILE, {recursive: true, force: true});
 })().catch((e) => { console.error(e.message); process.exit(1); });

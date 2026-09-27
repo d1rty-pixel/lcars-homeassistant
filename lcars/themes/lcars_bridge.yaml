@@ -1,11 +1,11 @@
-# View theme for the LCARS dashboard (/aquarium-lcars). Standalone on purpose:
-# it does NOT extend HA-LCARS (whose card styles paint every standard card
-# lavender), so embedded standard cards (calendar, todo, weather, radar)
-# render flat black in the Voyager palette. LCARdS cards carry their own colours.
-LCARS Aquarium:
-  # Own (empty) UIX theme, so UIX does not fall back to the HA-LCARS card styles
-  uix-theme: LCARS Aquarium
-  card-mod-theme: LCARS Aquarium
+# The view theme of the LCARS dashboard ("LCARS Bridge"; `lcars setup` copies it to /config/themes/).
+# Every view carries it, so no user needs an LCARS profile theme. Standalone on purpose: it does NOT extend
+# HA-LCARS (whose card styles paint every standard card lavender), so embedded standard cards (calendar,
+# camera, weather) render flat black in the Voyager palette. LCARdS cards carry their own colours.
+LCARS Bridge:
+  # Its own (empty) UIX theme, so UIX, where installed, doesn't fall back to HA-LCARS' card styles
+  uix-theme: LCARS Bridge
+  card-mod-theme: LCARS Bridge
   uix-card-yaml: |
     .: |
       ha-card { background: #000 !important; border: none !important; border-radius: 0 !important;
@@ -37,7 +37,7 @@ LCARS Aquarium:
   lcars-gray: "#666688"
   # Header readout values scale with the viewport width (tablet 1280 px ... desktop 1920 px)
   lcars-readout-size: "clamp(24px, 2.1vw, 40px)"
-  # Values in the waste page's data panels scale with the row height (vh)
+  # Values in the label columns' rows scale with the row height (dvh)
   lcars-data-size: "clamp(16px, 2.6dvh, 28px)"
   primary-font-family: "Antonio, Helvetica, Arial, sans-serif"
   paper-font-common-base_-_font-family: "Antonio, Helvetica, Arial, sans-serif"

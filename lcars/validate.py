@@ -1,24 +1,21 @@
-"""Validate build/lcars_dashboard.json against the official LCARdS JSON schema.
+"""Check a built dashboard against the official LCARdS JSON schema (`lcars deploy` refuses to save one that
+fails; `python3 -m lcars.validate build/lcars_dashboard.json` checks a file).
 
 Two passes per LCARdS card:
   1. jsonschema types/enums (the schema's known generator bug `enum: []` is ignored)
   2. strict unknown-key check (the schema has no additionalProperties:false,
      so invented keys would otherwise pass silently)
-
-Exit code 1 on any finding.
+and every layout card's areas against its tracks.
 """
 import json
-import re
 import os
+import re
 import sys
 import urllib.request
 
-import jsonschema
-
-HERE = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.join(HERE, "..")
 SCHEMA_URL = "https://lcards.unimatrix01.ca/lcards-schema.json"
-SCHEMA_CACHE = os.path.join(ROOT, "build", "lcards-schema.json")
+SCHEMA_CACHE = os.path.join(os.path.expanduser(os.environ.get("XDG_CACHE_HOME", "~/.cache")), "lcars",
+                            "lcards-schema.json")
 CONTAINER_KEYS = {"view_layout", "uix", "visibility", "card_mod"}
 
 
@@ -142,9 +139,10 @@ def walk(card):
         yield from walk(c)
 
 
-def main(path):
+def validate(cfg):
+    """The problems of a built dashboard (a list of strings, empty if it's fine)."""
+    import jsonschema
     schemas = load_schemas()
-    cfg = json.load(open(path))
     problems, checked = [], 0
     for view in cfg["views"]:
         for top in view["cards"]:
@@ -173,11 +171,17 @@ def main(path):
                 found = []
                 unknown_keys(inst, schemas[t], [], found)
                 problems += [f"{where} UNKNOWN KEY {k}" for k in found]
-    for p in sorted(set(problems)):
+    validate.checked = checked
+    return sorted(set(problems))
+
+
+def main(path):
+    problems = validate(json.load(open(path)))
+    for p in problems:
         print(p)
-    print(f"checked {checked} LCARdS cards, {len(set(problems))} problems")
+    print(f"checked {validate.checked} LCARdS cards, {len(problems)} problems")
     return 1 if problems else 0
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, "build", "lcars_dashboard.json")))
+    sys.exit(main(sys.argv[1] if len(sys.argv) > 1 else os.path.join("build", "lcars_dashboard.json")))

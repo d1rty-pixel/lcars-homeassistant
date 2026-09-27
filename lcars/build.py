@@ -1,0 +1,58 @@
+"""Build the Lovelace configuration of the dashboard from a Site."""
+import re
+
+from . import components  # noqa: F401  (registers the component types)
+from .engine import screen
+from .engine.codes import reset
+from .frame import view_config
+
+FR = re.compile(r"(?<![\w(,])(\d*\.?\d+)fr")
+LCARDS_CARDS = ("custom:lcards-button", "custom:lcards-elbow", "custom:lcards-slider", "custom:lcards-data-grid",
+                "custom:lcards-chart")
+
+
+def view_content(site, section, view):
+    """The view's content card: its component for every screen tier, at least as high as it needs where
+    the page scrolls."""
+    ctx = site.ctx(section, view)
+    card = view.content.card(ctx)
+    need = view.content.min_height(ctx.at(tier=screen.phone_tier(), phone=True))
+    if need:
+        card = screen.scroll_min_h(card, need)
+    return card
+
+
+def build(site):
+    """The dashboard's Lovelace configuration (a dict)."""
+    reset()
+    views = []
+    for section in site.sections:
+        for view in section.views:
+            ctx = site.ctx(section, view)
+            views.append(view_config(site, section, view, view_content(site, section, view), ctx))
+    config = {"title": site.dashboard_title, "views": views}
+    if site.kiosk:
+        config["kiosk_mode"] = {"hide_header": True, "hide_sidebar": True}
+    return finalize(config, site.sounds)
+
+
+def finalize(node, sounds=None):
+    """minmax(0,Nfr) for every fr track, and no theme min-height on LCARdS cards, so nothing inflates the
+    grid beyond the viewport; click sounds (site `sounds`) on interactive LCARdS cards."""
+    if isinstance(node, dict):
+        lay = node.get("layout")
+        if isinstance(lay, dict):
+            for k in ("grid-template-columns", "grid-template-rows"):
+                if k in lay:
+                    lay[k] = FR.sub(r"minmax(0,\1fr)", lay[k])
+        if node.get("type") in LCARDS_CARDS:
+            node.setdefault("min_height", 0)
+        if sounds and node.get("type") in ("custom:lcards-button", "custom:lcards-slider") \
+                and node.get("interactive", True) and node.get("tap_action", {}).get("action") != "none":
+            node.setdefault("sounds", dict(sounds))
+        for v in node.values():
+            finalize(v, sounds)
+    elif isinstance(node, list):
+        for v in node:
+            finalize(v, sounds)
+    return node
