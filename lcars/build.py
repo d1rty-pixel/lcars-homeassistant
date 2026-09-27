@@ -56,3 +56,33 @@ def finalize(node, sounds=None):
         for v in node:
             finalize(v, sounds)
     return node
+
+
+def entities(config):
+    """Every entity ID a built dashboard refers to (entity fields, triggers_update, states['...'] in JS)."""
+    found = set()
+
+    def walk(n):
+        if isinstance(n, dict):
+            for k, v in n.items():
+                if k in ("entity", "entity_id") and isinstance(v, str) and "." in v:
+                    found.add(v)
+                elif k == "triggers_update" and isinstance(v, list):
+                    found.update(x for x in v if isinstance(x, str))
+                else:
+                    walk(v)
+        elif isinstance(n, list):
+            for v in n:
+                walk(v)
+        elif isinstance(n, str):
+            found.update(re.findall(r"states\['([a-z_]+\.[a-z0-9_]+)'\]", n))
+    walk(config)
+    return found
+
+
+def missing_entities(site, config):
+    """The entities the dashboard refers to that HA doesn't have (sorted), and how many it refers to. LCARdS
+    shows a value template as raw text where its entity is missing."""
+    found = entities(config)
+    have = {s["entity_id"] for s in site.states()}
+    return sorted(e for e in found if e not in have and e != "all"), len(found)

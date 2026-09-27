@@ -1,0 +1,37 @@
+# The smallest useful LCARS dashboard: one section with one view, the weather as a label column.
+# Needs a weather entity (any weather integration) and sun.sun (built in). Copy it to lcars.yaml, set
+# homeassistant.url (and files), then: lcars setup, lcars deploy.
+
+homeassistant:
+  url: http://homeassistant.local:8123
+  token_file: ~/.config/homeassistant/token
+  files: {method: ssh, login: root@homeassistant.local}    # or: local, none (see docs/INSTALL.md)
+
+weather: weather.home
+
+sections:
+  - key: home
+    label: Home
+    readouts:
+      - {type: readout, entity: weather.home, label: Outside, value: {attribute: temperature, unit: "°C"}, colour: ice}
+      - numbers
+    views:
+      - key: home
+        label: Home
+        subtitle: Atmosphere
+        bar: [{title: Atmosphere, colour: orange}]
+        content:
+          type: stack
+          items:
+            - type: rows
+              rows:
+                - {label: Temperature, entity: weather.home, value: {attribute: temperature, unit: "°C"},
+                   bar: {mode: level, attribute: temperature, min: -10, max: 35}}
+                - {label: Humidity, entity: weather.home, value: {attribute: humidity, unit: "%", round: 0},
+                   bar: {mode: level, attribute: humidity, min: 0, max: 100}}
+                - {label: Daylight, entity: sun.sun, value: {span: [next_rising, next_setting]},
+                   bar: {mode: span, start: next_rising, end: next_setting}}
+            - type: section
+              title: Forecast
+              colour: lilac
+              content: {type: forecast, labels: [violet, lilac]}

@@ -368,8 +368,9 @@ class Chart(Component):
 
 @component("sliders")
 class Sliders(Component):
-    """number entities as vertical sliders like the TNG transporter console (lcars-transporter.js): drag or
-    tap a slot, the value is sent when the finger lifts. channels: [{entity, label, colour}]."""
+    """Vertical sliders like the TNG transporter console (lcars-transporter.js): drag or tap a slot, the value
+    is sent when the finger lifts. channels: [{entity, label, colour}]: number or input_number entities (min,
+    max, step: their range), or lights (their brightness in %, 0 turns them off)."""
     fields = {"channels": REQUIRED, "min": 0, "max": 100, "step": 1, "segments": 20}
 
     def render(self, ctx):

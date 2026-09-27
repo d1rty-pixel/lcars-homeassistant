@@ -45,6 +45,14 @@ def cmd_build(args):
         json.dump(config, f, indent=1, ensure_ascii=False, default=str)
     n = sum(1 for _ in config["views"])
     print(f"{out}: {n} views, {os.path.getsize(out)} bytes")
+    try:
+        from .build import missing_entities
+        missing, total = missing_entities(site, config)
+        if missing:
+            print(f"warning: {len(missing)} of {total} entities don't exist in Home Assistant (their values show "
+                  f"as raw templates): {', '.join(missing)}")
+    except Exception as e:      # no connection: the build itself doesn't need one for every configuration
+        print(f"(entities not checked: {e})")
     return site, config, out
 
 

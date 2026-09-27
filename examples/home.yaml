@@ -1,0 +1,320 @@
+# A household on the bridge: every kind of component in use. The entity IDs are made up; replace them
+# with yours (lcars doctor lists the ones HA doesn't have). docs/COMPONENTS.md explains every field.
+
+homeassistant:
+  url: http://homeassistant.local:8123
+  token_file: ~/.config/homeassistant/token
+  files: {method: ssh, login: root@homeassistant.local}
+
+dashboard:
+  url_path: lcars-bridge
+  title: LCARS
+
+layout:
+  scroll: auto            # phones: the sidebar and the content scroll between the frame bars
+
+weather: weather.home
+
+# Radar (DWD, Germany only): the home marker and the map's width
+# radar: {home: [52.52, 13.40], width_km: 170}
+
+# The page title turns red and blinks while the leak sensor is wet
+alert:
+  entity: binary_sensor.water_leak
+  states:
+    "on": {title: Red alert · water leak, short: Leak, colour: red, blink: true}
+
+calendars:
+  - {entity: calendar.family, label: Family}
+  - {entity: calendar.waste_collection, label: Waste, colour: sunflower}
+  - {entity: calendar.holidays, label: Holidays}
+
+# Values used in several places
+vars:
+  appliances:
+    - {key: washer, name: Washer, power: sensor.washer_power, energy: sensor.washer_energy, switch: switch.washer}
+    - {key: dryer, name: Dryer, power: sensor.dryer_power, energy: sensor.dryer_energy, switch: switch.dryer}
+
+sections:
+  # ── Operations: weather, forecast, the next days of the calendars ─────────────
+  - key: ops
+    label: OPS
+    title: Operations
+    readouts:
+      - {type: readout, entity: weather.home, label: Outside, value: {attribute: temperature, unit: "°C"}, colour: ice}
+      - {type: next_event, label: Next event, show: title, colour: sunflower}
+      - numbers
+      - decor
+    views:
+      - key: ops
+        label: OPS
+        subtitle: Habitat overview
+        bar: [{title: Atmosphere, colour: orange}]
+        content:
+          type: split                  # the top part closed by a thin bar, the calendar frame below it
+          colour: lilac
+          top:
+            type: stack
+            items:
+              - type: rows
+                rows:
+                  - {label: Temperature, entity: weather.home, value: {attribute: temperature, unit: "°C"},
+                     bar: {mode: level, attribute: temperature, min: -10, max: 35}}
+                  - {label: Humidity, entity: weather.home, value: {attribute: humidity, unit: "%", round: 0},
+                     bar: {mode: level, attribute: humidity, min: 0, max: 100}}
+                  - {label: Daylight, entity: sun.sun, value: {span: [next_rising, next_setting]},
+                     bar: {mode: span, start: next_rising, end: next_setting}}
+              - type: section
+                title: Forecast
+                colour: lilac
+                content: {type: forecast, labels: [violet, lilac], min_rows: 6}
+          bottom:
+            type: frame
+            title: Next 7 days
+            colour: bluey
+            bottom: false
+            show_from: 1               # not on phones without scrolling
+            content: {type: week, rows: {1: 1, 3: 2, 4: 3}}   # more calendar rows on taller screens
+
+  # ── Energy: a label column of meters and a mirrored chart ─────────────────────
+  - key: energy
+    label: Energy
+    readouts:
+      - {type: readout, entity: sensor.house_power, label: House, colour: orange}
+      - {type: readout, entity: sensor.pv_power, label: Solar, colour: sunflower}
+      - numbers
+    views:
+      - key: energy
+        label: Grid
+        subtitle: Power distribution
+        label_width: 130
+        bar: [{title: Power grid, colour: orange}]
+        content:
+          type: stack
+          items:
+            - type: rows
+              rows:
+                - {label: Solar, colour: sunflower, entity: sensor.pv_power, bar: {mode: level, min: 0, max: 8000}}
+                - {label: House, colour: orange, entity: sensor.house_power, bar: {mode: level, min: 0, max: 8000}}
+                - {label: Battery, colour: ice, entity: sensor.battery_level, value: {state: true, unit: "%"},
+                   bar: {mode: level, min: 0, max: 100, alarm: {below: 15, colour: red}}}
+            - type: section
+              title: Power visualization · 24 h
+              colour: lilac
+              height: {timeline: 5}
+              content:
+                type: chart            # solar above the zero line, the house below
+                ticks: [100, 1000]
+                pillar: {colours: [violet, lilac], side: left, filler: lilac, width: label, rows: true}
+                series:
+                  - {entity: sensor.pv_power, name: Solar, colour: sunflower, sign: 1}
+                  - {entity: sensor.house_power, name: House, colour: orange, sign: -1}
+
+  # ── Appliances: one view per appliance, written once with repeat ──────────────
+  - key: appliances
+    label: Appliances
+    short: Appl
+    readouts: [numbers, decor]
+    views:
+      - repeat: {as: a, in: "${{ vars.appliances }}"}
+        item:
+          key: ${{ a.key }}
+          label: ${{ a.name }}
+          subtitle: ${{ a.name }}
+          label_width: 130
+          bar: [{title: "${{ a.name }} unit", colour: orange}]
+          content:
+            type: stack
+            items:
+              - type: rows
+                rows:
+                  - {label: Cycle, entity: "${{ a.power }}", value: {above: 3, then: Running, else: Idle},
+                     bar: {mode: state, states: {"on": ice}, threshold: 3}}
+                  - {label: Power, entity: "${{ a.power }}", bar: {mode: level, min: 0, max: 2500}}
+                  - {label: Energy, entity: "${{ a.energy }}"}
+                  - {label: Supply, entity: "${{ a.switch }}", value: {on_off: ["On", "Off"]},
+                     value_colour: {"off": gray}, hold: toggle}      # hold, on purpose, to switch it
+              - type: section
+                title: Power trace
+                colour: lilac
+                height: {timeline: 5}
+                content: {type: history, entity: "${{ a.power }}", buttons: [violet, lilac, peri], filler: lilac}
+
+  # ── Climate: two label columns, modes as pills, two frames facing outwards ────
+  - key: climate
+    label: Climate
+    readouts:
+      - {type: readout, entity: climate.living_room, label: Living room,
+         value: {attribute: current_temperature, unit: "°C"}, colour: peach}
+      - numbers
+      - decor
+    views:
+      - key: climate
+        label: Status
+        subtitle: Environmental systems
+        columns: [1fr, decor, 1fr]
+        bar:
+          - {title: Rooms, colour: orange}
+          - {colour: almond}
+          - {title: Modes, colour: almond, side: right}
+        right: {colour: almond, width: label, foot: ice}
+        content:
+          type: pair
+          top:
+            colour: orange
+            left:
+              type: rows
+              rows:
+                - {label: Living room, entity: climate.living_room, value: {attribute: current_temperature, unit: "°C"},
+                   bar: {mode: level, attribute: current_temperature, min: 10, max: 30}}
+                - {label: Bedroom, entity: climate.bedroom, value: {attribute: current_temperature, unit: "°C"},
+                   bar: {mode: level, attribute: current_temperature, min: 10, max: 30}}
+                - {label: Office, entity: climate.office, value: {attribute: current_temperature, unit: "°C"},
+                   bar: {mode: level, attribute: current_temperature, min: 10, max: 30}}
+            right:
+              type: pills
+              columns: 2
+              size: 15
+              pillar: {colours: [peach, bone, butterscotch], filler: almond, width: label, rows: true}
+              phone_layout: {columns: 1, decor: false, rows: data}
+              items:
+                - {label: Heating, entity: input_boolean.heating, "on": ice, "off": gray}
+                - {decor: peach}
+                - {decor: bone}
+                - {label: Away, entity: input_boolean.away, "on": sunflower, "off": gray}
+          left:
+            type: frame
+            title: Ventilation
+            colour: sunflower
+            content:
+              type: rows
+              filler: sunflower
+              rows:
+                - {label: Fan, entity: fan.ventilation, value: {on_off: [Running, "Off"]}, tap: toggle, hold: more-info}
+                - {label: CO², entity: sensor.co2, bar: {mode: level, min: 400, max: 2000}}
+          right:
+            type: frame
+            title: Boiler
+            colour: ice
+            side: right
+            content:
+              type: rows
+              side: right
+              filler: ice
+              rows:
+                - {label: Flow, entity: sensor.boiler_flow_temperature, bar: {mode: level, min: 20, max: 80}}
+                - {label: Service, entity: sensor.boiler_next_service, value: {date: state}, bar: countdown}
+      - key: tanks
+        label: Tanks
+        subtitle: Reserves
+        label_width: 130
+        bar: [{title: Reserves, colour: orange}]
+        content:
+          type: matrix                 # a frame per tank, the rows labelled once
+          rows:
+            - {key: level, label: Level, colour: almond, height: fill}
+            - {key: days, label: Remaining, colour: butterscotch}
+          columns:
+            - title: Rain water
+              colour: ice
+              cells:
+                level: {type: tank, entity: sensor.cistern_level, capacity: 5000, low: 500, unit: l, colour: ice}
+                days: {type: value, entity: sensor.cistern_days_left, value: {state: true, unit: d}}
+            - title: Heating oil
+              colour: peach
+              cells:
+                level: {type: tank, entity: sensor.oil_level, capacity: 3000, low: 400, unit: l, colour: peach}
+                days: {type: value, entity: sensor.oil_days_left, value: {state: true, unit: d}}
+
+  # ── Lights: an S of frames next to transporter sliders ───────────────────────
+  - key: lights
+    label: Lights
+    readouts: [numbers, decor]
+    views:
+      - key: lights
+        label: Lights
+        subtitle: Illumination control
+        columns: [1.2fr, 1fr]
+        bar:
+          - {title: Scenes, colour: sunflower}
+          - {title: Dimmers, colour: butterscotch, side: right}
+        right: {colour: butterscotch, width: decor}
+        content:
+          type: columns
+          items:
+            - type: chain
+              items:
+                - type: frame
+                  title: Scenes
+                  colour: sunflower
+                  rows: 2
+                  content:
+                    type: pills
+                    columns: 3
+                    pillar: {colours: [peach], filler: sunflower}
+                    items:
+                      - {label: Evening, colour: butterscotch, tap: {service: scene.turn_on, target: {entity_id: scene.evening}}}
+                      - {label: Movie, colour: bluey, tap: {service: scene.turn_on, target: {entity_id: scene.movie}}}
+                      - {label: All off, colour: gray, tap: {service: light.turn_off, target: {entity_id: all}}}
+                - type: frame
+                  title: Schedule
+                  colour: rose
+                  side: right
+                  content:
+                    type: schedule
+                    phases:
+                      - {name: Day, start: "07:00", end: "21:00", ramp_up_minutes: 30, ramp_down_minutes: 60, level: 100,
+                         colour: sunflower}
+                      - {name: Night, start: "21:00", end: "23:30", level: 20, colour: bluey}
+                    pillar: {colours: [peach, almond], filler: rose}
+            - type: sliders
+              channels:
+                - {entity: light.living_room, label: Living, colour: sunflower}
+                - {entity: light.kitchen, label: Kitchen, colour: peach}
+                - {entity: light.desk, label: Desk, colour: ice}
+              pillar: {colours: [peach, almond, sunflower], filler: butterscotch}
+
+  # ── Calendar and media ───────────────────────────────────────────────────────
+  - key: calendar
+    label: Calendar
+    short: Cal
+    readouts:
+      - {type: next_event, label: Next event, show: title}
+      - {type: next_event, label: When, show: when, colour: peach}
+      - {type: next_event, label: Today, show: today, colour: ice}
+      - {type: readout, entity: sensor.time, label: Local time}
+    views:
+      - key: calendar
+        label: Month
+        subtitle: Stardate calendar
+        bar: [{title: Calendar, colour: orange, buttons: {type: month, mode: controls}, buttons_max: 330}]
+        right: {colour: almond, width: label}
+        content: {type: month}
+
+  - key: media
+    label: Media
+    readouts:
+      - {type: readout, entity: media_player.living_room, label: Audio,
+         value: {map: {playing: Playing, paused: Paused, idle: Standby, "off": "Off"}},
+         colour: {playing: ice, paused: sunflower, default: gray}}
+      - numbers
+      - decor
+    views:
+      - key: media
+        label: Player
+        subtitle: Audio playback
+        columns: [1.1fr, 160, 1fr]
+        bar:
+          - {title: Now playing, colour: orange, span: 2,
+             buttons: {type: player, entity: media_player.living_room, part: transport}}
+          - {title: Library, colour: almond, side: right}
+        right: {colour: almond, width: label}
+        content:
+          type: columns
+          items:
+            - {type: player, entity: media_player.living_room, part: now, margin: 0 0 8px 0}
+            - {type: player, entity: media_player.living_room, part: devices}
+            - type: library
+              entity: media_player.living_room
+              categories:              # root entries of the player's media browser, matched by their id's end
+                - {match: "", label: Library, colour: peach}

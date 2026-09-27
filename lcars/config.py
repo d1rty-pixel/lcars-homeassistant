@@ -264,7 +264,7 @@ class Section:
 
 
 SITE_FIELDS = {"homeassistant", "dashboard", "layout", "alert", "calendars", "titles", "weather", "radar", "numbers",
-               "sounds", "data", "vars", "sections", "header_code"}
+               "sounds", "data", "vars", "plugins", "sections", "header_code"}
 
 
 class Site:
@@ -405,10 +405,25 @@ def load(path, ha=None, host=None, build_components=True):
 
     if not build_components:
         return raw
+    load_plugins(raw.get("plugins") or [], base)
     ex = Expander(data)
     ex.vars = ex.expand(raw.get("vars") or {}, where="vars")
     expanded = ex.expand({k: v for k, v in raw.items() if k not in ("data", "vars")})
     return Site(expanded, path, ha=ha, host=host)
+
+
+def load_plugins(paths, base):
+    """Import the site's plugins: Python files (relative to lcars.yaml) that register their own component
+    types with @component (docs/EXTENDING.md)."""
+    import importlib.util
+    for i, rel in enumerate(paths):
+        path = os.path.join(base, rel)
+        if not os.path.exists(path):
+            raise ConfigError(f"plugins[{i}]: {path} not found")
+        name = "lcars_plugin_" + re.sub(r"\W", "_", os.path.splitext(os.path.basename(path))[0])
+        spec = importlib.util.spec_from_file_location(name, path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
 
 
 def load_data(spec, base, ha_cfg, host, where):

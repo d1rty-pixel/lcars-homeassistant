@@ -2,13 +2,14 @@
 //
 // One column per channel: its value on top, a tall slot of segments lit from the bottom up to the value
 // with a bright handle at the level, and a label block (auto number, name) below. Drag (or tap) a slot to
-// set the value; it is sent with number.set_value when the finger lifts, so a drag is one command. Lit
+// set the value; it is sent when the finger lifts, so a drag is one command: number / input_number:
+// set_value; light: its brightness in % (min/max 0..100; 0 turns it off). Lit
 // segments flash white briefly like lcars-bar.js (off with the per-device motion switch, localStorage
 // "lcars-motion" = "off").
 //
 // Config (written by the framework from a `sliders` component, lcars/components/data.py):
 //   type: custom:lcars-transporter
-//   channels: [{entity, label, colour, code}]
+//   channels: [{entity, label, colour, code}]   # number, input_number or light entities
 //   min: 0, max: 100, step: 1
 //   segments: 20
 //   off: "rgba(...)"                 # inactive segment
@@ -46,8 +47,7 @@ class LcarsTransporter extends HTMLElement {
     this._hass = hass;
     this._config.channels.forEach((ch, i) => {
       if (this._drag && this._drag.i === i) return;       // the finger wins until it lifts
-      const st = hass.states[ch.entity];
-      const v = st ? parseFloat(st.state) : NaN;
+      const v = LcarsTransporter._read(hass.states[ch.entity]);
       if (v !== this._values[i]) this._show(i, v);
     });
   }
@@ -141,15 +141,31 @@ class LcarsTransporter extends HTMLElement {
     const end = (send) => () => {
       if (!this._drag || this._drag.i !== i) return;
       const st = this._hass && this._hass.states[c.channels[i].entity];
-      const value = send ? this._drag.value : (st ? parseFloat(st.state) : NaN);   // cancelled: back to HA's
+      const value = send ? this._drag.value : LcarsTransporter._read(st);   // cancelled: back to HA's
       this._drag = null;
       this._show(i, value);       // lit segments flash again
-      if (send && this._hass) {
-        this._hass.callService("number", "set_value", {entity_id: c.channels[i].entity, value});
-      }
+      if (send && this._hass) LcarsTransporter._write(this._hass, c.channels[i].entity, value);
     };
     slot.addEventListener("pointerup", end(true));
     slot.addEventListener("pointercancel", end(false));
+  }
+
+  // a channel's value: a number's state, a light's brightness in % (0 while off)
+  static _read(st) {
+    if (!st) return NaN;
+    if (st.entity_id.startsWith("light.")) {
+      return st.state === "on" ? Math.round((st.attributes.brightness ?? 255) / 2.55) : st.state === "off" ? 0 : NaN;
+    }
+    return parseFloat(st.state);
+  }
+
+  static _write(hass, entity, value) {
+    const domain = entity.split(".")[0];
+    if (domain === "light") {
+      if (value <= 0) return hass.callService("light", "turn_off", {entity_id: entity});
+      return hass.callService("light", "turn_on", {entity_id: entity, brightness_pct: Math.round(value)});
+    }
+    return hass.callService(domain, "set_value", {entity_id: entity, value});
   }
 
   _show(i, v) {

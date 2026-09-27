@@ -498,31 +498,14 @@ def check_config(path, setup):
     except Exception as e:
         print(f" ✗ config      {e}")
         return 1
-    states = {s["entity_id"] for s in site.states()}
-    found = set()
-
-    def walk(n):
-        if isinstance(n, dict):
-            for k, v in n.items():
-                if k in ("entity", "entity_id") and isinstance(v, str) and "." in v:
-                    found.add(v)
-                elif k == "triggers_update" and isinstance(v, list):
-                    found.update(x for x in v if isinstance(x, str))
-                else:
-                    walk(v)
-        elif isinstance(n, list):
-            for v in n:
-                walk(v)
-        elif isinstance(n, str):
-            found.update(re.findall(r"states\['([a-z_]+\.[a-z0-9_]+)'\]", n))
-    walk(config)
-    missing = sorted(e for e in found if e not in states)
+    from .build import missing_entities
+    missing, total = missing_entities(site, config)
     n = sum(len(s.views) for s in site.sections)
     print(f" ✓ config      {n} views build")
     if missing:
-        print(f" ! entities    {len(missing)} of {len(found)} don't exist in HA: {', '.join(missing)}")
+        print(f" ! entities    {len(missing)} of {total} don't exist in HA: {', '.join(missing)}")
         return 1
-    print(f" ✓ entities    all {len(found)} exist")
+    print(f" ✓ entities    all {total} exist")
     return 0
 
 
