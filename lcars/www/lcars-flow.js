@@ -40,6 +40,7 @@ class LcarsFlow extends HTMLElement {
   disconnectedCallback() {
     this._resize && this._resize.disconnect();
     window.removeEventListener("resize", this._onWindow);
+    document.documentElement.style.removeProperty("--lcars-flow-min");     // the next page has none
   }
 
   async _build() {
@@ -83,8 +84,10 @@ class LcarsFlow extends HTMLElement {
       if (n % d === 0 && labelW + d * (minW + gap) <= width + 0.5) { cols = d; break; }
     }
     const rows = n / cols;
-    // min-height: the rows' share; it also counts when the page's scrolling row sizes itself
+    // min-height: the rows' share. The page's scrolling row (lcars/frame.py) grows by it through
+    // --lcars-flow-min, so the sidebar next to it grows too (one flow card per page)
     this.style.minHeight = `calc(${rows} * ${c.row_min} + ${rows - 1} * ${c.row_gap})`;
+    document.documentElement.style.setProperty("--lcars-flow-min", this.style.minHeight);
     if (cols === this._cols) return;
     this._cols = cols;
     const g = this._grid;

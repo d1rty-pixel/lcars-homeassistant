@@ -215,7 +215,7 @@ def mid_bar(view, ctx):
     return top_bars(view.columns, pieces, right_w=view.right.width if view.right else None)
 
 
-def frame(site, section, view, content, ctx):
+def frame(site, section, view, content, ctx, need=None):
     """The page frame around `content` (a card): the list of the view's cards (top, mid, side/main or
     body, foot)."""
     nav_h = NAV_H
@@ -294,6 +294,7 @@ def frame(site, section, view, content, ctx):
     foot = grid('"v"', "1fr", "1fr", [at(on_phone(foot_bar(False), False), "v"), at(on_phone(foot_bar(True)), "v")],
                 gap="0")
     main_margin = f"4px 0 4px {MAIN_MARGIN}" if not right else f"0 0 0 {MAIN_MARGIN}"
+    margin_v = 8 if not right else 0      # the content's margin above and below
     out = [at(on_phone(top, False), "top"), at(mid, "mid"), at(foot, "foot")]
     if screen.SCROLL == "off":
         return out + [at(side, "side"), at(content, "main", margin=main_margin)]
@@ -306,15 +307,20 @@ def frame(site, section, view, content, ctx):
         areas, pwidths = '"elbow . re" "elbow nav re"', f"{ELBOW_W} 1fr {right.width + ELBOW_EXT}"
     out.append(at(on_phone(grid(areas, pwidths, f"1fr {Len.of(FOOT_T)}", phone_top, gap="0 6px")), "top"))
     # sidebar and content scroll together (the frame around them stays): below SCROLL_MIN_H their row is as
-    # much higher than the space they get as the viewport is lower than SCROLL_MIN_H, and higher still where
-    # the content needs it (a min-height, e.g. lcars-flow.js' rows once they wrap)
-    body = grid('"side main"', f"{PILLAR} 1fr",
-                f"minmax(calc(100% + max(0px, {screen.SCROLL_MIN_H}px - 100dvh)), auto)",
+    # much higher than the space they get as the viewport is lower than SCROLL_MIN_H, and at least as high as
+    # the content needs there, so the sidebar grows with it (its filler stretches, Motion stays at the
+    # bottom): `need` known when building (a component's min_height()), --lcars-flow-min set at runtime by
+    # lcars-flow.js once its rows wrap. Content that overflows the row instead would leave the sidebar short.
+    mins = [f"calc(100% + max(0px, {screen.SCROLL_MIN_H}px - 100dvh))",
+            only_under(screen.SCROLL_MIN_H, f"calc(var(--lcars-flow-min, 0px) + {margin_v}px)")]
+    if need:
+        mins.append(only_under(screen.SCROLL_MIN_H, f"calc({need} + {margin_v}px)"))
+    body = grid('"side main"', f"{PILLAR} 1fr", f"minmax(max({', '.join(mins)}), auto)",
                 [at(side, "side"), at(content, "main", margin=main_margin)], gap="0", height="100%")
     return out + [at(body, "body")]
 
 
-def view_config(site, section, view, content, ctx):
+def view_config(site, section, view, content, ctx, need=None):
     """The Lovelace view: an LCARdS layout view of the frame's rows."""
     mid_h = view.mid_t + INNER_CURVE
     top_h = only_below(sizes.PHONE_H, "clamp(140px, 17dvh, 176px)")
@@ -331,7 +337,7 @@ def view_config(site, section, view, content, ctx):
                        # HA pads the view by the safe areas (notch, home indicator): the height leaves them out
                        "grid-gap": "6px 0", "padding": "8px",
                        "height": "calc(100dvh - 16px - var(--safe-area-inset-top, 0px) - var(--safe-area-inset-bottom, 0px))"},
-            "cards": frame(site, section, view, content, ctx)}
+            "cards": frame(site, section, view, content, ctx, need)}
 
 
 def header_buttons(section, colours=HEADER_FAMILY[:4]):

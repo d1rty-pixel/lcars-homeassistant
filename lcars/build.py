@@ -12,14 +12,14 @@ LCARDS_CARDS = ("custom:lcards-button", "custom:lcards-elbow", "custom:lcards-sl
 
 
 def view_content(site, section, view):
-    """The view's content card: its component for every screen tier, at least as high as it needs where
-    the page scrolls."""
+    """The view's content card (its component for every screen tier, at least as high as it needs where
+    the page scrolls) and that height (CSS, or None)."""
     ctx = site.ctx(section, view)
     card = view.content.card(ctx)
     need = view.content.min_height(ctx.at(tier=screen.phone_tier(), phone=True))
     if need:
         card = screen.scroll_min_h(card, need)
-    return card
+    return card, need
 
 
 def build(site):
@@ -29,7 +29,8 @@ def build(site):
     for section in site.sections:
         for view in section.views:
             ctx = site.ctx(section, view)
-            views.append(view_config(site, section, view, view_content(site, section, view), ctx))
+            content, need = view_content(site, section, view)
+            views.append(view_config(site, section, view, content, ctx, need))
     config = {"title": site.dashboard_title, "views": views}
     if site.kiosk:
         config["kiosk_mode"] = {"hide_header": True, "hide_sidebar": True}
