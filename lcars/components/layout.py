@@ -1,11 +1,10 @@
 """Layout components: how frames, sections and columns are put together (docs/DESIGN.md "Reference
 style")."""
 from ..engine import sizes
-from ..engine.cards import at, block, grid, label_block, panel_elbow, stack_areas, text_card, title_text
-from ..engine.palette import ALMOND, INK, ORANGE_FAMILY, EARTH
-from ..engine.screen import only_under, SCROLL_MIN_H  # noqa: F401  (re-exported for components)
+from ..engine.cards import at, block, grid, label_block, panel_elbow, stack_areas, title_text
+from ..engine.palette import INK, ORANGE_FAMILY
 from ..engine.sizes import (DATA_GAP, DATA_ROW, DECOR_W, FRAME_GAP, Len, PANEL_CORNER, PANEL_GAP, PANEL_PILLAR, PANEL_T,
-                            SECTION_GAP, css, data_panel_height, fl, rows_h, title_width)
+                            SECTION_GAP, css, data_panel_height, fl, title_width)
 from .base import REQUIRED, Component, ConfigError, colour, component, height_spec, row_height, width
 
 
@@ -498,12 +497,10 @@ class Pair(_Sized):
         top = PANEL_CORNER + PANEL_GAP if shoulders else PANEL_T + DATA_GAP
         height = f"calc({Len.of(top)} + {n} * {DATA_ROW} + {Len.of(n * DATA_GAP + 8)})"
         blocks = [self.spine_c[i % len(self.spine_c)] for i in range(n)]
-        key = ctx.key + "/spine"
         column = grid('"b" "." ' + " ".join(f'"d{i}"' for i in range(n)) + ' "."', "1fr",
                       f"{Len.of(PANEL_T)} {Len.of(top - PANEL_T - DATA_GAP)} " + " ".join([DATA_ROW] * n) + " 1fr",
                       [at(block(self.link_c), "b")] + [at(block(c, None, ctx.code("spine", str(i))), f"d{i}")
                                                       for i, c in enumerate(blocks)], gap=f"{Len.of(DATA_GAP)} 0")
-        del key
         card = grid('"l d r"', f"1fr {Len.of(DECOR_W)} 1fr", "1fr",
                     [at(self.l.card(inner), "l"), at(column, "d"), at(self.r.card(inner), "r")],
                     gap=f"0 {Len.of(FRAME_GAP)}")
@@ -744,6 +741,3 @@ class Card(_Sized):
                                              "border: none !important; box-shadow: none !important; }"})
         return card
 
-
-__all__ = ["with_pillar", "panel", "section", "section_bar", "bottom_shoulder", "s_joint", "s_chain", "panel_min_w",
-           "EARTH", "ALMOND", "text_card"]

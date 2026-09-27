@@ -143,5 +143,3 @@ class Empty(HeaderItem):
     def header_item(self, ctx):
         return None
 
-
-__all__ = ["PEACH"]

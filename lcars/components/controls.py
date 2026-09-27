@@ -4,7 +4,7 @@ import copy
 
 from ..engine.cards import at, block, grid, phone_pill, pill_shape
 from ..engine.palette import GRAY
-from ..engine.sizes import DATA_GAP, DATA_ROW, Len, font
+from ..engine.sizes import DATA_GAP, DATA_ROW, font
 from .base import REQUIRED, Component, ConfigError, action, colour, component, slug
 from .values import value_js
 
@@ -103,5 +103,3 @@ class Pills(Component):
     def count(self, ctx):
         return -(-len(self.specs) // self.columns)
 
-
-__all__ = ["mode_button", "Len"]

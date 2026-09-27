@@ -5,10 +5,10 @@ from .engine import screen, sizes
 from .engine.cards import at, block, elbow, frame_elbow, grid, segments, titled_bar
 from .engine.codes import lcars_code
 from .engine.palette import (ACTIVE, ALMOND, BLUEY, BUTTERSCOTCH, EARTH, HEADER_FAMILY, INK, LILAC, ORANGE, PEACH,
-                             RED, ROSE, SIDEBAR_COLOURS, SUNFLOWER, VIOLET)
+                             ROSE, SIDEBAR_COLOURS, VIOLET)
 from .engine.screen import on_phone
 from .engine.sizes import (CLOCK_W, CLOCK_W_PHONE, ELBOW_EXT, ELBOW_W, FOOT_FONT, FOOT_H, FOOT_T, FRAME_GAP,
-                           FRAME_H, INNER_CURVE, MAIN_MARGIN, NAV_H, PANEL_GAP, PILLAR, STARDATE_W, BAR, Len,
+                           FRAME_H, INNER_CURVE, MAIN_MARGIN, NAV_H, PANEL_GAP, PILLAR, STARDATE_W, Len,
                            code_font, fl, font, only_below, only_under)
 
 CLASSIC_H = f"clamp({fl(42)}, 5.4dvh, 58px)"   # the link block on top of the header frame's pillar
@@ -343,6 +343,3 @@ def header_buttons(section, colours=HEADER_FAMILY[:4]):
         cards.append(at(pill_shape(block(c, lcars_code(f"header-button/{section.key}/{i}"), size=15)), n))
     return grid('"a b" "c d"', "1fr 1fr", "1fr 1fr", cards, gap="10px 12px")
 
-
-__all__ = ["view_config", "frame", "top_bars", "header_buttons", "BARS_VISIBLE", "BARS_HELPER", "RED", "SUNFLOWER",
-           "BAR", "FRAME_GAP"]
