@@ -24,6 +24,8 @@ HA_TOKEN=$(cat ~/.config/homeassistant/token) HA_URL=http://homeassistant.local:
 | `SAFE=top,right,bottom,left` | safe-area insets in px, as HA pads its views by them: `0,0,20,0` for the phone above, `0,59,21,59` for an iPhone's HA app |
 | `DSF` | device scale factor, e.g. `1.1` for 110 % zoom (hairline seams show there) |
 | `SCROLL=<px>\|end` | scrolls every scrolling element before the shot and logs visible/total heights, to check a phone's scrolled part or confirm "nothing scrolls" |
+| `DEMO=<built dashboard JSON>` | shows that dashboard with made-up data instead of HA's (see below) |
+| `DEMO_SET='{"<entity>": "<state>"}'` | with `DEMO`: demo states to change for the shot, e.g. to raise an alert |
 
 Extra arguments `clip-x clip-y clip-w clip-h` clip the shot. Each run uses its own browser profile, so
 several can run at once.
@@ -35,9 +37,29 @@ Chrome across the WSL boundary), and pass the environment through `WSLENV`:
 W=$(wslpath "$(cmd.exe /c echo %TEMP% | tr -d '\r')")/lcars-shot
 mkdir -p "$W" && cp tools/screenshot/{shot.js,package.json} "$W/" && (cd "$W" && cmd.exe /c "npm install")
 cd "$W" && export HA_TOKEN=$(cat ~/.config/homeassistant/token) HA_URL=http://homeassistant.local:8123 \
-  WSLENV=HA_TOKEN:HA_URL:LCARS_DASHBOARD:SAFE:DSF:SCROLL
+  WSLENV=HA_TOKEN:HA_URL:LCARS_DASHBOARD:SAFE:DSF:SCROLL:DEMO:DEMO_SET
 "/mnt/c/Program Files/nodejs/node.exe" shot.js ops 1280 800 "$(wslpath -w "$W")\\ops-1280.png"
 ```
+
+### The README's screenshots
+
+`DEMO` renders a built dashboard with made-up data, so screenshots show neither the installation's
+states nor its dashboard: `demo-mock.js` answers in the page what the frontend asks HA for (the
+dashboard's configuration, states, statistics, history, forecasts, calendars, logbook, media browser)
+from `demo-data.js`, which has data for every entity of `examples/home.yaml`, and drops every service
+call; `shot.js` answers the radar's DWD requests with frames from `demo-radar.js`. Only LCARdS' and the framework's own helpers (`*.lcards_*`, `*.lcars_*`) keep their real states. HA just
+has to have the cards and the view theme installed and a dashboard at `LCARS_DASHBOARD` for the URL (its
+content isn't used); the frontend's language is English whatever the token's user has chosen.
+
+```bash
+cd my-demo && cp <repo>/examples/home.yaml lcars.yaml     # set homeassistant.url to your HA
+lcars build                                                # build/lcars_dashboard.json
+DEMO=build/lcars_dashboard.json LCARS_DASHBOARD=lcars-bridge node shot.js ops 1920 1080 ops.png
+DEMO=... DEMO_SET='{"binary_sensor.water_leak": "on"}' node shot.js services-log 1920 1080 alert.png
+```
+
+The screenshots in `docs/screenshots/` are these at 1920×1080 (`phone-ops.png`: 734×337, `SAFE=0,0,20,0`).
+Take them again after a visible change. The radar shows a made-up rain front, whatever the sky does.
 
 `lcars diag` adds a view that shows what a device's browser reports (window and visual viewport,
 `100vh`/`dvh`/`svh`/`lvh`, safe-area insets as the browser and as HA see them): open `<dashboard>/diag`

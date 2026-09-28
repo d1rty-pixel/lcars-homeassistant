@@ -16,7 +16,7 @@ layout:
 weather: weather.home
 
 # Radar (DWD, Germany only): the home marker and the map's width
-# radar: {home: [52.52, 13.40], width_km: 170}
+radar: {home: [52.52, 13.40], width_km: 170}
 
 # The page frame turns red and pulses while the leak sensor is wet, and a dialog asks to acknowledge it
 alert:
@@ -52,25 +52,31 @@ sections:
       - key: ops
         label: OPS
         subtitle: Habitat overview
-        bar: [{title: Atmosphere, colour: orange}]
+        columns: [1.5fr, 1fr]
+        bar:
+          - {title: Atmosphere, colour: orange}
+          - {title: Radar, colour: almond, side: right, buttons: {type: radar, controls: row}}
         content:
           type: split                  # the top part closed by a thin bar, the calendar frame below it
           colour: lilac
           top:
-            type: stack
+            type: columns
             items:
-              - type: rows
-                rows:
-                  - {label: Temperature, entity: weather.home, value: {attribute: temperature, unit: "°C"},
-                     bar: {mode: level, attribute: temperature, min: -10, max: 35}}
-                  - {label: Humidity, entity: weather.home, value: {attribute: humidity, unit: "%", round: 0},
-                     bar: {mode: level, attribute: humidity, min: 0, max: 100}}
-                  - {label: Daylight, entity: sun.sun, value: {span: [next_rising, next_setting]},
-                     bar: {mode: span, start: next_rising, end: next_setting}}
-              - type: section
-                title: Forecast
-                colour: lilac
-                content: {type: forecast, labels: [violet, lilac], min_rows: 6}
+              - type: stack
+                items:
+                  - type: rows
+                    rows:
+                      - {label: Temperature, entity: weather.home, value: {attribute: temperature, unit: "°C"},
+                         bar: {mode: level, attribute: temperature, min: -10, max: 35}}
+                      - {label: Humidity, entity: weather.home, value: {attribute: humidity, unit: "%", round: 0},
+                         bar: {mode: level, attribute: humidity, min: 0, max: 100}}
+                      - {label: Daylight, entity: sun.sun, value: {span: [next_rising, next_setting]},
+                         bar: {mode: span, start: next_rising, end: next_setting}}
+                  - type: section
+                    title: Forecast
+                    colour: lilac
+                    content: {type: forecast, labels: [violet, lilac], min_rows: 6}
+              - {type: radar, controls: none}   # its Play / Back / Next / Now are in the mid bar
           bottom:
             type: frame
             title: Next 7 days
@@ -104,10 +110,11 @@ sections:
             - type: section
               title: Power visualization · 24 h
               colour: lilac
-              height: {timeline: 5}
+              height: fill
               content:
                 type: chart            # solar above the zero line, the house below
                 ticks: [100, 1000]
+                top: 4                 # log10 of the axis' end: 10 kW
                 pillar: {colours: [violet, lilac], side: left, filler: lilac, width: label, rows: true}
                 series:
                   - {entity: sensor.pv_power, name: Solar, colour: sunflower, sign: 1}
@@ -140,7 +147,7 @@ sections:
               - type: section
                 title: Power trace
                 colour: lilac
-                height: {timeline: 5}
+                height: fill
                 content: {type: history, entity: "${{ a.power }}", buttons: [violet, lilac, peri], filler: lilac}
 
   # ── Climate: two label columns, modes as pills, two frames facing outwards ────
@@ -195,6 +202,8 @@ sections:
               rows:
                 - {label: Fan, entity: fan.ventilation, value: {on_off: [Running, "Off"]}, tap: toggle, hold: more-info}
                 - {label: CO², entity: sensor.co2, bar: {mode: level, min: 400, max: 2000}}
+                - {label: Humidity, entity: sensor.ventilation_humidity, bar: {mode: level, min: 0, max: 100}}
+                - {label: Filter, entity: sensor.filter_status, value_colour: {Due: sunflower}}
           right:
             type: frame
             title: Boiler
@@ -206,6 +215,8 @@ sections:
               filler: ice
               rows:
                 - {label: Flow, entity: sensor.boiler_flow_temperature, bar: {mode: level, min: 20, max: 80}}
+                - {label: Return, entity: sensor.boiler_return_temperature, bar: {mode: level, min: 20, max: 80}}
+                - {label: Pressure, entity: sensor.boiler_pressure, bar: {mode: level, min: 0, max: 3}}
                 - {label: Service, entity: sensor.boiler_next_service, value: {date: state}, bar: countdown}
       - key: tanks
         label: Tanks
@@ -276,6 +287,63 @@ sections:
                 - {entity: light.kitchen, label: Kitchen, colour: peach}
                 - {entity: light.desk, label: Desk, colour: ice}
               pillar: {colours: [peach, almond, sunflower], filler: butterscotch}
+
+  # ── Services: waste collection on a timeline, a device log ───────────────────
+  - key: services
+    label: Services
+    short: Serv
+    readouts:
+      - {type: readout, entity: sensor.waste_next, label: Next pickup, colour: orange}
+      - {type: readout, entity: sensor.waste_next, label: Date, value: {date: date, weekday: false}, colour: peach,
+         width: 1.5}
+      - numbers
+      - decor
+    views:
+      - key: waste
+        label: Waste
+        subtitle: Waste disposal
+        bar: [{title: Collection timeline · 28 days, colour: orange}]
+        content:
+          type: split
+          colour: orange
+          top:
+            type: timeline
+            days: 28
+            series:
+              - {label: Residual, entity: sensor.waste_residual, colour: "#AAAACC"}
+              - {label: Organic, entity: sensor.waste_organic, colour: almond}
+              - {label: Recycling, entity: sensor.waste_recycling, colour: sunflower}
+              - {label: Paper, entity: sensor.waste_paper, colour: ice}
+          bottom:
+            type: frame
+            title: Next per bin
+            colour: peach
+            show_from: 1
+            content:
+              type: rows
+              filler: peach
+              rows:
+                - {label: Residual, colour: "#AAAACC", entity: sensor.waste_residual, value: {date: state}, bar: countdown}
+                - {label: Organic, colour: almond, entity: sensor.waste_organic, value: {date: state}, bar: countdown}
+                - {label: Recycling, colour: sunflower, entity: sensor.waste_recycling, value: {date: state}, bar: countdown}
+                - {label: Paper, colour: ice, entity: sensor.waste_paper, value: {date: state}, bar: countdown}
+      - key: log
+        label: Log
+        subtitle: Device log
+        bar: [{title: Device log · 24 h, colour: orange}]
+        content:
+          type: log
+          pillar: {colours: [peach, bone], side: left, filler: lilac, width: label}
+          levels: {info: peri, ok: ice, warn: sunflower, error: red}
+          sources:
+            - {entity: switch.washer, tag: Washer, states: {"on": [Supply on, ok, Washer power relay closed],
+                                                             "off": [Supply off, info, Washer power relay open]}}
+            - {entity: switch.dryer, tag: Dryer, states: {"on": [Supply on, ok, Dryer power relay closed],
+                                                           "off": [Supply off, info, Dryer power relay open]}}
+            - {entity: fan.ventilation, tag: Vent, states: {"on": [Running, ok, Air exchange nominal],
+                                                             "off": [Stopped, warn, Air exchange offline]}}
+            - {entity: binary_sensor.water_leak, tag: Leak, states: {"on": [Wet, error, Moisture detected in the basement],
+                                                                      "off": [Dry, ok, Basement sensor dry]}}
 
   # ── Calendar and media ───────────────────────────────────────────────────────
   - key: calendar

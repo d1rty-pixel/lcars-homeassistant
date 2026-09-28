@@ -4,7 +4,10 @@
 // env:   HA_TOKEN (required), HA_URL (default http://homeassistant.local:8123), DSF (device scale factor,
 //        e.g. 1.1 for 110 % zoom), CHROME (path to chrome.exe / chrome), LCARS_DASHBOARD (default
 //        lcars-bridge), SAFE ("top,right,bottom,left" safe-area insets in px, e.g. "0,59,21,59" for an
-//        iPhone 16 in landscape: HA pads its views by them)
+//        iPhone 16 in landscape: HA pads its views by them), DEMO (a built dashboard JSON: shows it with the
+//        made-up data of demo-data.js instead of HA's dashboard and states, see demo-mock.js; radar frames
+//        from demo-radar.js), DEMO_SET (JSON:
+//        demo states to change, e.g. '{"binary_sensor.water_leak": "on"}')
 //
 // From WSL, run it with Windows' node.exe so Chrome and node share a machine (puppeteer's pipe and
 // debugging port don't cross the WSL boundary), see docs/OPERATIONS.md "Checking layouts".
@@ -29,6 +32,21 @@ const PROFILE = require("os").tmpdir() + "/lcars-shot-profile-" + process.pid;
         document.documentElement.style.setProperty(`--app-safe-area-inset-${k}`, `${v}px`));
       if (document.documentElement) set(); else document.addEventListener("DOMContentLoaded", set);
     }, t, r, b, l);
+  }
+  if (process.env.DEMO) {
+    const fs = require("fs");
+    const dash = JSON.parse(fs.readFileSync(process.env.DEMO, "utf8"));
+    const raw = JSON.stringify(dash);
+    const ids = [...new Set([...raw.matchAll(/"entity(?:_id)?":"([a-z_]+\.[a-z0-9_]+)"/g),
+                             ...raw.matchAll(/states\[\\?['"]([a-z_]+\.[a-z0-9_]+)\\?['"]\]/g)].map((m) => m[1]))];
+    const src = ["demo-data.js", "demo-mock.js"].map((f) => fs.readFileSync(__dirname + "/" + f, "utf8")).join("\n");
+    await page.evaluateOnNewDocument(`${src}\n__lcarsDemoMock(${raw}, ${JSON.stringify(ids)}, ${process.env.DEMO_SET || "{}"});`);
+    page.on("console", (m) => { if (m.text().startsWith("[demo]")) console.log(m.text()); });
+    // the radar's DWD frames: a made-up rain front
+    const radar = require("./demo-radar.js");
+    await page.setRequestInterception(true);
+    page.on("request", (r) => r.url().startsWith("https://maps.dwd.de/geoserver/dwd/wms") && /GetMap/i.test(r.url())
+      ? r.respond({status: 200, contentType: "image/svg+xml", body: radar(r.url())}) : r.continue());
   }
   await page.setViewport({width: +w, height: +h, deviceScaleFactor: process.env.DSF ? +process.env.DSF : 1});
   // HA's frontend reads its auth from localStorage; a long-lived token works as access token

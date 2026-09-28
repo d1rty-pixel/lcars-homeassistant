@@ -6,6 +6,8 @@ components (label columns, frames, sections, charts, calendars, controls); the f
 Lovelace configuration, lays it out for every screen from a phone in landscape to a desktop, and sets
 up everything Home Assistant needs for it.
 
+![The Operations view: weather, forecast, radar and the next seven days of the calendars](docs/screenshots/ops.png)
+
 ```yaml
 sections:
   - key: home
@@ -38,6 +40,22 @@ sections:
 - **Sets itself up**: `lcars setup` installs LCARdS and kiosk-mode through HACS, copies the cards and
   the view theme, registers the resources, creates the helpers and the dashboard; `lcars doctor` checks
   all of it and every entity your views use.
+
+## Screenshots
+
+All from [examples/home.yaml](examples/home.yaml) with made-up data, at 1920×1080 unless noted.
+
+| | |
+|-|-|
+| [![Energy](docs/screenshots/energy.png)](docs/screenshots/energy.png) **Energy**: meters as segment bars, solar and the house mirrored around a zero line | [![Climate](docs/screenshots/climate.png)](docs/screenshots/climate.png) **Climate**: two label columns, modes as pills, frames facing outwards |
+| [![Lights](docs/screenshots/lights.png)](docs/screenshots/lights.png) **Lights**: scenes and a day schedule as an S of frames, transporter-console dimmers | [![Media](docs/screenshots/media.png)](docs/screenshots/media.png) **Media**: now playing, output devices, the library, transport buttons in the mid bar |
+| [![Calendar](docs/screenshots/calendar.png)](docs/screenshots/calendar.png) **Calendar**: a month of several calendars, next events in the header | [![Waste](docs/screenshots/waste.png)](docs/screenshots/waste.png) **Waste**: 28 days of collections on a timeline, countdowns per bin |
+| [![Appliances](docs/screenshots/appliances.png)](docs/screenshots/appliances.png) **Appliances**: one view per appliance from one `repeat`, a power trace from long-term statistics | [![Tanks](docs/screenshots/tanks.png)](docs/screenshots/tanks.png) **Tanks**: a matrix of frames with fill levels |
+| [![Device log](docs/screenshots/log.png)](docs/screenshots/log.png) **Device log**: the logbook as an LCARS log, coloured by level | [![Red alert](docs/screenshots/alert.png)](docs/screenshots/alert.png) **Red alert**: a wet leak sensor turns the frame red and asks to be acknowledged |
+
+[![The Operations view on a phone in landscape](docs/screenshots/phone-ops.png)](docs/screenshots/phone-ops.png)
+**On a phone** (734×337, an iPhone 16 in landscape): the same layout, smaller; the content scrolls between the
+fixed frame bars.
 
 ## Quick start
 
@@ -83,7 +101,7 @@ lcars/                  the framework (pip package; the `lcars` command)
   www/                    the light custom cards (JavaScript, no build step)
   themes/                 the view theme "LCARS Bridge"
 examples/               example configurations and a plugin
-tools/screenshot/       headless screenshots at the target sizes
+tools/screenshot/       headless screenshots at the target sizes, demo data for the README's
 docs/                   the documentation
 ```
 
