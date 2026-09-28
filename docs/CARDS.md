@@ -26,6 +26,7 @@ each card takes is documented at the top of its file, so they work in any dashbo
 | `lcars-flow` | `matrix` | cards in columns that wrap into rows by their own width, each row with a label column |
 | `lcars-player`, `lcars-library` | `player`, `library` | a media player and its library |
 | `lcars-alert` | site `alert` | not drawn in the page: colours the page frame and shows the alert dialog |
+| `lcars-rotate` | (always) | not drawn in the page: covers it while a phone is held upright and asks to turn it |
 | `lcars-motion.js` | (always) | not a card: the per-device motion switch (`?lcars_motion=`) and `?lcars_bars=` |
 | `lcards-registry-fix.js` | (always) | not a card: works around a load-order race between LCARdS and HA ([NOTES.md](NOTES.md)) |
 

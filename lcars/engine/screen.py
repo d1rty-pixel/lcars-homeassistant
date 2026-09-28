@@ -42,6 +42,11 @@ def not_phone_query():
     return f"(min-height: {sizes.PHONE_H + 0.02}px)"
 
 
+def portrait_query():
+    """A phone held upright: as narrow as a phone (landscape) is low. The page frame needs landscape there."""
+    return f"(orientation: portrait) and (max-width: {sizes.PHONE_H}px)"
+
+
 def on_phone(card, phone=True):
     """`card` only on phones (phone=False: everywhere else)."""
     return dict(card, visibility=card.get("visibility", []) +

@@ -157,6 +157,13 @@ def alert_card(site):
             "details_colour": LILAC, "font": "Antonio, sans-serif"}
 
 
+def rotate_card():
+    """lcars-rotate.js: covers the page while a phone is held upright (portrait) and asks to turn it."""
+    return {"type": "custom:lcars-rotate", "query": screen.portrait_query(), "code": lcars_code("rotate"),
+            "frame_colour": ORANGE, "accent_colour": LILAC, "text_colour": PEACH, "ink": INK,
+            "font": "Antonio, sans-serif"}
+
+
 def header_readouts(site, section, ctx):
     """Four readout slots next to the title, each its entry's slot_width() wide (a share, 1 fr per slot). An
     entry (card, n) spans n slots; (card, "wide") gets a column that is 0 px below WIDE_MIN window width and
@@ -322,7 +329,8 @@ def frame(site, section, view, content, ctx, need=None):
                 gap="0")
     main_margin = f"4px 0 4px {MAIN_MARGIN}" if not right else f"0 0 0 {MAIN_MARGIN}"
     margin_v = 8 if not right else 0      # the content's margin above and below
-    out = [at(on_phone(top, False), "top"), at(mid, "mid"), at(foot, "foot")]
+    # the rotate hint draws nothing in the grid either (its panel is fixed over the page)
+    out = [at(on_phone(top, False), "top"), at(mid, "mid"), at(foot, "foot"), at(rotate_card(), "foot")]
     alerts = alert_card(site)
     if alerts:          # draws nothing in the grid (its dialog is fixed over the page)
         out.append(at(alerts, "foot"))

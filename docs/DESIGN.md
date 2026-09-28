@@ -40,7 +40,12 @@ appears in the configuration.
   gaps) takes the alert's colour, the one exception to the colour families; the active item stays
   near-white. The content and the page title stay as they are; what happened is said in a dialog over
   the page: an LCARS frame in the alert's colour (heading in the top bar's gap, as tall as the bar), the
-  text, and the pills Details and Acknowledge. The dialog is the only thing that ever covers the page.
+  text, and the pills Details and Acknowledge. The dialog is the only thing that ever covers the page,
+  besides the rotate hint.
+- **Phones work in landscape only**: a phone held upright (portrait, at most as wide as `PHONE_H`) is too
+  narrow for the page frame, so `lcars-rotate.js` covers the page there with an LCARS panel (orange
+  frame, a lilac device outline turning to landscape) asking to rotate the device. Pure CSS: turning
+  the device shows or hides it at once.
 - **One colour family per frame** (after Voyager screens and the Voyager theme on thelcars.com, probably
   Okuda's own design language). Every piece that sits in a frame (elbows, pillar blocks, bar segments,
   LCARS buttons in a bar or pillar) keeps that frame's family: e.g. the upper frame in blues, the lower
