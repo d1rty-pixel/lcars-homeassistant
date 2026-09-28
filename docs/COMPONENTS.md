@@ -102,7 +102,7 @@ drawn only while `input_boolean.lcars_bars` is on).
 ### stack
 
 Children one under the other, each as high as it needs (or its `height`), the ones without a height
-sharing the rest. When all have a height, the rest stays black. `gap`: `section` (default, the gap
+or with `height: fill` sharing the rest. When all have a fixed height, the rest stays black. `gap`: `section` (default, the gap
 between sections of a label column), `frame`, `none`, or CSS.
 
 ```yaml

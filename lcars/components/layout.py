@@ -216,8 +216,9 @@ class _Sized(Component):
 
 @component("stack")
 class Stack(_Sized):
-    """Children one under the other, each as high as it needs (or its `height`), the last ones without a
-    height sharing the rest; below children that all have a height the rest stays black.
+    """Children one under the other, each as high as it needs (or its `height`), the ones without a
+    height (or with `height: fill`) sharing the rest; below children that all have a fixed height the rest
+    stays black.
 
     gap: section (the gap between sections of a label column), frame, none, or CSS."""
     fields = {"items": REQUIRED, "gap": "section"}
@@ -231,7 +232,7 @@ class Stack(_Sized):
 
     def render(self, ctx):
         kids = [k for k in self.kids if k.visible(ctx)]
-        heights = [item_height(k, ctx) for k in kids]
+        heights = [self._fixed(k, ctx) for k in kids]
         names = [f"i{i}" for i in range(len(kids))]
         cards = [at(k.card(ctx.at(key=ctx.key)), n) for k, n in zip(kids, names)]
         rows = [h or "1fr" for h in heights]
@@ -240,16 +241,22 @@ class Stack(_Sized):
             rows.append("1fr")
         return grid(stack_areas(names), "1fr", " ".join(rows), cards, gap=f"{self._gap()} 0")
 
+    @staticmethod
+    def _fixed(comp, ctx):
+        """A child's fixed height, None where it fills (no height, or `height: fill`)."""
+        h = item_height(comp, ctx)
+        return None if h == "1fr" else h
+
     def height(self, ctx):
         kids = [k for k in self.kids if k.visible(ctx)]
-        hs = [item_height(k, ctx) for k in kids]
+        hs = [self._fixed(k, ctx) for k in kids]
         if not hs or not all(hs):
             return None
         return "calc(" + " + ".join(hs + [self._gap()] * (len(hs) - 1)) + ")"
 
     def min_height(self, ctx):
         kids = [k for k in self.kids if k.visible(ctx)]
-        parts = [item_height(k, ctx) or k.min_height(ctx) for k in kids]
+        parts = [self._fixed(k, ctx) or k.min_height(ctx) for k in kids]
         if not any(k.min_height(ctx) for k in kids) or not all(parts):
             return None
         return "calc(" + " + ".join(parts + [self._gap()] * (len(parts) - 1)) + ")"
