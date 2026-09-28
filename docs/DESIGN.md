@@ -238,7 +238,7 @@ pillars, graphics next to values, restrained colour.
   (1.6 s, in step) while an alert set to blink is unacknowledged; a distribution's conduits carry a calm wave
   of brightened segments outward (hard steps, the head half white, one wave per 16 segments, 2.4-7 s
   per wave by the load, none at 0 W) and power up segment by segment when the page opens; an energy
-  chart's columns rise (its graph is revealed from the left) once when loaded or switched, and its
+  chart's columns rise (its graph, total mirrored below a zero line on a log scale, is revealed from the left) once when loaded or switched, and its
   running period's top piece brightens briefly every 9 s. Nothing else moves.
 - Every animation honours the per-device **motion switch** (`?lcars_motion=off`, the sidebar's
   "Motion"): LCARdS animations through the paused anime.js engine, the light cards by checking it

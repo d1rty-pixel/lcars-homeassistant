@@ -75,12 +75,13 @@ class Energy(Component):
     """The energy of several consumers per day or month as stacked columns (lcars-energy.js), from HA's
     long-term statistics: the running period's top piece lights up now and then, the line above reads the
     range's total and mean (tap a column: its breakdown). A toggle block (toggle: its colour; null: none)
-    below the range buttons switches to a graph: the mean load in W per hour (per day for months) as
-    stacked areas (tap: the breakdown at that time). Its range buttons (buttons: their colours) are blocks of the
+    below the range buttons switches to a graph: the mean load in W per hour (per day for months), each
+    consumer an area on a log scale above a zero line, their total (total: its colour) mirrored below it
+    (tap: the breakdown at that time). Its range buttons (buttons: their colours) are blocks of the
     label column, the filler below them. series: [{energy (or entity), label, colour}], e.g. the same list
     as a `distribution`; ranges: [{label, days | months}]; unit: kWh (HA converts)."""
     fields = {"series": REQUIRED, "ranges": None, "buttons": ["violet", "lilac", "peri"], "filler": "lilac",
-              "toggle": "bluey", "unit": "kWh", "min_rows": 7}
+              "toggle": "bluey", "total": "bone", "unit": "kWh", "min_rows": 7}
 
     def parse(self):
         series = self.series
@@ -107,7 +108,8 @@ class Energy(Component):
                                       for c, r in zip(self.buttons, self.range_list)],
                            **({"toggle": {"colour": colour(self.toggle, f"{self.where}.toggle"),
                                           "code": lcars_code(f"{key}/view")}} if self.toggle else {})},
-                "colours": {"grid": GRAY, "axis": DIM, "text": PERI, "dim": DIM, "today": ORANGE, "flash": WHITE},
+                "colours": {"grid": GRAY, "axis": DIM, "text": PERI, "dim": DIM, "today": ORANGE, "flash": WHITE,
+                            "total": colour(self.total, f"{self.where}.total")},
                 "font": FONT}
 
     def min_height(self, ctx):

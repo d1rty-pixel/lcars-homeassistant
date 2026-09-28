@@ -5,7 +5,7 @@
 // the page are the legend), a black gap between the pieces, the column's total above it, dashed lines at
 // round kWh values. Today's column is the running one: its top piece lights up now and then. Or, switched
 // by a toggle block below the range buttons, a graph: the consumers' mean load in W per hour (7D, 28D) or
-// per day (12M) as stacked smooth areas. Data comes from HA's
+// per day (12M) as smooth areas on a log scale above a zero line, their total mirrored below it. Data comes from HA's
 // long-term statistics (recorder/statistics_during_period, the `change` of each energy sensor per period),
 // refreshed every 5 min. A pillar of LCARS buttons picks the range (stored per device, localStorage). The
 // line at the top reads the range's total and mean; tap a column for its breakdown. On load and on a
@@ -20,7 +20,7 @@
 //   pillar: {width, gap, side: left | right, blocks: [{colour, code}], active, filler, ink,
 //            row: "28px",                # as lcars-history's: buttons one row high, the filler below
 //            toggle: {colour, code}}     # optional: the Columns / Graph block under the range buttons
-//   colours: {grid, axis, text, dim, today, flash}
+//   colours: {grid, axis, text, dim, today, flash, total}   # total: the graph's total below the line
 //   font: "Antonio, sans-serif"
 // Fluid sizes, the same as the framework's (Len, font() in lcars/engine/sizes.py): full size from REF_H
 // viewport height up, shrinking linearly below it to a minimum share at MIN_H: sizes to 60 % (sz), fonts to
@@ -355,42 +355,45 @@ class LcarsEnergy extends HTMLElement {
     const plotH = h - axisH - top, plotW = w - left;
     const n = times.length;
     const totals = times.map((_, i) => values.reduce((a, row) => a + row[i], 0));
-    const peak = Math.max(1, ...totals);
-    const step = LcarsEnergy._step(peak);
-    const max = step * Math.ceil(peak / step);
-    const y = (v) => top + plotH * (1 - v / max);
+    // mirrored around a zero line in the middle, log scale: the consumers above, their total below
+    const max = Math.max(10, ...totals) * 1.15;   // just above the peak; lines at the powers of ten below it
+    const mid = top + plotH / 2;
+    const f = (v) => Math.log10(1 + Math.max(0, v)) / Math.log10(1 + max);
+    const y = (v, sign = 1) => mid - sign * (plotH / 2) * Math.min(1, f(v));
     const span = to - from || 1;
     const x = (t) => left + ((t - from) / span) * plotW;
     this._x = {inv: (px) => from + ((px - left) / plotW) * span};
     const parts = [];
-    for (let t = step; t <= max + 1e-9; t += step) {
-      parts.push(`<line x1="${left}" x2="${w}" y1="${y(t)}" y2="${y(t)}" stroke="${col.grid}" stroke-dasharray="4" opacity="0.6"/>`,
-                 `<text x="${left - 6}" y="${y(t) + 4}" text-anchor="end">${t >= 1000 ? +(t / 1000).toFixed(2) + "k" : +t.toFixed(1)}</text>`);
+    for (let t = 10; t <= max; t *= 10) {
+      for (const sign of [1, -1]) {
+        const yt = y(t, sign);
+        parts.push(`<line x1="${left}" x2="${w}" y1="${yt}" y2="${yt}" stroke="${col.grid}" stroke-dasharray="4" opacity="0.6"/>`,
+                   `<text x="${left - 6}" y="${yt + 4}" text-anchor="end">${t >= 1000 ? t / 1000 + "k" : t}</text>`);
+      }
     }
-    parts.push(`<text x="${left - 6}" y="${y(0) + 4}" text-anchor="end">W</text>`);
+    parts.push(`<text x="${left - 6}" y="${mid + 4}" text-anchor="end">W</text>`);
     const areas = [];
     if (n > 1) {
-      // points in the middle of each period; stacked bottom up in the series' order
+      // points in the middle of each period; each consumer an area of its own (log scales don't stack),
+      // the largest drawn first so the small ones stay visible; the total mirrored below the line
       const half = (this._data.hours * 3600e3) / 2;
       const xs = times.map((t) => x(Math.min(to, t + half)));
-      let lower = times.map(() => 0);
-      values.forEach((row, s) => {
-        if (!row.some((v) => v > 0)) return;
-        const upper = lower.map((v, i) => v + row[i]);
-        const up = LcarsEnergy._smooth(xs.map((xx, i) => [xx, y(upper[i])]));
-        const down = LcarsEnergy._smooth(xs.map((xx, i) => [xx, y(lower[i])]).reverse(), "L");
-        const colour = c.series[s].colour;
-        areas.push(`<path d="${up}${down}Z" fill="${colour}" fill-opacity="0.8" stroke="#000" stroke-width="1"/>`,
-                   `<path d="${up}" fill="none" stroke="${colour}" stroke-width="1.5"/>`);
-        lower = upper;
-      });
+      const area = (row, sign, colour, opacity) => {
+        const line = LcarsEnergy._smooth(xs.map((xx, i) => [xx, y(row[i], sign)]));
+        areas.push(`<path d="${line}L${xs[n - 1].toFixed(1)} ${mid}L${xs[0].toFixed(1)} ${mid}Z" fill="${colour}" `
+                   + `fill-opacity="${opacity}"/>`,
+                   `<path d="${line}" fill="none" stroke="${colour}" stroke-width="1.5"/>`);
+      };
+      area(totals, -1, col.total, 0.35);
+      values.map((row, s) => ({row, s, sum: row.reduce((a, v) => a + v, 0)})).filter((r) => r.sum > 0)
+        .sort((a, b) => b.sum - a.sum).forEach((r) => area(r.row, 1, c.series[r.s].colour, 0.3));
     }
     const animate = this._animate && motionOn();
     parts.push(`<g class="graph${animate ? " reveal" : ""}">`
       + `<rect x="${left}" y="${top}" width="${plotW}" height="${plotH}" fill="transparent"/>${areas.join("")}</g>`);
     if (this._pick != null && times[this._pick] != null) {
       const px = x(times[this._pick] + (this._data.hours * 3600e3) / 2);
-      parts.push(`<line x1="${px}" x2="${px}" y1="${top}" y2="${y(0)}" stroke="${col.text}" stroke-width="1.5" opacity="0.9"/>`);
+      parts.push(`<line x1="${px}" x2="${px}" y1="${top}" y2="${top + plotH}" stroke="${col.text}" stroke-width="1.5" opacity="0.9"/>`);
     }
     // time axis: about 7 labels, dates (months: month names)
     const dayMs = 86400e3;
@@ -405,10 +408,10 @@ class LcarsEnergy extends HTMLElement {
       const label = months ? d.toLocaleDateString("en-GB", {month: "short"})
         : span <= 8 * dayMs ? d.toLocaleDateString("en-GB", {weekday: "short"}) + " " + d.getDate()
         : d.toLocaleDateString("en-GB", {day: "2-digit", month: "2-digit"});
-      parts.push(`<line x1="${xt}" x2="${xt}" y1="${y(0)}" y2="${y(0) + 5}" stroke="${col.axis}"/>`,
+      parts.push(`<line x1="${xt}" x2="${xt}" y1="${mid - 4}" y2="${mid + 4}" stroke="${col.axis}"/>`,
                  `<text x="${xt}" y="${h - 5}" text-anchor="middle">${esc(label)}</text>`);
     }
-    parts.push(`<line x1="${left}" x2="${w}" y1="${y(0)}" y2="${y(0)}" stroke="${col.axis}" stroke-width="2" opacity="0.9"/>`);
+    parts.push(`<line x1="${left}" x2="${w}" y1="${mid}" y2="${mid}" stroke="${col.axis}" stroke-width="2" opacity="0.9"/>`);
     svg.innerHTML = parts.join("");
     this._animate = false;
   }

@@ -356,7 +356,8 @@ from HA's long-term statistics (the sensors need a `state_class`). `series`: the
 range's total, the mean of the finished periods and the running one; tap a column for its breakdown.
 The running period's top piece lights up now and then; the columns rise when the range changes. A
 toggle block below the range buttons (`toggle`: its colour, default bluey; `null`: none) switches to a
-**graph**: the mean load in W per hour (per day for months) as stacked smooth areas, revealed from the
+**graph**: the mean load in W per hour (per day for months), each consumer a smooth area on a log scale
+above a zero line, their total mirrored below it (`total`: its colour, default bone), revealed from the
 left; tap it for the breakdown at that time. The choice of range and view is stored per device. Its
 range buttons continue the label column (put it in a `section`): `ranges` (default `7D`, `28D` as days,
 `12M` as months: `[{label, days | months}]`), `buttons` (a colour per range), `filler`, `unit` (kWh),
