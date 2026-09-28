@@ -37,6 +37,12 @@ vars:
   appliances:
     - {key: washer, name: Washer, power: sensor.washer_power, energy: sensor.washer_energy, switch: switch.washer}
     - {key: dryer, name: Dryer, power: sensor.dryer_power, energy: sensor.dryer_energy, switch: switch.dryer}
+  # Metered plugs: power and energy sensor, label, colour (the Consumers view)
+  consumers:
+    - {entity: sensor.desk_power, energy: sensor.desk_energy, label: Desk, colour: orange}
+    - {entity: sensor.washer_power, energy: sensor.washer_energy, label: Washer, colour: bluey}
+    - {entity: sensor.dryer_power, energy: sensor.dryer_energy, label: Dryer, colour: violet}
+    - {entity: sensor.fridge_power, energy: sensor.fridge_energy, label: Fridge, colour: ice}
 
 sections:
   # ── Operations: weather, forecast, the next days of the calendars ─────────────
@@ -119,6 +125,19 @@ sections:
                 series:
                   - {entity: sensor.pv_power, name: Solar, colour: sunflower, sign: 1}
                   - {entity: sensor.house_power, name: House, colour: orange, sign: -1}
+      - key: consumers
+        label: Consumers
+        subtitle: Load distribution
+        label_width: 130
+        bar: [{title: EPS distribution, colour: orange}]
+        content:
+          type: stack
+          items:
+            - {type: distribution, consumers: "${{ vars.consumers }}"}   # live, with a total row
+            - type: section
+              title: Energy consumption
+              colour: lilac
+              content: {type: energy, series: "${{ vars.consumers }}"}  # per day / month, stacked
 
   # ── Appliances: one view per appliance, written once with repeat ──────────────
   - key: appliances

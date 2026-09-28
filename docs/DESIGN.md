@@ -127,6 +127,9 @@ optionally a right side.
   (Antonio's cap height is 0.86 em). LCARdS' default baseline (`middle`) centres the font's em box and
   pushes the capitals against the top edge. A title sits next to the shoulder on its side, after (left)
   or before (right) a 14 px cap segment, in the column's colour.
+  Its gap in the bar is the text's width (from Antonio's advance widths, `ANTONIO_EM` in
+  `engine/sizes.py`, not a guess per character) plus 10 px on each side, so the black space after the
+  title matches the space before it.
 - **Thickness**: the mid bar is 43 px when it carries titles and buttons; the header's menu bar 43 px on
   every page.
 - **The header follows the page's right side**: on a page closed on the right, the menu bar ends in a
@@ -232,7 +235,10 @@ pillars, graphics next to values, restrained colour.
 
 - Allowed: lit bar segments **flash white briefly** (2.5 % of a random 8–24 s cycle, no fade); number
   columns and logs run a colour waterfall; the radar loops its frames; the page frame pulses
-  (1.6 s, in step) while an alert set to blink is unacknowledged. Nothing else moves.
+  (1.6 s, in step) while an alert set to blink is unacknowledged; a distribution's conduits carry a wave
+  of white segments outward (hard steps, faster with the load, none at 0 W) and power up segment by
+  segment when the page opens; an energy chart's columns rise once when loaded or switched, and its
+  running period's top piece flashes. Nothing else moves.
 - Every animation honours the per-device **motion switch** (`?lcars_motion=off`, the sidebar's
   "Motion"): LCARdS animations through the paused anime.js engine, the light cards by checking it
   themselves.

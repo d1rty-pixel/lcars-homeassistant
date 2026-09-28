@@ -4,7 +4,7 @@ import copy
 
 from .palette import INK, PERI
 from .sizes import (Len, PANEL_CORNER, PANEL_T, PILLAR, INNER_CURVE, FRAME_H, BAR, code_font, css, font,
-                    title_width)
+                    TITLE_PAD, title_width)
 
 
 def at(card, area, **extra):
@@ -148,7 +148,7 @@ def title_text(title, colour, size, side="left"):
     return {"type": "custom:lcards-button", "preset": "text-only", "show_icon": False, "interactive": False,
             "text": {"t": {"content": title, "position": f"bottom-{side}", "baseline": "alphabetic",
                            "font_size": size, "color": colour, "text_transform": "uppercase",
-                           "padding": {side: 10, "bottom": round(Len.of(size).full() * (1 - ANTONIO_CAP) / 2)}}}}
+                           "padding": {side: TITLE_PAD, "bottom": round(Len.of(size).full() * (1 - ANTONIO_CAP) / 2)}}}}
 
 
 def titled_bar(title, colour, bar_t, side="left", middle=None):

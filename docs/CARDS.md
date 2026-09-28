@@ -17,6 +17,8 @@ each card takes is documented at the top of its file, so they work in any dashbo
 | `lcars-forecast` | `forecast` | an hourly or daily forecast; `mode: toggle`: the Hourly / Daily block |
 | `lcars-radar` | `radar` | the DWD precipitation radar (Germany) with play / step controls |
 | `lcars-history` | `history` | a sensor over 24 h / 7 d / 28 d from long-term statistics (also registered as `lcars-power`) |
+| `lcars-distribution` | `distribution` | live power of several consumers as conduits with a wave, a total row by share |
+| `lcars-energy` | `energy` | energy of several consumers per day or month as stacked columns |
 | `lcars-schedule` | `schedule` | a day's schedule of phases over 24 h (also registered as `lcars-phases`) |
 | `lcars-transporter` | `sliders` | vertical sliders for number, input_number and light entities |
 | `lcars-log` | `log` | a device log from HA's logbook |

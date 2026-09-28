@@ -188,6 +188,25 @@ def chart_height(n):
     return f"minmax(0, calc({Len.of(2 * PANEL_CORNER)} + {TL_HEAD} + {n} * {TL_ROW} + {TL_AXIS} + {Len.of((n + 2) * TL_GAP)}))"
 
 
+# Advance widths of Antonio Regular (em) for what titles use, read from the font (Google Fonts, v22); titles
+# are uppercase, so lowercase letters count as capitals. Anything else counts as 0.42 em.
+ANTONIO_EM = {
+    " ": 0.241, "A": 0.443, "B": 0.448, "C": 0.448, "D": 0.466, "E": 0.369, "F": 0.365, "G": 0.458, "H": 0.48,
+    "I": 0.242, "J": 0.428, "K": 0.444, "L": 0.339, "M": 0.633, "N": 0.495, "O": 0.461, "P": 0.437, "Q": 0.461,
+    "R": 0.458, "S": 0.404, "T": 0.307, "U": 0.466, "V": 0.431, "W": 0.654, "X": 0.389, "Y": 0.404, "Z": 0.337,
+    "Ä": 0.443, "Ö": 0.461, "Ü": 0.466, **{d: 0.417 for d in "0123456789"}, "·": 0.234, ".": 0.26, ",": 0.226,
+    ":": 0.239, ";": 0.274, "-": 0.34, "–": 0.369, "—": 0.563, "/": 0.356, "(": 0.273, ")": 0.273, "&": 0.468,
+    "+": 0.332, "%": 1.063, "°": 0.447, "²": 0.413, "'": 0.202, '"': 0.363, "!": 0.258, "?": 0.417, "#": 0.417,
+}
+TITLE_PAD = 10       # a title's padding towards its shoulder (title_text()); the same room is left after it
+
+
+def text_em(text):
+    """Width of `text` in Antonio capitals, in em."""
+    return sum(ANTONIO_EM.get(ch, 0.42) for ch in str(text).upper())
+
+
 def title_width(title, size):
-    """Width of a title in a bar at font size `size` (Antonio is narrow: ~0.42 em per character)."""
-    return size * (len(title) * 0.42) + 18
+    """Width of a title's cell in a bar at font size `size`: the text plus TITLE_PAD on both sides, so the
+    gap after it matches the one before it."""
+    return size * text_em(title) + 2 * TITLE_PAD
