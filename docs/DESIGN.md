@@ -102,6 +102,9 @@ appears in the configuration.
   (`by_screen()`); what only its **height** needs goes by tier (dropped when the page scrolls). Frames
   narrower than their title rather wrap (the `matrix`) than clip it; a tank drops its scale by its own
   size (a container query), not the device's.
+- A label column that only carries short labels may be narrower on phones than the view's
+  `label_width` (a month's week column: 64 px for "WK 36"), so narrow data cells get the width. A
+  column that is the frame's pillar (the month's legend) keeps its width.
 - HA pads the view by the safe areas (notch, home indicator); the view's height leaves them out.
 - Heights are `dvh` (the visible height): on iOS `vh` is the height without the browser's toolbars.
 

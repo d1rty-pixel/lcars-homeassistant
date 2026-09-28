@@ -15,6 +15,7 @@
 //   titles: {"Recycling collection": "Recycling", ...}   # event titles to replace (the site's `titles`)
 //   weeks: {colours: [...], head: "#FF9900", prefix: "Wk", codes: [...] x6}   # the week label column
 //   label_w: 150, legend_w: 150, legend_filler: "#FFAA90", head: "28px", gap: 4
+//   label_w_phone: 64                 # the week column on phones (only "WK 36" and the month, no numbers)
 //   colours: {empty, weekend, today, other, text, text_weekend, text_today, dim, ink}
 //   font: "Antonio, sans-serif"
 //   mode: "controls", group: "calendar", controls: [{colour, code}] x3   # back, today, next
@@ -32,6 +33,7 @@ const scale = () => Math.min(1, Math.max(0.6, 0.6 + 0.4 * (window.innerHeight - 
 const len = (v) => (typeof v === "number" ? `${v}px` : v);
 
 const EVENT = "lcars-month";
+const PHONE = "(max-height: 520px)";   // PHONE_H in lcars/engine/sizes.py
 const DAY = 86400e3;
 const tapSound = () => {
   try { window.lcards.core.soundManager.play("card_tap"); } catch (e) { /* LCARdS not loaded: silent */ }
@@ -168,11 +170,22 @@ class LcarsMonth extends HTMLElement {
   }
 
   // Event bars grow with the day cells: the text is about a quarter of a cell's height (15..22 px), a bar
-  // 1.4 times that; as many bars as fit below the day's number. Where only one fits, it may take two lines
+  // 1.4 times that; as many bars as fit below the day's number. Where only one fits, it may take two lines.
+  // Phones: narrow cells, so small text on up to two lines per event, as many as fit (see _clip())
   _fit() {
     const cell = this.shadowRoot.querySelector(".cell");
     if (!cell) return;
     const h = cell.getBoundingClientRect().height;
+    if (window.matchMedia(PHONE).matches) {
+      this.style.setProperty("--ev-font", "13px");
+      this.style.setProperty("--ev-num", "15px");
+      const changed = !this._phone || h !== this._h;
+      this._phone = true;
+      this._h = h;
+      if (changed) this._render();
+      return;
+    }
+    if (this._phone) { this._phone = false; this._fits = null; }
     const font = Math.round(Math.min(22, Math.max(15, h / 4.4)));
     const bar = Math.round(font * 1.4), num = font + 4;
     const fits = Math.max(1, Math.floor((h - num - 8) / (bar + 3)));
@@ -207,7 +220,7 @@ class LcarsMonth extends HTMLElement {
         const date = day0(new Date(start.getTime() + i * DAY + 3600e3));
         const isToday = date.getTime() === today, other = date.getMonth() !== first.getMonth(), we = d > 4;
         const evs = days[i];
-        const shown = evs.length > fits ? fits - 1 : evs.length;
+        const shown = this._phone || evs.length <= fits ? evs.length : fits - 1;   // phones: _clip()
         const bars = evs.slice(0, shown).map((e) =>
           `<i style="background:${e.colour}">${esc(e.title)}</i>`).join("") +
           (evs.length > shown ? `<u>+${evs.length - shown}</u>` : "");
@@ -241,8 +254,8 @@ class LcarsMonth extends HTMLElement {
         .legend .blk { font-size: ${fz(15)}; align-items: flex-end; padding-bottom: 3px; }
         /* phones (PHONE_H in lcars/engine/sizes.py): legend blocks may shrink to their label, label centred */
         @media (max-height: 520px) { .legend .blk { align-items: center; padding-bottom: 0; } }
-        .cell { display: flex; flex-direction: column; gap: 3px; min-width: 0; min-height: 0; overflow: hidden;
-                padding: 4px 5px; box-sizing: border-box; }
+        .cell { position: relative; display: flex; flex-direction: column; gap: 3px; min-width: 0; min-height: 0;
+                overflow: hidden; padding: 4px 5px; box-sizing: border-box; }
         .cell b { font-weight: normal; font-size: var(--ev-num, 18px); height: var(--ev-num, 18px); flex: none; }
         .cell i { display: block; flex: none; height: var(--ev-bar, 20px); line-height: var(--ev-bar, 20px);
                   padding: 0 6px; font-style: normal; font-size: var(--ev-font, 14px); color: ${col.ink};
@@ -250,12 +263,41 @@ class LcarsMonth extends HTMLElement {
         .cell u { text-decoration: none; font-size: var(--ev-font, 14px); color: ${col.text}; }
         .cell.one i { height: auto; max-height: calc(var(--ev-font, 14px) * 2.5); line-height: 1.15; padding: 2px 6px;
                       white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+        /* phones: a narrow week column (the month and "WK 36" fit), the day cells get the rest; events on up
+           to two lines (a time on the first), long words broken rather than cut */
+        @media (max-height: 520px) {
+          .grid { grid-template-columns: ${len(c.label_w_phone || 64)} repeat(7, minmax(0, 1fr)); }
+          .wrap { column-gap: 10px; }
+          .grid > .blk { padding: 0 5px; }
+          .cell { padding: 2px; gap: 2px; }
+          .cell i { height: auto; line-height: 1.15; padding: 2px; white-space: normal; overflow-wrap: anywhere;
+                    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+        }
       </style>
       <div class="wrap">
         <div class="grid"><div class="blk" style="background:${wk.head}"><span>${esc(month)}</span></div>${heads}${cells.join("")}</div>
         <div class="legend">${legend}</div>
       </div>`;
-    if (!this._fits) requestAnimationFrame(() => this._fit());
+    if (this._phone) this._clip();
+    else if (!this._fits) requestAnimationFrame(() => this._fit());
+  }
+
+  // Phones: every event rendered; hide those that don't fit their cell, the last shown one making room for
+  // "+n" (the rest)
+  _clip() {
+    this.shadowRoot.querySelectorAll(".cell").forEach((cell) => {
+      const bars = [...cell.querySelectorAll("i")];
+      const bottom = cell.clientHeight - 2;
+      const out = (el) => el.offsetTop + el.offsetHeight > bottom;
+      let shown = bars.length;
+      if (!shown || !out(bars[shown - 1])) return;
+      const more = document.createElement("u");
+      cell.appendChild(more);
+      do {
+        bars[--shown].style.display = "none";
+        more.textContent = `+${bars.length - shown}`;
+      } while (shown > 0 && (out(bars[shown - 1]) || out(more)));
+    });
   }
 
   getCardSize() {

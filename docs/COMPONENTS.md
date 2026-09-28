@@ -292,6 +292,8 @@ A month of several calendars (`lcars-month.js`): ISO week blocks as the label co
 events as bars, a legend of calendars as the frame's right side (close the view on the right with
 `width: label`). `mode: controls` shows only Back / Today / Next (in the mid bar:
 `buttons: {type: month, mode: controls}`), linked by `group`. `legend`, `weeks` (colours).
+On phones the week column is narrow (64 px: the month and "WK 36" only), the rows are 72 px high (the
+page scrolls) and events take up to two lines in small text, as many as fit, "+n" for the rest.
 
 ### forecast
 

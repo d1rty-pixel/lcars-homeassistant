@@ -140,6 +140,10 @@ class Week(Component):
         return ctx.label_w if side == self.side else None
 
 
+MONTH_WEEK_W_PHONE = 64   # the month's week column on phones: the month and "WK 36", no numbers
+MONTH_ROW_PHONE = 72      # a week's row on phones (the page scrolls there)
+
+
 @component("month")
 class Month(Component):
     """A month of several calendars (lcars-month.js): week blocks as the label column, a 6 × 7 day grid with
@@ -152,7 +156,8 @@ class Month(Component):
         weeks = [colour(c, self.where) for c in (self.weeks or ["peach", "almond", "butterscotch"])]
         card = {"type": "custom:lcars-month", "group": self.group,
                 "calendars": calendar_list(ctx.site, self.calendars),
-                "titles": ctx.site.titles, "label_w": ctx.label_w, "legend_w": ctx.label_w,
+                "titles": ctx.site.titles, "label_w": ctx.label_w, "label_w_phone": MONTH_WEEK_W_PHONE,
+                "legend_w": ctx.label_w,
                 "legend_filler": colour(self.legend, self.where),
                 "legend_row": f"calc({DATA_ROW} * 1.25)", "head": DATA_ROW, "gap": DATA_GAP, "font": FONT,
                 "weeks": {"colours": weeks, "head": ORANGE, "prefix": "Wk",
@@ -165,6 +170,10 @@ class Month(Component):
         if self.mode:
             card["mode"] = self.mode
         return card
+
+    def min_height(self, ctx):
+        # phones scroll: rows high enough for two events (or one on two lines), not squeezed into the viewport
+        return None if self.mode else f"calc({DATA_ROW} + 6 * ({MONTH_ROW_PHONE}px + {DATA_GAP}px))"
 
     def edge(self, side, ctx):
         return ctx.label_w
