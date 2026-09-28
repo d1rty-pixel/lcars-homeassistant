@@ -235,10 +235,11 @@ pillars, graphics next to values, restrained colour.
 
 - Allowed: lit bar segments **flash white briefly** (2.5 % of a random 8–24 s cycle, no fade); number
   columns and logs run a colour waterfall; the radar loops its frames; the page frame pulses
-  (1.6 s, in step) while an alert set to blink is unacknowledged; a distribution's conduits carry a wave
-  of white segments outward (hard steps, faster with the load, none at 0 W) and power up segment by
-  segment when the page opens; an energy chart's columns rise once when loaded or switched, and its
-  running period's top piece flashes. Nothing else moves.
+  (1.6 s, in step) while an alert set to blink is unacknowledged; a distribution's conduits carry a calm wave
+  of brightened segments outward (hard steps, the head half white, one wave per 16 segments, 2.4-7 s
+  per wave by the load, none at 0 W) and power up segment by segment when the page opens; an energy
+  chart's columns rise (its graph is revealed from the left) once when loaded or switched, and its
+  running period's top piece brightens briefly every 9 s. Nothing else moves.
 - Every animation honours the per-device **motion switch** (`?lcars_motion=off`, the sidebar's
   "Motion"): LCARdS animations through the paused anime.js engine, the light cards by checking it
   themselves.

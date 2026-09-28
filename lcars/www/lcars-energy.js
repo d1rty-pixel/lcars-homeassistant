@@ -3,11 +3,13 @@
 //
 // A column per day (or month), stacked in the consumers' colours (the label column's blocks elsewhere on
 // the page are the legend), a black gap between the pieces, the column's total above it, dashed lines at
-// round kWh values. Today's column is the running one: its top piece flashes. Data comes from HA's
+// round kWh values. Today's column is the running one: its top piece lights up now and then. Or, switched
+// by a toggle block below the range buttons, a graph: the consumers' mean load in W per hour (7D, 28D) or
+// per day (12M) as stacked smooth areas. Data comes from HA's
 // long-term statistics (recorder/statistics_during_period, the `change` of each energy sensor per period),
 // refreshed every 5 min. A pillar of LCARS buttons picks the range (stored per device, localStorage). The
 // line at the top reads the range's total and mean; tap a column for its breakdown. On load and on a
-// range switch the columns rise one after another. Animations stop with the motion switch
+// range switch the columns rise one after another (the graph is revealed from the left). Animations stop with the motion switch
 // (localStorage "lcars-motion" = "off").
 //
 // Config (written by the framework from an `energy` component, lcars/components/power.py):
@@ -16,7 +18,8 @@
 //   ranges: [{label: "7D", days: 7}, {label: "28D", days: 28}, {label: "12M", months: 12}]
 //   unit: "kWh"
 //   pillar: {width, gap, side: left | right, blocks: [{colour, code}], active, filler, ink,
-//            row: "28px"}                # as lcars-history's: buttons one row high, the filler below
+//            row: "28px",                # as lcars-history's: buttons one row high, the filler below
+//            toggle: {colour, code}}     # optional: the Columns / Graph block under the range buttons
 //   colours: {grid, axis, text, dim, today, flash}
 //   font: "Antonio, sans-serif"
 // Fluid sizes, the same as the framework's (Len, font() in lcars/engine/sizes.py): full size from REF_H
@@ -31,7 +34,7 @@ const fz = (px, lo = 0.8) => fluid(px, lo);
 const scale = () => Math.min(1, Math.max(0.6, 0.6 + 0.4 * (window.innerHeight - MIN_H) / (REF_H - MIN_H)));   // sz(px) = px * scale()
 const len = (v) => (typeof v === "number" ? `${v}px` : v);
 
-const RANGE_KEY = "lcars-energy-range";
+const RANGE_KEY = "lcars-energy-range", VIEW_KEY = "lcars-energy-view";
 const lcarsTapSound = () => {
   try { window.lcards.core.soundManager.play("card_tap"); } catch (e) { /* LCARdS not loaded: silent */ }
 };
@@ -46,6 +49,8 @@ class LcarsEnergy extends HTMLElement {
     this._data = null;
     try { this._range = +localStorage.getItem(RANGE_KEY) || 0; } catch (e) { this._range = 0; }
     if (this._range >= config.ranges.length) this._range = 0;
+    try { this._view = config.pillar.toggle && localStorage.getItem(VIEW_KEY) === "graph" ? "graph" : "columns"; }
+    catch (e) { this._view = "columns"; }
     this._animate = true;
     this._pick = null;
     if (!this.shadowRoot) this._build();
@@ -79,7 +84,9 @@ class LcarsEnergy extends HTMLElement {
     this.attachShadow({mode: "open"});
     const blocks = c.ranges.map((r, i) =>
       `<div class="blk" data-i="${i}"><em>${p.blocks[i].code}</em><span></span></div>`).join("");
-    const pillar = `<div class="pillar">${blocks}<div style="background:${p.filler}"></div></div>`;
+    const tog = p.toggle ? `<div class="blk tog" data-view="1"><em>${p.toggle.code}</em><span></span></div>` : "";
+    const nb = c.ranges.length + (p.toggle ? 1 : 0);
+    const pillar = `<div class="pillar">${blocks}${tog}<div style="background:${p.filler}"></div></div>`;
     const chart = `<div class="chart"><div class="info"></div><svg></svg></div>`;
     this.shadowRoot.innerHTML = `
       <style>
@@ -100,11 +107,14 @@ class LcarsEnergy extends HTMLElement {
         svg .col { cursor: pointer; }
         svg .piece { transform-box: fill-box; transform-origin: 50% 100%; }
         svg .picked rect.hit { fill: ${col.text}; opacity: 0.08; }
+        svg .graph { cursor: pointer; }
+        svg .reveal { animation: reveal 1400ms cubic-bezier(.3, .7, .3, 1) backwards; }
         @keyframes rise { from { transform: scaleY(0); } }
-        @keyframes flash { 0% { fill: ${col.flash}; } 3% { fill: var(--c); } }
+        @keyframes reveal { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+        @keyframes flash { 0% { fill: color-mix(in srgb, var(--c) 55%, ${col.flash}); } 4% { fill: var(--c); } }
         .pillar { display: grid; gap: ${len(p.gap)};
-                  grid-template-rows: ${p.row ? `repeat(${c.ranges.length}, ${p.row}) minmax(0, 1fr)`
-                                              : `repeat(${c.ranges.length}, minmax(0, 1fr)) 14px`}; }
+                  grid-template-rows: ${p.row ? `repeat(${nb}, ${p.row}) minmax(0, 1fr)`
+                                              : `repeat(${nb}, minmax(0, 1fr)) 14px`}; }
         .blk { position: relative; display: flex; align-items: ${p.row ? "center" : "flex-end"}; justify-content: flex-end;
                padding: 0 8px ${p.row ? 0 : 4}px;
                color: ${p.ink}; font-size: ${fz(17)}; cursor: pointer; user-select: none; }
@@ -114,8 +124,13 @@ class LcarsEnergy extends HTMLElement {
       <div class="wrap">${p.side === "right" ? chart + pillar : pillar + chart}</div>`;
     this.shadowRoot.querySelectorAll(".blk").forEach((el) => el.addEventListener("click", () => {
       lcarsTapSound();
-      this._range = +el.dataset.i;
-      try { localStorage.setItem(RANGE_KEY, String(this._range)); } catch (e) { /* this page only */ }
+      if (el.dataset.view) {
+        this._view = this._view === "graph" ? "columns" : "graph";
+        try { localStorage.setItem(VIEW_KEY, this._view); } catch (e) { /* this page only */ }
+      } else {
+        this._range = +el.dataset.i;
+        try { localStorage.setItem(RANGE_KEY, String(this._range)); } catch (e) { /* this page only */ }
+      }
       this._data = null;
       this._pick = null;
       this._animate = true;
@@ -124,10 +139,19 @@ class LcarsEnergy extends HTMLElement {
       this._load();
     }));
     this.shadowRoot.querySelector("svg").addEventListener("click", (ev) => {
-      const g = ev.target.closest(".col");
-      if (!g) return;
+      let i;
+      if (this._view === "graph") {
+        const d = this._data;
+        if (!d || !d.times || !this._x) return;
+        const box = ev.currentTarget.getBoundingClientRect();
+        const t = this._x.inv(ev.clientX - box.left);
+        i = d.times.reduce((b, tt, k) => (Math.abs(tt - t) < Math.abs(d.times[b] - t) ? k : b), 0);
+      } else {
+        const g = ev.target.closest(".col");
+        if (!g) return;
+        i = +g.dataset.i;
+      }
       lcarsTapSound();
-      const i = +g.dataset.i;
       this._pick = this._pick === i ? null : i;
       clearTimeout(this._pickTimer);
       if (this._pick != null) this._pickTimer = setTimeout(() => { this._pick = null; this._draw(); }, 10e3);
@@ -139,7 +163,12 @@ class LcarsEnergy extends HTMLElement {
   _updateButtons() {
     const c = this._config;
     const p = c.pillar;
-    this.shadowRoot.querySelectorAll(".blk").forEach((el, i) => {
+    const tog = this.shadowRoot.querySelector(".tog");
+    if (tog) {
+      tog.style.background = p.toggle.colour;
+      tog.querySelector("span").textContent = this._view === "graph" ? "Graph" : "Columns";
+    }
+    this.shadowRoot.querySelectorAll(".blk:not(.tog)").forEach((el, i) => {
       const on = i === this._range;
       el.style.background = on ? p.active : p.blocks[i].colour;
       el.querySelector("span").textContent = c.ranges[i].label + (on ? " ◂" : "");
@@ -160,6 +189,7 @@ class LcarsEnergy extends HTMLElement {
 
   async _load() {
     if (!this._hass) return;
+    if (this._view === "graph") return this._loadGraph();
     const c = this._config;
     const range = this._range;
     const r = c.ranges[range];
@@ -171,7 +201,7 @@ class LcarsEnergy extends HTMLElement {
         end_time: new Date().toISOString(), statistic_ids: ids, period: r.months ? "month" : "day",
         types: ["change"], units: {energy: c.unit || "kWh"},
       });
-      if (range !== this._range) return;   // switched while loading
+      if (range !== this._range || this._view !== "columns") return;   // switched while loading
       const key = (t) => {
         const d = new Date(typeof t === "number" ? t : Date.parse(t));
         return r.months ? `${d.getFullYear()}-${d.getMonth()}` : d.toDateString();
@@ -189,6 +219,61 @@ class LcarsEnergy extends HTMLElement {
       this._data = {buckets, values, months: !!r.months};
       if (changed) this._draw();
     } catch (e) { /* keep what is shown; next refresh retries */ }
+  }
+
+  async _loadGraph() {
+    // mean load in W per hour (per day for month ranges) from the energy statistics
+    const c = this._config;
+    const range = this._range;
+    const r = c.ranges[range];
+    const now = new Date();
+    const start = r.months ? new Date(now.getFullYear(), now.getMonth() - r.months + 1, 1)
+                           : new Date(now.getTime() - r.days * 86400e3);
+    start.setMinutes(0, 0, 0);
+    const period = r.months ? "day" : "hour";
+    const hours = r.months ? 24 : 1;
+    const ids = c.series.map((s) => s.entity);
+    try {
+      const res = await this._hass.callWS({
+        type: "recorder/statistics_during_period", start_time: start.toISOString(), end_time: now.toISOString(),
+        statistic_ids: ids, period, types: ["change"], units: {energy: "kWh"},
+      });
+      if (range !== this._range || this._view !== "graph") return;
+      const ms = (t) => (typeof t === "number" ? t : Date.parse(t));
+      const times = [...new Set(ids.flatMap((id) => (res[id] || []).map((x) => ms(x.start))))].sort((a, b) => a - b);
+      const index = new Map(times.map((t, i) => [t, i]));
+      const values = ids.map((id) => {
+        const row = new Array(times.length).fill(0);
+        for (const x of res[id] || []) if (x.change > 0) row[index.get(ms(x.start))] = (x.change * 1000) / hours;
+        return row;
+      });
+      const changed = JSON.stringify(values) !== JSON.stringify(this._data && this._data.values);
+      this._data = {graph: true, times, values, from: start.getTime(), to: now.getTime(), hours, months: !!r.months};
+      if (changed) this._draw();
+    } catch (e) { /* keep what is shown; next refresh retries */ }
+  }
+
+  static _smooth(pts, move = "M") {
+    // monotone cubic (Fritsch-Carlson), as in lcars-history.js: no overshoot below zero
+    const n = pts.length;
+    const f = (v) => v.toFixed(1);
+    if (n < 3) return pts.map((p, i) => (i ? "L" : move) + f(p[0]) + " " + f(p[1])).join("");
+    const d = [], m = [];
+    for (let i = 0; i < n - 1; i++) d.push((pts[i + 1][1] - pts[i][1]) / ((pts[i + 1][0] - pts[i][0]) || 1));
+    m.push(d[0]);
+    for (let i = 1; i < n - 1; i++) m.push(d[i - 1] * d[i] <= 0 ? 0 : (d[i - 1] + d[i]) / 2);
+    m.push(d[n - 2]);
+    for (let i = 0; i < n - 1; i++) {
+      if (d[i] === 0) { m[i] = 0; m[i + 1] = 0; continue; }
+      const a = m[i] / d[i], b = m[i + 1] / d[i], q = a * a + b * b;
+      if (q > 9) { const t = 3 / Math.sqrt(q); m[i] = t * a * d[i]; m[i + 1] = t * b * d[i]; }
+    }
+    let path = `${move}${f(pts[0][0])} ${f(pts[0][1])}`;
+    for (let i = 0; i < n - 1; i++) {
+      const [x0, y0] = pts[i], [x1, y1] = pts[i + 1], h = (x1 - x0) / 3;
+      path += `C${f(x0 + h)} ${f(y0 + m[i] * h)} ${f(x1 - h)} ${f(y1 - m[i + 1] * h)} ${f(x1)} ${f(y1)}`;
+    }
+    return path;
   }
 
   static _step(max) {
@@ -214,6 +299,7 @@ class LcarsEnergy extends HTMLElement {
     const info = this.shadowRoot.querySelector(".info");
     const unit = c.unit || "kWh";
     if (!this._data) { info.innerHTML = "Retrieving telemetry…"; return; }
+    if (this._data.graph) return this._infoGraph(info);
     const {buckets, values, months} = this._data;
     if (this._pick != null) {
       const i = this._pick;
@@ -236,6 +322,97 @@ class LcarsEnergy extends HTMLElement {
       + `<span>${months ? "This month" : "Today"} ${LcarsEnergy._num(totals[n - 1])} ${unit}</span>`;
   }
 
+  _infoGraph(info) {
+    const c = this._config;
+    const {times, values, hours, months} = this._data;
+    const w = (v) => (v >= 1000 ? (v / 1000).toFixed(2) + " kW" : Math.round(v) + " W");
+    if (this._pick != null && times[this._pick] != null) {
+      const i = this._pick;
+      const d = new Date(times[i]);
+      const when = d.toLocaleDateString("en-GB", {weekday: "short", day: "2-digit", month: "2-digit"})
+        + (months ? "" : " · " + d.toLocaleTimeString("en-GB", {hour: "2-digit", minute: "2-digit"}));
+      const parts = c.series.map((s, k) => ({s, v: values[k][i]})).filter((x) => x.v >= 0.5).sort((a, b) => b.v - a.v);
+      const tot = parts.reduce((a, x) => a + x.v, 0);
+      info.innerHTML = `<span><b>${esc(when)} · ${w(tot)}</b></span>` + parts.map((x) =>
+        `<span><i style="background:${x.s.colour}"></i>${esc(x.s.label)} ${w(x.v)}</span>`).join("");
+      return;
+    }
+    const totals = times.map((_, i) => values.reduce((a, row) => a + row[i], 0));
+    const kwh = totals.reduce((a, v) => a + (v * hours) / 1000, 0);
+    const mean = totals.length ? totals.reduce((a, v) => a + v, 0) / totals.length : 0;
+    const peak = Math.max(0, ...totals);
+    const r = c.ranges[this._range];
+    info.innerHTML = `<span><b>${r.months ? r.months + " months" : r.days + " days"} · ${LcarsEnergy._num(kwh)} ${c.unit || "kWh"}</b></span>`
+      + `<span>Mean load ${w(mean)}</span><span>Peak ${w(peak)} / ${months ? "day" : "hour"}</span>`;
+  }
+
+  _drawGraph(svg, w, h) {
+    const c = this._config;
+    const col = c.colours;
+    const {times, values, from, to, months} = this._data;
+    const k = scale();
+    const axisH = Math.round(20 * k), top = Math.round(12 * k), left = Math.round(44 * k);
+    const plotH = h - axisH - top, plotW = w - left;
+    const n = times.length;
+    const totals = times.map((_, i) => values.reduce((a, row) => a + row[i], 0));
+    const peak = Math.max(1, ...totals);
+    const step = LcarsEnergy._step(peak);
+    const max = step * Math.ceil(peak / step);
+    const y = (v) => top + plotH * (1 - v / max);
+    const span = to - from || 1;
+    const x = (t) => left + ((t - from) / span) * plotW;
+    this._x = {inv: (px) => from + ((px - left) / plotW) * span};
+    const parts = [];
+    for (let t = step; t <= max + 1e-9; t += step) {
+      parts.push(`<line x1="${left}" x2="${w}" y1="${y(t)}" y2="${y(t)}" stroke="${col.grid}" stroke-dasharray="4" opacity="0.6"/>`,
+                 `<text x="${left - 6}" y="${y(t) + 4}" text-anchor="end">${t >= 1000 ? +(t / 1000).toFixed(2) + "k" : +t.toFixed(1)}</text>`);
+    }
+    parts.push(`<text x="${left - 6}" y="${y(0) + 4}" text-anchor="end">W</text>`);
+    const areas = [];
+    if (n > 1) {
+      // points in the middle of each period; stacked bottom up in the series' order
+      const half = (this._data.hours * 3600e3) / 2;
+      const xs = times.map((t) => x(Math.min(to, t + half)));
+      let lower = times.map(() => 0);
+      values.forEach((row, s) => {
+        if (!row.some((v) => v > 0)) return;
+        const upper = lower.map((v, i) => v + row[i]);
+        const up = LcarsEnergy._smooth(xs.map((xx, i) => [xx, y(upper[i])]));
+        const down = LcarsEnergy._smooth(xs.map((xx, i) => [xx, y(lower[i])]).reverse(), "L");
+        const colour = c.series[s].colour;
+        areas.push(`<path d="${up}${down}Z" fill="${colour}" fill-opacity="0.8" stroke="#000" stroke-width="1"/>`,
+                   `<path d="${up}" fill="none" stroke="${colour}" stroke-width="1.5"/>`);
+        lower = upper;
+      });
+    }
+    const animate = this._animate && motionOn();
+    parts.push(`<g class="graph${animate ? " reveal" : ""}">`
+      + `<rect x="${left}" y="${top}" width="${plotW}" height="${plotH}" fill="transparent"/>${areas.join("")}</g>`);
+    if (this._pick != null && times[this._pick] != null) {
+      const px = x(times[this._pick] + (this._data.hours * 3600e3) / 2);
+      parts.push(`<line x1="${px}" x2="${px}" y1="${top}" y2="${y(0)}" stroke="${col.text}" stroke-width="1.5" opacity="0.9"/>`);
+    }
+    // time axis: about 7 labels, dates (months: month names)
+    const dayMs = 86400e3;
+    const stepDays = months ? 0 : Math.max(1, Math.ceil(span / dayMs / 7));
+    const first = new Date(from);
+    if (months) first.setMonth(first.getMonth() + 1, 1); else first.setDate(first.getDate() + 1);
+    first.setHours(0, 0, 0, 0);
+    for (let d = new Date(first); d.getTime() < to;
+         months ? d.setMonth(d.getMonth() + 1) : d.setDate(d.getDate() + stepDays)) {
+      const xt = x(d.getTime());
+      if (xt < left + 16 || xt > w - 16) continue;
+      const label = months ? d.toLocaleDateString("en-GB", {month: "short"})
+        : span <= 8 * dayMs ? d.toLocaleDateString("en-GB", {weekday: "short"}) + " " + d.getDate()
+        : d.toLocaleDateString("en-GB", {day: "2-digit", month: "2-digit"});
+      parts.push(`<line x1="${xt}" x2="${xt}" y1="${y(0)}" y2="${y(0) + 5}" stroke="${col.axis}"/>`,
+                 `<text x="${xt}" y="${h - 5}" text-anchor="middle">${esc(label)}</text>`);
+    }
+    parts.push(`<line x1="${left}" x2="${w}" y1="${y(0)}" y2="${y(0)}" stroke="${col.axis}" stroke-width="2" opacity="0.9"/>`);
+    svg.innerHTML = parts.join("");
+    this._animate = false;
+  }
+
   _draw() {
     const c = this._config;
     const col = c.colours;
@@ -246,6 +423,7 @@ class LcarsEnergy extends HTMLElement {
     if (!w || !h) return;
     svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
     if (!this._data) { svg.innerHTML = ""; return; }
+    if (this._data.graph) return this._drawGraph(svg, w, h);
     const {buckets, values, months} = this._data;
     const n = buckets.length;
     const k = scale();
@@ -283,7 +461,7 @@ class LcarsEnergy extends HTMLElement {
         const last = idx === pieces.length - 1;
         const anims = [];
         if (animate) anims.push(`rise 700ms cubic-bezier(.2, .8, .2, 1) ${delay}ms backwards`);
-        if (now && last && motionOn()) anims.push("flash 4000ms step-end infinite");
+        if (now && last && motionOn()) anims.push("flash 9000ms step-end infinite");
         const style = `--c:${colour};${anims.length ? `animation:${anims.join(", ")}` : ""}`;
         g.push(`<rect class="piece" style="${style}" x="${x.toFixed(1)}" y="${y1.toFixed(1)}" width="${bw.toFixed(1)}" `
                + `height="${hgt.toFixed(1)}" fill="${colour}"/>`);

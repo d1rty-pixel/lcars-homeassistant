@@ -2,7 +2,7 @@
 month (lcars-energy.js). Both take the same list of consumers, so a view can share it (e.g. through `vars`):
 entity (the power sensor), energy (the energy sensor), label, colour."""
 from ..engine.codes import lcars_code
-from ..engine.palette import ACTIVE, BONE, BRIGHT, DIM, GRAY, INK, ORANGE, ORANGE_FAMILY, PERI, WHITE, rgba
+from ..engine.palette import ACTIVE, BONE, DIM, GRAY, INK, ORANGE, ORANGE_FAMILY, PERI, WHITE, rgba
 from ..engine.sizes import DATA_GAP, DATA_ROW, TL_GAP, TL_ROW, Len, rows_h
 from .base import REQUIRED, Component, ConfigError, colour, component
 from .data import FONT
@@ -48,11 +48,10 @@ class Distribution(Component):
         card = {"type": "custom:lcars-distribution",
                 "consumers": [{"entity": c["entity"], "label": c["label"], "colour": c["colour"],
                                "code": ctx.code("consumer", c["label"])} for c in self.items],
-                "max": self.max, "segments": int(self.segments), "wave": 8, "speed": [2600, 420],
+                "max": self.max, "segments": int(self.segments), "wave": 16, "speed": [7000, 2400],
                 "label_w": str(Len.of(ctx.label_w)), "value_w": "clamp(84px, 8vw, 150px)",
                 "share_w": "clamp(44px, 4vw, 72px)", "row": TL_ROW, "gap": TL_GAP,
-                "colours": {"off": rgba(PERI, 0.18), "text": PERI, "dim": GRAY, "ink": INK, "flash": WHITE,
-                            "trail": BRIGHT},
+                "colours": {"off": rgba(PERI, 0.18), "text": PERI, "dim": GRAY, "ink": INK, "flash": WHITE},
                 "font": FONT}
         if self.total:
             card["total"] = {"label": self.total, "colour": colour(self.total_colour, f"{self.where}.total_colour", BONE),
@@ -74,12 +73,14 @@ RANGES = [{"label": "7D", "days": 7}, {"label": "28D", "days": 28}, {"label": "1
 @component("energy")
 class Energy(Component):
     """The energy of several consumers per day or month as stacked columns (lcars-energy.js), from HA's
-    long-term statistics: the running period's top piece flashes, the line above reads the range's total
-    and mean (tap a column: its breakdown). Its range buttons (buttons: their colours) are blocks of the
+    long-term statistics: the running period's top piece lights up now and then, the line above reads the
+    range's total and mean (tap a column: its breakdown). A toggle block (toggle: its colour; null: none)
+    below the range buttons switches to a graph: the mean load in W per hour (per day for months) as
+    stacked areas (tap: the breakdown at that time). Its range buttons (buttons: their colours) are blocks of the
     label column, the filler below them. series: [{energy (or entity), label, colour}], e.g. the same list
     as a `distribution`; ranges: [{label, days | months}]; unit: kWh (HA converts)."""
     fields = {"series": REQUIRED, "ranges": None, "buttons": ["violet", "lilac", "peri"], "filler": "lilac",
-              "unit": "kWh", "min_rows": 7}
+              "toggle": "bluey", "unit": "kWh", "min_rows": 7}
 
     def parse(self):
         series = self.series
@@ -103,7 +104,9 @@ class Energy(Component):
                            "filler": colour(self.filler, f"{self.where}.filler"), "ink": INK,
                            "blocks": [{"colour": colour(c, f"{self.where}.buttons"),
                                        "code": lcars_code(f"{key}/range/{r['label']}")}
-                                      for c, r in zip(self.buttons, self.range_list)]},
+                                      for c, r in zip(self.buttons, self.range_list)],
+                           **({"toggle": {"colour": colour(self.toggle, f"{self.where}.toggle"),
+                                          "code": lcars_code(f"{key}/view")}} if self.toggle else {})},
                 "colours": {"grid": GRAY, "axis": DIM, "text": PERI, "dim": DIM, "today": ORANGE, "flash": WHITE},
                 "font": FONT}
 

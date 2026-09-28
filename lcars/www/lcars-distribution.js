@@ -2,8 +2,8 @@
 //
 // A row per consumer: its label block (a piece of the label column, in the consumer's colour), the value,
 // and a conduit of segments growing away from the block, lit on a log scale up to `max`, with the
-// consumer's share of the total at the far end. Energy flows through the lit segments: a wave of white
-// segments runs outward, faster the more power the consumer draws (none at 0 W). An optional first row
+// consumer's share of the total at the far end. Energy flows through the lit segments: a calm wave of
+// brightened segments runs outward, faster the more power the consumer draws (none at 0 W). An optional first row
 // is the total: every segment lit, in the consumers' colours by their share, so the load's distribution
 // reads at a glance. On first render the lit segments power up one after another. Tap a row: more-info.
 // Animations stop with the per-device motion switch (localStorage "lcars-motion" = "off").
@@ -14,11 +14,11 @@
 //   total: {label, colour, code}   # optional: the total row on top (the sum of the consumers)
 //   max: 2500                      # top of the log scale (W)
 //   segments: 32                   # per conduit
-//   wave: 8                        # segments from one wave to the next
-//   speed: [2600, 420]             # ms a wave takes for `wave` segments at 1 W and at `max`
+//   wave: 16                       # segments from one wave to the next
+//   speed: [7000, 2400]            # ms a wave takes for `wave` segments at 1 W and at `max`
 //   label_w: "130px", value_w: "120px", share_w: "64px"   # CSS lengths
 //   row: "28px", gap: 4            # row height (CSS) and gap (px)
-//   colours: {off, text, dim, ink, flash, trail}
+//   colours: {off, text, dim, ink, flash}   # flash: what the wave's head is mixed with
 //   font: "Antonio, sans-serif"
 // Fluid sizes, the same as the framework's (Len, font() in lcars/engine/sizes.py): full size from REF_H
 // viewport height up, shrinking linearly below it to a minimum share at MIN_H: sizes to 60 % (sz), fonts to
@@ -88,8 +88,8 @@ class LcarsDistribution extends HTMLElement {
         .cond i { position: relative; background: ${col.off}; }
         .cond i::before { content: ""; position: absolute; inset: 0; background: var(--c, transparent);
                           animation: var(--anim, none); }
-        @keyframes flow { 0% { background: ${col.flash}; } ${(100 / (c.wave || 8)).toFixed(2)}% { background: var(--trail); }
-                          ${(200 / (c.wave || 8)).toFixed(2)}% { background: var(--c); } }
+        @keyframes flow { 0% { background: var(--head); } ${(100 / (c.wave || 16)).toFixed(2)}% { background: var(--trail); }
+                          ${(200 / (c.wave || 16)).toFixed(2)}% { background: var(--c); } }
         @keyframes boot { from { opacity: 0; } to { opacity: 0; } }
       </style>
       <div class="wrap">${html}</div>`;
@@ -160,8 +160,8 @@ class LcarsDistribution extends HTMLElement {
   _conduit(i, r, v, sum, w, boot) {
     const c = this._config;
     const n = c.segments || 32;
-    const wave = c.wave || 8;
-    const [slow, fast] = c.speed || [2600, 420];
+    const wave = c.wave || 16;
+    const [slow, fast] = c.speed || [7000, 2400];
     const p = r.total ? sum : v;
     const f = p > 0 ? Math.min(1, Math.log10(1 + p) / Math.log10(1 + (c.max || 2500))) : 0;
     // ms per wave, bucketed so small changes don't restart the animation
@@ -175,7 +175,9 @@ class LcarsDistribution extends HTMLElement {
       if (s._key === key && !boot) return;
       s._key = key;
       s.style.setProperty("--c", lit || "transparent");
-      s.style.setProperty("--trail", lit ? `color-mix(in srgb, ${lit} 45%, ${c.colours.trail || "#FFFFFF"})` : "");
+      // the wave's head: the segment's colour brightened, not white, and a fainter step behind it
+      s.style.setProperty("--head", lit ? `color-mix(in srgb, ${lit} 50%, ${c.colours.flash || "#FFFFFF"})` : "");
+      s.style.setProperty("--trail", lit ? `color-mix(in srgb, ${lit} 78%, ${c.colours.flash || "#FFFFFF"})` : "");
       const anims = [];
       if (boot && lit) anims.push(`boot 1ms step-end ${i * 90 + j * 22}ms backwards`);
       if (lit && motion && p > 0) {

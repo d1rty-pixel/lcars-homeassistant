@@ -336,7 +336,7 @@ series:
 
 The live power of several consumers as EPS conduits (`lcars-distribution.js`): a row per consumer, its
 label block part of the label column, the value, a conduit of `segments` (32) lit on a log scale up to
-`max` (2500 W), with a wave of white segments running outward, faster the higher the load, and the
+`max` (2500 W), with a calm wave of brightened segments running outward, faster the higher the load, and the
 consumer's share of the total at the far end. A `total` row (its label, default `Total`; `null`: none;
 `total_colour`, default bone) on top lights every segment in the consumers' colours by their share,
 and counts the consumers drawing power. Tap a row: more-info.
@@ -354,10 +354,13 @@ The energy of several consumers per day or month as stacked columns in their col
 from HA's long-term statistics (the sensors need a `state_class`). `series`: the same list as a
 `distribution` (each consumer's `energy`, else its `entity`). The line above the columns reads the
 range's total, the mean of the finished periods and the running one; tap a column for its breakdown.
-The running period's top piece flashes; the columns rise when the range changes. Its range buttons
-continue the label column (put it in a `section`): `ranges` (default `7D`, `28D` as days, `12M` as
-months: `[{label, days | months}]`), `buttons` (a colour per range), `filler`, `unit` (kWh), `min_rows`
-(its height where the page scrolls, in data rows; 7).
+The running period's top piece lights up now and then; the columns rise when the range changes. A
+toggle block below the range buttons (`toggle`: its colour, default bluey; `null`: none) switches to a
+**graph**: the mean load in W per hour (per day for months) as stacked smooth areas, revealed from the
+left; tap it for the breakdown at that time. The choice of range and view is stored per device. Its
+range buttons continue the label column (put it in a `section`): `ranges` (default `7D`, `28D` as days,
+`12M` as months: `[{label, days | months}]`), `buttons` (a colour per range), `filler`, `unit` (kWh),
+`min_rows` (its height where the page scrolls, in data rows; 7).
 
 ### sliders
 
