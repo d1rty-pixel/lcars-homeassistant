@@ -50,10 +50,10 @@ numbers:                        # the header's number columns (real sensors as h
 
 # sounds: {card_tap: "media-source://media_source/local/lcars/beep.mp3"}   # default: LCARdS' scheme
 
-# alert:                        # the page title turns into an alert while the entity is in a listed state
-#   entity: binary_sensor.water_leak
-#   states:
-#     "on": {title: Red alert · water leak, short: Leak, colour: red, blink: true}
+# alert:                        # while an entity is in a listed state: the page frame in its colour, a dialog
+#   - entity: binary_sensor.water_leak          # (acknowledged on one screen, gone on all), its sound once
+#     states:                                   # heading, text (may be "js:..."), colour, blink (pulse
+#       "on": {heading: Red alert, text: Water leak, colour: red, blink: true}   # until acknowledged), sound
 
 # vars:                         # values to use anywhere as ${{ vars.name }}
 #   power: sensor.house_power

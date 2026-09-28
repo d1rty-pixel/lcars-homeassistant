@@ -35,7 +35,7 @@ field(s) colr for type rows (fields: …)`), before anything is sent to HA.
 | `dashboard` | the dashboard's URL path, title, theme, sidebar entry (below) |
 | `layout` | scrolling on phones (below) |
 | `sections` | the section menu and its views (below); required |
-| `alert` | an entity that turns the page title into an alert (below) |
+| `alert` | alerts: the page frame turns the alert's colour and a dialog asks to acknowledge it (below) |
 | `weather` | the default `weather.*` entity of `forecast` components (default `weather.home`) |
 | `radar` | `home: [lat, lon]`, `width_km`, optional `center: [lat, lon]` for `radar` components (DWD: Germany) |
 | `calendars` | the calendars of `week`, `month` and `next_event`: `[{entity, label, colour}]` or entity IDs; a calendar without a label gets its name in HA, one without a colour the next of a palette |
@@ -89,18 +89,44 @@ Everything else about screen sizes is automatic: see "Responsive behaviour" in [
 
 ### `alert`
 
-While `entity` is in one of the listed states, the page title (every page) shows the state's title in
-its colour, blinking if set, and the phone's foot bar its short text:
+While an alert's `entity` is in one of its listed states, on every page:
+
+- the page frame (elbows, bars, sidebar, foot bar, and the titles and clock in their gaps) turns the
+  state's colour; the active menu item stays light, the content and the page title don't change;
+- a dialog over the page shows the state's `heading` and `text`, with **Acknowledge** and **Details**
+  (HA's more-info of the entity). Acknowledging closes it on every screen (the helper
+  `input_text.lcars_alert_ack`, which `lcars setup` creates); another state, or the same state again
+  later, asks again;
+- the frame pulses while a state with `blink: true` is unacknowledged, and stays in its colour after
+  that while the state lasts;
+- each screen plays the state's `sound` once when it first shows the alert, and `alert_clear` when the
+  last alert ends (LCARdS' sound scheme; its sound helpers switch it on or off).
 
 ```yaml
 alert:
-  entity: binary_sensor.water_leak
-  states:
-    "on": {title: Red alert · water leak, short: Leak, colour: red, blink: true}
+  - entity: binary_sensor.water_leak
+    states:
+      "on": {heading: Red alert, text: Water leak in the basement, colour: red, blink: true}
+  - entity: sensor.filter_status
+    states:
+      Due: {text: "js:'Filter change due for ' + a.days + ' days'", colour: sunflower}
 ```
 
-A title may be JavaScript: `title: "js:'PUMP OFFLINE · ' + a.minutes + ' MIN'"` (`a` are the entity's
-attributes, `s` its state). Quote states YAML would read as booleans (`"on"`, `"off"`).
+`alert` is a list (one alert may be given as a mapping). Several alerts can be active at once: the dialog
+lists every unacknowledged one, the first active alert in the list colours the frame. Per state:
+
+| Field | Default | |
+|-------|---------|---|
+| `heading` | by colour: `Red alert`, `Yellow alert` (sunflower), `Blue alert` (bluey, peri, ice), else `Alert` | the dialog's title |
+| `text` | none | what happened |
+| `colour` | `red` | frame and dialog |
+| `blink` | `false` | the frame pulses until acknowledged |
+| `sound` | by colour: `red`, `yellow` (sunflower), `blue` (bluey, peri, ice), `gray`, else `yellow` | LCARdS' `alert_<sound>`; `none`: silent |
+
+`heading` and `text` may be JavaScript: `text: "js:'PUMP OFFLINE · ' + a.minutes + ' MIN'"` (`a` are
+the entity's attributes, `s` its state). They are evaluated on every update, so they may count. Quote
+states YAML would read as booleans (`"on"`, `"off"`). The former names `title` (now `text`) and `short`
+(now `heading`) still work.
 
 ### `data`: values read when the dashboard is built
 

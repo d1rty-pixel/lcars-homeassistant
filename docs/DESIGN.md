@@ -35,6 +35,12 @@ appears in the configuration.
   Hex on purpose, so LCARdS alert modes don't shift them.
 - **Colours stay semantic** for states: ice = OK/running, sunflower = warning/manual, red = critical,
   grey = off.
+- **Alerts colour the page frame** (site `alert`, `lcars-alert.js`): every piece of the page frame
+  (elbows, bars, sidebar blocks, the header's link block and menu, the titles and the clock in the bars'
+  gaps) takes the alert's colour, the one exception to the colour families; the active item stays
+  near-white. The content and the page title stay as they are; what happened is said in a dialog over
+  the page: an LCARS frame in the alert's colour (heading in the top bar's gap, as tall as the bar), the
+  text, and the pills Details and Acknowledge. The dialog is the only thing that ever covers the page.
 - **One colour family per frame** (after Voyager screens and the Voyager theme on thelcars.com, probably
   Okuda's own design language). Every piece that sits in a frame (elbows, pillar blocks, bar segments,
   LCARS buttons in a bar or pillar) keeps that frame's family: e.g. the upper frame in blues, the lower
@@ -87,8 +93,7 @@ appears in the configuration.
   (and the right shoulder on pages closed on the right); readouts, number columns and the page title
   are not. With `scroll: off` the header isn't rendered at all and the **section menu moves into the
   foot bar**. Either way the menu has short labels (a section's `short`), no numbers, the active section
-  near-white without "◂". The foot bar ends in weekday and time instead of date/time and stardate, and
-  shows the alert's short text there while there is one.
+  near-white without "◂". The foot bar ends in weekday and time instead of date/time and stardate.
 - **No LCARS numbers on phones**: they are decoration and would collide with the labels. LCARdS blocks
   get their number's font size as `code_font()` (0 below 520 px), the cards hide them in a media query.
 - What a phone's **width** needs (narrow pills) is chosen for phones whether they scroll or not
@@ -221,8 +226,8 @@ pillars, graphics next to values, restrained colour.
 ### Animation
 
 - Allowed: lit bar segments **flash white briefly** (2.5 % of a random 8–24 s cycle, no fade); number
-  columns and logs run a colour waterfall; the radar loops its frames; the title blinks on an alert set
-  to blink. Nothing else moves.
+  columns and logs run a colour waterfall; the radar loops its frames; the page frame pulses
+  (1.6 s, in step) while an alert set to blink is unacknowledged. Nothing else moves.
 - Every animation honours the per-device **motion switch** (`?lcars_motion=off`, the sidebar's
   "Motion"): LCARdS animations through the paused anime.js engine, the light cards by checking it
   themselves.

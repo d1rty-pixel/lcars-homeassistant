@@ -33,6 +33,12 @@ STARDATE_JS = ("[[[ const d = new Date(), y = d.getFullYear(), a = new Date(y, 0
 # (?lcars_bars=off|on|toggle, see lcars-motion.js); `lcars setup` creates it.
 BARS_HELPER = "input_boolean.lcars_bars"
 BARS_VISIBLE = [{"condition": "state", "entity": BARS_HELPER, "state": "on"}]
+# Alerts (site `alert`, lcars-alert.js): the frame's shapes carry FRAME_TAG (text in the frame's gaps
+# FRAME_TEXT_TAG), so the card can colour them; acknowledgements go to ACK_HELPER (`lcars setup` creates it),
+# so they hold on every screen.
+FRAME_TAG = "lcars-frame"
+FRAME_TEXT_TAG = "lcars-frame-text"
+ACK_HELPER = "input_text.lcars_alert_ack"
 
 
 def base_path(site):
@@ -91,24 +97,14 @@ def motion_switch(section, here):
     return card
 
 
-def clock(site, phone=False):
+def clock(phone=False):
     """Local date and time, re-rendered by the minute through sensor.time. phone=True: weekday and time
-    only, and the alert's short text instead while there is one (the phone has no header title, where the
-    alert sits otherwise)."""
-    card = {"type": "custom:lcards-button", "entity": "sensor.time", "preset": "text-only", "show_icon": False,
+    only."""
+    return {"type": "custom:lcards-button", "entity": "sensor.time", "preset": "text-only", "show_icon": False,
             "interactive": False, "tap_action": {"action": "none"},
-            "text": {"t": {"content": CLOCK_JS, "position": "center-left", "font_size": FOOT_T,
-                           "color": ORANGE, "text_transform": "uppercase", "padding": {"left": 4}}}}
-    if phone:
-        alert = site.alert
-        if alert:
-            card.update({"entity": alert.entity, "triggers_update": ["sensor.time"], "interactive": True,
-                         "tap_action": {"action": "more-info"}, "animations": alert.animations()})
-            card["text"]["t"].update({"content": "[[[ " + alert.short_js() + CLOCK_JS_SHORT + "]]]",
-                                      "color": alert.colours(ORANGE)})
-        else:
-            card["text"]["t"]["content"] = "[[[ " + CLOCK_JS_SHORT + "]]]"
-    return card
+            "text": {"t": {"content": "[[[ " + CLOCK_JS_SHORT + "]]]" if phone else CLOCK_JS,
+                           "position": "center-left", "font_size": FOOT_T, "color": ORANGE,
+                           "text_transform": "uppercase", "padding": {"left": 4}}}}
 
 
 def stardate_block():
@@ -119,23 +115,40 @@ def stardate_block():
     return card
 
 
-def title_card(site, section, subtitle):
-    """The page title (the section's title) with the view's subtitle; with an alert configured, the title
-    turns into the alert's text and colour while it is active."""
-    label = section.title.upper()
-    card = {"type": "custom:lcards-button", "preset": "text-only", "show_icon": False,
-            "text": {"title": {"content": label, "position": "top-right", "font_size": font(60), "color": ORANGE,
-                               "text_transform": "uppercase"},
+def title_card(section, subtitle):
+    """The page title (the section's title) with the view's subtitle."""
+    return {"type": "custom:lcards-button", "preset": "text-only", "show_icon": False,
+            "text": {"title": {"content": section.title.upper(), "position": "top-right", "font_size": font(60),
+                               "color": ORANGE, "text_transform": "uppercase"},
                      "sub": {"content": subtitle, "position": "bottom-right", "font_size": font(20), "color": PEACH,
                              "text_transform": "uppercase"}},
             "tap_action": {"action": "none"}}
-    alert = site.alert
-    if alert:
-        card = {"type": card["type"], "entity": alert.entity, **{k: v for k, v in card.items() if k != "type"}}
-        card["text"]["title"].update({"content": alert.title_js(label), "color": alert.colours(ORANGE)})
-        card["animations"] = alert.animations()
-        card["tap_action"] = {"action": "more-info"}
+
+
+def framed(card):
+    """Tag the page frame's pieces in `card` for lcars-alert.js: elbows and blocks (not the active item,
+    which stays light, nor anything that does more than navigate), and plain text in the frame's gaps (bar
+    titles, the clock). Returns `card`."""
+    t = card.get("type")
+    if t == "custom:lcards-elbow":
+        card["tags"] = [FRAME_TAG]
+    elif t == "custom:lcards-button" and card.get("tap_action", {}).get("action", "none") in ("none", "navigate"):
+        if card.get("preset") == "text-only":
+            card["tags"] = [FRAME_TEXT_TAG]
+        elif card.get("style", {}).get("card", {}).get("color", {}).get("background") != ACTIVE:
+            card["tags"] = [FRAME_TAG]
+    for c in card.get("cards", []):
+        framed(c)
     return card
+
+
+def alert_card(site):
+    """lcars-alert.js with the site's alerts (priority in their order); None without alerts."""
+    if not site.alerts:
+        return None
+    return {"type": "custom:lcars-alert", "alerts": [a.card() for a in site.alerts], "ack": ACK_HELPER,
+            "frame_tag": FRAME_TAG, "text_tag": FRAME_TEXT_TAG, "code": lcars_code("alert"), "ink": INK, "text_colour": PEACH,
+            "details_colour": LILAC, "font": "Antonio, sans-serif"}
 
 
 def header_readouts(site, section, ctx):
@@ -206,12 +219,16 @@ def mid_bar(view, ctx):
             if p.buttons_max:
                 # the buttons keep their width, the bar runs on behind them to the shoulder
                 buttons = grid('"c b"', f"minmax(0, {p.buttons_max}px) 1fr", "1fr",
-                               [at(buttons, "c"), at(block(p.colour), "b")], gap="0 6px")
+                               [at(buttons, "c"), at(framed(block(p.colour)), "b")], gap="0 6px")
             middle = (buttons, "1fr")
         if not p.title and middle is None:       # a plain piece of bar (e.g. over a spine)
-            pieces.append((p.span, block(p.colour)))
+            pieces.append((p.span, framed(block(p.colour))))
             continue
-        pieces.append((p.span, titled_bar(p.title, p.colour, sizes.TOP_BAR_T, side=p.side, middle=middle)))
+        bar = titled_bar(p.title, p.colour, sizes.TOP_BAR_T, side=p.side, middle=middle)
+        for c in bar["cards"]:
+            if c["view_layout"]["grid-area"] != "m":      # the buttons aren't frame
+                framed(c)
+        pieces.append((p.span, bar))
     return top_bars(view.columns, pieces, right_w=view.right.width if view.right else None)
 
 
@@ -221,7 +238,7 @@ def frame(site, section, view, content, ctx, need=None):
     nav_h = NAV_H
     right = view.right
     subtitle = f"{view.subtitle} · {view.code}"
-    title = title_card(site, section, subtitle)
+    title = title_card(section, subtitle)
     slots, widths, cards = header_readouts(site, section, ctx)
     readouts = grid('"' + " ".join(slots) + ' t"', " ".join(widths + ["1.7fr"]), "1fr", [*cards, at(title, "t")],
                     gap="6px 16px")
@@ -230,21 +247,21 @@ def frame(site, section, view, content, ctx, need=None):
     top_block = block(VIOLET, link.label if link else None, lcars_code(f"classic/{section.key}"),
                       link.url if link else None, size=18)
     top_cards = [
-        at(top_block, "cl", margin=f"0 {ELBOW_W - PILLAR} {Len.of(PANEL_GAP + 2)} 0"),
-        at(elbow("footer-left", LILAC, {"code": {"content": site.header_code, "position": "top-left",
-                                                 "font_size": font(14), "color": INK,
-                                                 "padding": {"left": 8, "top": 6}}},
-                 bar_height=nav_h, outer_curve=PILLAR // 2), "elbow"),
+        at(framed(top_block), "cl", margin=f"0 {ELBOW_W - PILLAR} {Len.of(PANEL_GAP + 2)} 0"),
+        at(framed(elbow("footer-left", LILAC, {"code": {"content": site.header_code, "position": "top-left",
+                                                        "font_size": font(14), "color": INK,
+                                                        "padding": {"left": 8, "top": 6}}},
+                        bar_height=nav_h, outer_curve=PILLAR // 2)), "elbow"),
         at(readouts, "data", margin="0 0 10px 0"),
-        at(dashboard_nav(site, section), "nav"),
+        at(framed(dashboard_nav(site, section)), "nav"),
     ]
     if right:
         # a page closed on the right has a header closed on the right too, mirroring the link block and the
         # elbow on the left: a numbered block over a shoulder from the nav bar, as wide as the right side
         rw = right.width
-        top_cards += [at(block(VIOLET, None, lcars_code(f"header-right/{section.key}")), "rc",
+        top_cards += [at(framed(block(VIOLET, None, lcars_code(f"header-right/{section.key}"))), "rc",
                          margin=f"0 0 {Len.of(PANEL_GAP + 2)} {ELBOW_EXT}"),
-                      at(frame_elbow("footer-right", LILAC, rw, nav_h, rw // 2), "re")]
+                      at(framed(frame_elbow("footer-right", LILAC, rw, nav_h, rw // 2)), "re")]
         top = grid('"cl data rc" "elbow data re" "elbow nav re"', f"{ELBOW_W} 1fr {rw + ELBOW_EXT}",
                    f"{CLASSIC_H} 1fr {nav_h}", top_cards, gap="0 6px")
     else:
@@ -253,25 +270,25 @@ def frame(site, section, view, content, ctx, need=None):
     mid_t = view.mid_t
     if not view.bar and right is None:
         mid = grid('"elbow bars"', f"{ELBOW_W} 1fr", "1fr", [
-            at(elbow("header-left", PEACH), "elbow"),
-            at(segments([(PEACH, 1), (ROSE, 4), (BLUEY, 2), (ORANGE, 1)], "top"), "bars"),
+            at(framed(elbow("header-left", PEACH)), "elbow"),
+            at(framed(segments([(PEACH, 1), (ROSE, 4), (BLUEY, 2), (ORANGE, 1)], "top")), "bars"),
         ], gap="0 6px")
     else:
-        bars = mid_bar(view, ctx) if view.bar else grid(
+        bars = mid_bar(view, ctx) if view.bar else framed(grid(
             '"a b c d"', "1fr 4fr 2fr 1fr", "1fr",
-            [at(block(c), n) for c, n in ((PEACH, "a"), (ROSE, "b"), (BLUEY, "c"), (ORANGE, "d"))], gap="0 6px")
+            [at(block(c), n) for c, n in ((PEACH, "a"), (ROSE, "b"), (BLUEY, "c"), (ORANGE, "d"))], gap="0 6px"))
         h = mid_t + INNER_CURVE
-        mcards = [at(elbow("header-left", PEACH, bar_height=mid_t, outer_curve=h), "e"), at(bars, "b")]
+        mcards = [at(framed(elbow("header-left", PEACH, bar_height=mid_t, outer_curve=h)), "e"), at(bars, "b")]
         areas, mwidths = '"e b" "e ."', f"{ELBOW_W} 1fr"
         if right:
-            mcards.append(at(frame_elbow("header-right", right.colour, right.width, mid_t, h), "r"))
+            mcards.append(at(framed(frame_elbow("header-right", right.colour, right.width, mid_t, h)), "r"))
             areas, mwidths = '"e b r" "e . r"', f"{ELBOW_W} 1fr {right.width + ELBOW_EXT}"
         mid = grid(areas, mwidths, f"{Len.of(mid_t)} 1fr", mcards, gap="0 6px")
-    side = sidebar(site, section, view)
+    side = framed(sidebar(site, section, view))
 
     # the foot bar is as thick as its text and ends in the local date/time (in a gap of the bar, like a
     # panel caption) and the stardate block; the elbow keeps the page frame's outer and inner radius. On a
-    # phone without scrolling (no header) the foot bar is the section menu and ends in the time (or the alert)
+    # phone without scrolling (no header) the foot bar is the section menu and ends in the time
     def foot_bar(phone):
         fcards = []
         bars = grid('"a b c"', "3fr 1fr 5fr", "1fr", [at(block(c), n) for c, n in ((ALMOND, "a"), (BUTTERSCOTCH, "b"),
@@ -287,23 +304,26 @@ def frame(site, section, view, content, ctx, need=None):
             fcards.append(at(frame_elbow("footer-right", right.foot, right.width, FOOT_T, FRAME_H), "r"))
             areas = areas.replace('."', '. r"').replace('clock"', 'clock r"').replace('sd"', 'sd r"')
             fwidths += f" {right.width + ELBOW_EXT}"
-        return grid(areas, fwidths, f"1fr {Len.of(FOOT_T)}", fcards + [
+        return framed(grid(areas, fwidths, f"1fr {Len.of(FOOT_T)}", fcards + [
             at(elbow("footer-left", ALMOND, bar_height=FOOT_T), "elbow"), at(bars, "bars"),
-            at(block(ORANGE), "cap"), at(clock(site, phone), "clock")], gap="0 6px")
+            at(block(ORANGE), "cap"), at(clock(phone), "clock")], gap="0 6px"))
 
     foot = grid('"v"', "1fr", "1fr", [at(on_phone(foot_bar(False), False), "v"), at(on_phone(foot_bar(True)), "v")],
                 gap="0")
     main_margin = f"4px 0 4px {MAIN_MARGIN}" if not right else f"0 0 0 {MAIN_MARGIN}"
     margin_v = 8 if not right else 0      # the content's margin above and below
     out = [at(on_phone(top, False), "top"), at(mid, "mid"), at(foot, "foot")]
+    alerts = alert_card(site)
+    if alerts:          # draws nothing in the grid (its dialog is fixed over the page)
+        out.append(at(alerts, "foot"))
     if screen.SCROLL == "off":
         return out + [at(side, "side"), at(content, "main", margin=main_margin)]
     # the phone keeps the header's menu bar (as thick as the foot bar), with its elbow and right shoulder
-    phone_top = [at(elbow("footer-left", LILAC, bar_height=FOOT_T), "elbow"),
-                 at(dashboard_nav(site, section, foot=True, tail=LILAC), "nav")]
+    phone_top = [at(framed(elbow("footer-left", LILAC, bar_height=FOOT_T)), "elbow"),
+                 at(framed(dashboard_nav(site, section, foot=True, tail=LILAC)), "nav")]
     areas, pwidths = '"elbow ." "elbow nav"', f"{ELBOW_W} 1fr"
     if right:
-        phone_top.append(at(frame_elbow("footer-right", LILAC, right.width, FOOT_T, FRAME_H), "re"))
+        phone_top.append(at(framed(frame_elbow("footer-right", LILAC, right.width, FOOT_T, FRAME_H)), "re"))
         areas, pwidths = '"elbow . re" "elbow nav re"', f"{ELBOW_W} 1fr {right.width + ELBOW_EXT}"
     out.append(at(on_phone(grid(areas, pwidths, f"1fr {Len.of(FOOT_T)}", phone_top, gap="0 6px")), "top"))
     # sidebar and content scroll together (the frame around them stays): below SCROLL_MIN_H their row is as

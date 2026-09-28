@@ -126,46 +126,57 @@ class _Root:
 
 # ── Model ───────────────────────────────────────────────────────────────────────
 class Alert:
-    """The site's alert (site `alert`): while `entity` is in one of the listed states, the page title shows
-    the state's title (and the phone's foot bar its short text) in its colour, blinking if set."""
+    """One of the site's alerts (site `alert`, docs/CONFIGURATION.md): while `entity` is in one of the listed
+    states, lcars-alert.js colours the page frame in the state's colour (pulsing if `blink`, until someone
+    acknowledges it), shows its heading and text in a dialog and plays its sound."""
+    FIELDS = {"entity", "states"}
+    STATE_FIELDS = {"heading", "text", "colour", "blink", "sound", "title", "short"}   # title, short: old names
+    SOUNDS = ("red", "yellow", "blue", "gray", "black")
 
     def __init__(self, node, where="alert"):
         if not isinstance(node, dict) or "entity" not in node:
             raise ConfigError(f"{where}: a mapping with entity and states")
+        unknown = set(node) - self.FIELDS
+        if unknown:
+            raise ConfigError(f"{where}: unknown field(s) {', '.join(sorted(unknown))} (fields: entity, states)")
         self.entity = node["entity"]
         self.states = {}
         for state, s in (node.get("states") or {}).items():
             s = s or {}
-            self.states[str(state)] = {"title": s.get("title", "Alert"), "short": s.get("short", s.get("title", "Alert")),
-                                       "colour": colour(s.get("colour", "red"), f"{where}.states.{state}.colour"),
-                                       "blink": bool(s.get("blink", False))}
-        self.title_code = node.get("title_js")
-        self.short_code = node.get("short_js")
-        if not self.states and not self.title_code:
-            raise ConfigError(f"{where}: needs states (or title_js)")
+            w = f"{where}.states.{state}"
+            unknown = set(s) - self.STATE_FIELDS
+            if unknown:
+                raise ConfigError(f"{w}: unknown field(s) {', '.join(sorted(unknown))}")
+            c = colour(s.get("colour", "red"), f"{w}.colour")
+            sound = s.get("sound", self._sound(c))
+            if sound not in (*self.SOUNDS, "none", False, None):
+                raise ConfigError(f"{w}.sound: one of {', '.join(self.SOUNDS)}, none")
+            heading = s.get("heading", s.get("short", self._heading(c)))
+            self.states[str(state)] = {"heading": self._text(heading), "text": self._text(s.get("text", s.get("title", ""))),
+                                       "colour": c, "blink": bool(s.get("blink", False)),
+                                       "sound": f"alert_{sound}" if sound in self.SOUNDS else None}
+        if not self.states:
+            raise ConfigError(f"{where}: needs states")
+
+    @staticmethod
+    def _sound(c):
+        return {palette.RED: "red", palette.SUNFLOWER: "yellow", palette.BLUEY: "blue", palette.PERI: "blue",
+                palette.ICE: "blue", palette.GRAY: "gray"}.get(c, "yellow")
+
+    @staticmethod
+    def _heading(c):
+        return {palette.RED: "Red alert", palette.SUNFLOWER: "Yellow alert", palette.BLUEY: "Blue alert",
+                palette.PERI: "Blue alert", palette.ICE: "Blue alert"}.get(c, "Alert")
 
     @staticmethod
     def _text(t):
-        """A title as a JS expression: plain text, or JS (a string starting with 'js:')."""
+        """A text as a JS expression: plain text, or JS (a string starting with 'js:')."""
+        t = str(t)
         return t[3:].strip() if t.startswith("js:") else json.dumps(t, ensure_ascii=False)
 
-    def title_js(self, label):
-        body = self.title_code or "".join(f"if (s === {json.dumps(k)}) return {self._text(v['title'])}; "
-                                          for k, v in self.states.items())
-        return (f"[[[ const a = entity.attributes; const s = entity.state; {body.strip()} "
-                f"return {json.dumps(label, ensure_ascii=False)}; ]]]")
-
-    def short_js(self):
-        body = self.short_code or "".join(f"if (s === {json.dumps(k)}) return {self._text(v['short'])}; "
-                                          for k, v in self.states.items())
-        return f"const a = entity.attributes; const s = entity.state; {body.strip()} "
-
-    def colours(self, default):
-        return {**{k: v["colour"] for k, v in self.states.items()}, "default": default}
-
-    def animations(self):
-        return [{"trigger": "on_entity_change", "entity": self.entity, "to_state": k, "check_on_load": True,
-                 "preset": "blink", "loop": True} for k, v in self.states.items() if v["blink"]]
+    def card(self):
+        """This alert in lcars-alert.js' config."""
+        return {"entity": self.entity, "states": self.states}
 
 
 class Link:
@@ -306,7 +317,10 @@ class Site:
             self.calendars.append({"entity": c["entity"], "label": c.get("label"),
                                    "colour": colour(c.get("colour"), f"calendars[{i}].colour") or next(others),
                                    "code": lcars_code(f"week/{c['entity']}")})
-        self.alert = Alert(raw["alert"]) if raw.get("alert") else None
+        alerts = raw.get("alert") or []
+        if isinstance(alerts, dict):
+            alerts = [alerts]
+        self.alerts = [Alert(a, f"alert[{i}]" if len(alerts) > 1 else "alert") for i, a in enumerate(alerts)]
         if not raw.get("sections"):
             raise ConfigError("lcars.yaml: no sections (see docs/CONFIGURATION.md)")
         self.sections = [Section(s, i, f"sections[{i}]") for i, s in enumerate(raw["sections"])]

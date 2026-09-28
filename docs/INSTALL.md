@@ -47,7 +47,7 @@ checks the configuration and its entities too.
 | themes | the view theme loaded | reloads themes; if `configuration.yaml` doesn't include the themes directory, adds `frontend: themes: !include_dir_merge_named themes` (backup: `configuration.yaml.lcars-backup`) |
 | resources | a Lovelace resource per card (`/local/lcars/<card>.js?v=<content hash>`) and the Antonio font | creates or updates them; removes resources of an install from before the framework (`/local/lcars-*.js`) |
 | time | `sensor.time` | sets up the Time & Date integration with the Time sensor (it re-renders the clock every minute) |
-| helpers | `input_boolean.lcars_bars` | creates it, on (the global switch for the segment bars, `?lcars_bars=off`) |
+| helpers | `input_boolean.lcars_bars`, `input_text.lcars_alert_ack` | creates them: the global switch for the segment bars (on, `?lcars_bars=off`), the acknowledged alerts |
 | dashboard | the dashboard `dashboard.url_path` | creates it (storage mode) |
 
 When an integration was downloaded or `configuration.yaml` changed, HA needs a restart: `lcars setup`
@@ -145,7 +145,7 @@ version's element names. Browsers pick up new cards through the changed `?v=` on
 ## Uninstalling
 
 Delete the dashboard (Settings → Dashboards), the resources `/local/lcars/*` and the Antonio font,
-`/config/www/lcars/`, `/config/themes/lcars_bridge.yaml` and the helper `input_boolean.lcars_bars`;
+`/config/www/lcars/`, `/config/themes/lcars_bridge.yaml` and the helpers `input_boolean.lcars_bars` and `input_text.lcars_alert_ack`;
 remove LCARdS and kiosk-mode through HACS if nothing else uses them.
 
 ## Troubleshooting

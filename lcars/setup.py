@@ -9,7 +9,8 @@ Steps, in order:
   kiosk-mode   kiosk-mode downloaded (HACS; hides HA's header and sidebar on the dashboard)
   card-mod     not a Lovelace resource while UIX is installed (UIX refuses to set up then)
   time         the Time & Date integration's sensor.time (re-renders the clock every minute)
-  helpers      input_boolean.lcars_bars (the global switch for the segment bars)
+  helpers      input_boolean.lcars_bars (the global switch for the segment bars), input_text.lcars_alert_ack
+               (alerts acknowledged on any screen)
   files        the cards and the view theme copied to /config/www/lcars and /config/themes
   themes       the theme loaded (configuration.yaml includes the themes directory)
   resources    the cards and the Antonio font as Lovelace resources
@@ -234,6 +235,10 @@ class Setup:
         raise RuntimeError("the setup flow didn't finish")
 
     def step_helpers(self):
+        self.helper_bars()
+        self.helper_alert_ack()
+
+    def helper_bars(self):
         helpers = {h["id"] for h in self.ha.result({"type": "input_boolean/list"})}
         if "lcars_bars" in helpers:
             self.report.add("helpers", OK, "input_boolean.lcars_bars")
@@ -246,6 +251,18 @@ class Setup:
         time.sleep(1)
         self.ha.service("input_boolean", "turn_on", target={"entity_id": "input_boolean.lcars_bars"})
         self.report.add("helpers", FIXED, "created input_boolean.lcars_bars (on)")
+
+    def helper_alert_ack(self):
+        helpers = {h["id"] for h in self.ha.result({"type": "input_text/list"})}
+        if "lcars_alert_ack" in helpers:
+            self.report.add("helpers", OK, "input_text.lcars_alert_ack")
+            return
+        if not self.fix:
+            self.report.add("helpers", FAIL, "no input_text.lcars_alert_ack (the acknowledged alerts)")
+            return
+        self.ha.result({"type": "input_text/create", "name": "LCARS alert ack", "icon": "mdi:alert-check",
+                        "min": 0, "max": 255, "mode": "text"})
+        self.report.add("helpers", FIXED, "created input_text.lcars_alert_ack")
 
     def file_list(self):
         """(local path, remote path, content) of every file to copy; the registry workaround is written for

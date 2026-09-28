@@ -18,11 +18,14 @@ weather: weather.home
 # Radar (DWD, Germany only): the home marker and the map's width
 # radar: {home: [52.52, 13.40], width_km: 170}
 
-# The page title turns red and blinks while the leak sensor is wet
+# The page frame turns red and pulses while the leak sensor is wet, and a dialog asks to acknowledge it
 alert:
-  entity: binary_sensor.water_leak
-  states:
-    "on": {title: Red alert · water leak, short: Leak, colour: red, blink: true}
+  - entity: binary_sensor.water_leak
+    states:
+      "on": {heading: Red alert, text: Water leak in the basement, colour: red, blink: true}
+  - entity: sensor.filter_status
+    states:
+      Due: {text: "js:'Filter change due for ' + a.days + ' days'", colour: sunflower, sound: none}
 
 calendars:
   - {entity: calendar.family, label: Family}

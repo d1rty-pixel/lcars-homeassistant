@@ -13,7 +13,7 @@ lcars.yaml ──► config.py ──► components (a tree) ──► frame.py 
 | `lcars/cli.py` | the `lcars` command |
 | `lcars/config.py` | loads `lcars.yaml`: interpolation, `repeat`, `data`, `plugins`; the model (`Site`, `Section`, `View`, `Alert`) |
 | `lcars/build.py` | a Site → the dashboard's configuration; `finalize()`; entity checks |
-| `lcars/frame.py` | the page frame: header (readouts, title, section menu), sidebar, mid bar (`top_bars()`), foot bar, alert |
+| `lcars/frame.py` | the page frame: header (readouts, title, section menu), sidebar, mid bar (`top_bars()`), foot bar; `framed()` tags the frame's cards for the alert card (`alert_card()`) |
 | `lcars/components/` | the component types: `base.py` (Component, Ctx, registry, sizes and colours from the configuration), `layout.py`, `rows.py`, `controls.py`, `data.py`, `header.py`, `values.py` |
 | `lcars/engine/` | `sizes.py` (fluid sizes, `Len`), `screen.py` (tiers, `responsive()`, `tiered()`, `by_screen()`), `palette.py`, `codes.py` (LCARS numbers), `cards.py` (grids, blocks, pills, elbows, titles) |
 | `lcars/setup.py` | `lcars setup` / `doctor` / `init` |
