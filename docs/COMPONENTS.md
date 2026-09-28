@@ -403,8 +403,11 @@ A section's `readouts` (up to four slots next to the page title):
 
 | Type | Shows | Fields |
 |------|-------|--------|
-| `readout` | a label over a large value | `entity`, `label`, `value`, `colour` (colour or state map), `span`, `triggers` |
-| `next_event` | the calendars' next event | `label`, `show: title / when / today`, `calendars`, `colour` |
+| `readout` | a label over a large value | `entity`, `label`, `value`, `colour` (colour or state map), `span`, `triggers`, `width` |
+| `next_event` | the calendars' next event; `when`: today, tomorrow, weekday and date within a week, else the date | `label`, `show: title / when / today`, `calendars`, `colour`, `width` (default 1.6 / 1.2 / 0.5) |
 | `numbers` | LCARS number columns: real sensors as hex codes with a colour waterfall | `colours` (site `numbers` picks the sensors) |
 | `decor` | a 2 × 2 block of numbered pills, on screens ≥ 1600 px wide | |
 | `empty` | an empty slot | |
+
+`width`: the slot's share of the header's width (a slot is 1). A value too long for its slot is cut at
+the slot's edge rather than running into the next one.

@@ -15,8 +15,12 @@ HEX_ROWS, HEX_COLS = 4, 5
 
 
 class HeaderItem(Component):
-    """A header entry: header_item(ctx) gives the card and how many slots it spans."""
+    """A header entry: header_item(ctx) gives the card and how many slots it spans; slot_width() its share
+    of the header's width per slot (a slot is 1)."""
     span = 1
+
+    def slot_width(self):
+        return float(getattr(self, "width", None) or 1)
 
     def render(self, ctx):
         return self.header_item(ctx)[0]
@@ -25,8 +29,10 @@ class HeaderItem(Component):
 @component("readout")
 class Readout(HeaderItem):
     """A header readout: label over a large value. entity, label, value (components/values.py), colour (the
-    value's: a colour or a state map), span (readout slots it takes, of four)."""
-    fields = {"entity": REQUIRED, "label": REQUIRED, "value": None, "colour": None, "span": 1, "triggers": None}
+    value's: a colour or a state map), span (readout slots it takes, of four), width (its slot's share of the
+    header, a slot being 1)."""
+    fields = {"entity": REQUIRED, "label": REQUIRED, "value": None, "colour": None, "span": 1, "triggers": None,
+              "width": 1}
 
     def header_item(self, ctx):
         c = self.colour
@@ -40,8 +46,14 @@ class Readout(HeaderItem):
 @component("next_event")
 class NextEvent(HeaderItem):
     """A header readout of the calendars' next event (the site's `calendars`, or `calendars`): show: title
-    (the event's title, through the site's `titles`), when (its date, relative), today (how many today)."""
-    fields = {"label": REQUIRED, "show": "title", "calendars": None, "colour": "orange"}
+    (the event's title, through the site's `titles`), when (its day: today, tomorrow, the weekday and date
+    within a week, else the date), today (how many today). width: its slot's share of the header (default:
+    a title gets more, the count less; a slot is 1). A value too long for its slot is cut at the slot."""
+    fields = {"label": REQUIRED, "show": "title", "calendars": None, "colour": "orange", "width": None}
+    WIDTHS = {"title": 1.6, "when": 1.2, "today": 0.5}
+
+    def slot_width(self):
+        return float(self.width or self.WIDTHS.get(self.show, 1))
 
     def header_item(self, ctx):
         cals = self.calendars or [c["entity"] for c in ctx.site.calendars]
@@ -53,7 +65,8 @@ class NextEvent(HeaderItem):
             js = ("[[[ " + prelude + "const e = ev[0]; if (!e) return '—'; const n = "
                   + json.dumps(ctx.site.titles, ensure_ascii=False) + "; return n[e.m] || e.m; ]]]")
         elif self.show == "when":
-            js = "[[[ " + prelude + "const e = ev[0]; if (!e) return '—'; const d = e.d; " + REL + "return dm + ' · ' + rel; ]]]"
+            js = ("[[[ " + prelude + "const e = ev[0]; if (!e) return '—'; const d = e.d; " + REL
+                  + "return n === 0 || n === 1 ? rel : n > 1 && n < 7 ? wd + ' ' + dm : dm; ]]]")
         elif self.show == "today":
             js = ("[[[ " + prelude + "const t = new Date().toDateString(); "
                   "return ev.filter((e) => e.d.toDateString() === t).length; ]]]")

@@ -158,12 +158,16 @@ def alert_card(site):
 
 
 def header_readouts(site, section, ctx):
-    """Four readout slots next to the title. An entry (card, n) spans n slots; (card, "wide") gets a column
-    that is 0 px below WIDE_MIN window width and WIDE_W above (pure CSS: layout cards have no media
-    queries), the slot before it is widened a little."""
+    """Four readout slots next to the title, each its entry's slot_width() wide (a share, 1 fr per slot). An
+    entry (card, n) spans n slots; (card, "wide") gets a column that is 0 px below WIDE_MIN window width and
+    WIDE_W above (pure CSS: layout cards have no media queries), the slot before it is widened a little.
+    Every slot clips its card: a long value (an event's title) ends at its slot instead of running into
+    the next one."""
     slots, cards, widths = [], [], []
-    for i, item in enumerate(r.header_item(ctx) for r in section.readouts):
+    for i, r in enumerate(section.readouts):
+        item = r.header_item(ctx)
         card, span = item if isinstance(item, tuple) else (item, 1)
+        fr = f"{r.slot_width():g}fr"
         name = f"s{i}"
         n = 1 if span == "wide" else span
         slots += [name if card else "."] * n
@@ -171,9 +175,9 @@ def header_readouts(site, section, ctx):
             widths[-1] = "1.6fr"
             widths.append(f"clamp(0px, calc((100vw - {Len.of(WIDE_MIN)}) * 100), {Len.of(WIDE_W)})")
         else:
-            widths += ["1fr"] * n
+            widths += [fr] * n
         if card:
-            extra = {"overflow": "hidden"} if span == "wide" else {}
+            extra = {"overflow": "hidden"}
             if card.get("type") == "custom:lcards-data-grid":
                 extra["margin"] = "0 0 0 clamp(16px, 2vw, 40px)"
             cards.append(at(card, name, **extra))
