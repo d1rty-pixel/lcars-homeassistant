@@ -156,7 +156,7 @@ A section is an entry of the section menu (the header's bar), with its views in 
 | `short` | the label | its label in the phone's menu (short: phones have little room) |
 | `title` | the label | the page title on its views |
 | `colour` | the header's blues and lilacs in turn | its menu block |
-| `link` | none | the header's top-left block links here, e.g. `{label: Classic, url: /lovelace/home}` (or just a URL) |
+| `link` | none | the header's top-left block links here, e.g. `{label: Classic, url: /lovelace/home}` (or just a URL); on phones the first block of the menu bar |
 | `readouts` | none | up to four header entries next to the title: `readout`, `next_event`, `numbers`, `decor`, `empty` ([COMPONENTS.md](COMPONENTS.md#header)); a bare `numbers` means `{type: numbers}` |
 | `views` | required | its views |
 

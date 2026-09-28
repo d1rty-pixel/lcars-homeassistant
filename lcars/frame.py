@@ -48,8 +48,14 @@ def base_path(site):
 def dashboard_nav(site, active_section, foot=False, tail=None):
     """Section menu rendered as the segments of the header frame bar (like the sidebar blocks). foot=True:
     the phone variant (no numbers: the bar is only as thick as its text), in the foot bar or, with
-    scrolling, in the phone's header (tail: the colour of the segment that runs the bar out)."""
+    scrolling, in the phone's header (tail: the colour of the segment that runs the bar out). The phone
+    variant starts with the section's link, whose block on top of the header's pillar a phone doesn't show."""
     names, cards = [], []
+    link = active_section.link if foot else None
+    if link:
+        names.append("link")
+        cards.append(at(block(VIOLET, link.label, None, link.url, align="center-right", size=f"{FOOT_NAV_FONT}px"),
+                        "link"))
     for sec in site.sections:
         active = sec.key == active_section.key
         path = None if active else base_path(site) + sec.views[0].path
@@ -64,7 +70,7 @@ def dashboard_nav(site, active_section, foot=False, tail=None):
         cards.append(at(card, sec.key))
     names.append("tail")                       # plain segment running the bar out (to the edge or the shoulder)
     cards.append(at(block(tail or (ORANGE if foot else LILAC)), "tail"))
-    return grid('"' + " ".join(names) + '"', " ".join(["1fr"] * len(site.sections)) + (" 0.3fr" if foot else " 1.6fr"),
+    return grid('"' + " ".join(names) + '"', " ".join(["1fr"] * (len(names) - 1)) + (" 0.3fr" if foot else " 1.6fr"),
                 "1fr", cards, gap="0 6px")
 
 
