@@ -65,6 +65,9 @@ def entities(config):
 
     def walk(n):
         if isinstance(n, dict):
+            if n.get("type") == "custom:lcars-topology":     # its nodes name their entities by role
+                found.update(x[k] for x in n.get("nodes", []) for k in ("down", "up", "status", "info", "tap")
+                             if isinstance(x.get(k), str) and "." in x[k])
             for k, v in n.items():
                 if k in ("entity", "entity_id") and isinstance(v, str) and "." in v:
                     found.add(v)

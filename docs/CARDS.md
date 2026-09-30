@@ -19,6 +19,7 @@ each card takes is documented at the top of its file, so they work in any dashbo
 | `lcars-history` | `history` | a sensor over 24 h / 7 d / 28 d from long-term statistics (also registered as `lcars-power`) |
 | `lcars-distribution` | `distribution` | live power of several consumers as conduits with a wave, a total row by share |
 | `lcars-energy` | `energy` | energy of several consumers per day or month as stacked columns, or their load as a graph (total mirrored below) |
+| `lcars-topology` | `topology` | a network's links as two-lane conduits: data towards each node flowing outward, data back flowing inward |
 | `lcars-schedule` | `schedule` | a day's schedule of phases over 24 h (also registered as `lcars-phases`) |
 | `lcars-transporter` | `sliders` | vertical sliders for number, input_number and light entities |
 | `lcars-log` | `log` | a device log from HA's logbook |

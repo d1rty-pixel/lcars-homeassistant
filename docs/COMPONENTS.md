@@ -8,7 +8,7 @@ Contents: [common fields](#fields-every-component-has) · [responsive behaviour]
 layout: [rows](#rows) [stack](#stack) [columns](#columns) [section](#section) [frame](#frame)
 [split](#split) [pair](#pair) [chain](#chain) [matrix](#matrix) [grid](#grid) [card](#card)
 [blank](#blank) · data: [value](#value) [bar](#bar) [pills](#pills) [timeline](#timeline) [week](#week)
-[month](#month) [forecast](#forecast) [radar](#radar) [history](#history) [chart](#chart)
+[month](#month) [forecast](#forecast) [radar](#radar) [history](#history) [chart](#chart) [topology](#topology)
 [sliders](#sliders) [schedule](#schedule) [log](#log) [tank](#tank) [player](#player)
 [library](#library) · [header](#header)
 
@@ -362,6 +362,34 @@ left; tap it for the breakdown at that time. The choice of range and view is sto
 range buttons continue the label column (put it in a `section`): `ranges` (default `7D`, `28D` as days,
 `12M` as months: `[{label, days | months}]`), `buttons` (a colour per range), `filler`, `unit` (kWh),
 `min_rows` (its height where the page scrolls, in data rows; 7).
+
+### topology
+
+A network's links and the data flowing through them (`lcars-topology.js`): a row per node (a router's
+uplink, a switch, an access point, a server), its label block part of the label column, the rate
+towards the node, a conduit of two lanes, the rate back and an `info` value (clients, latency). The upper
+lane carries the data towards the node, a calm wave running outward; the lower lane the data coming
+back, its wave running inward. Both are lit on a log scale from 0.01 up to `max` (a link idling at a
+few kbit/s still shows a spark), their waves faster the higher the rate. A node's block turns red while
+its `status` isn't one of its `ok` states (default `on`, `home`, `connected`) and grey while that entity
+is unknown. Children (`level` 1, 2) hang from the node above them: a narrower block behind a stub in
+the parent's colour, so consecutive children read as a branch of the label column. Tap a row: more-info
+(`tap`, else `down`).
+
+```yaml
+type: topology
+unit: Mb/s              # shown after the rates (the sensors' unit); max: 1000 (per node too)
+nodes:
+  - {label: WAN, colour: orange, down: sensor.wan_down, up: sensor.wan_up, status: binary_sensor.internet,
+     info: sensor.wan_latency, info_unit: ms}
+  - {label: AP · Hall, level: 1, down: sensor.ap_hall_down, up: sensor.ap_hall_up,
+     status: sensor.ap_hall_state, ok: [connected], info: sensor.ap_hall_clients, info_unit: CL}
+  - {label: Desk PC, level: 2, down: sensor.desk_pc_down, up: sensor.desk_pc_up}
+```
+
+Node fields: `label`, `colour`, `level`, `down`, `up`, `status`, `ok`, `info`, `info_unit`, `info_round`,
+`max`, `tap`. Component fields: `unit`, `max`, `segments` (32), `info_width` (90), `down_colour` (red).
+Its rows are timeline rows, like a `distribution`'s.
 
 ### sliders
 

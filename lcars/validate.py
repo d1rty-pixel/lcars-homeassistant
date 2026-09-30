@@ -53,6 +53,19 @@ def load_schemas():
         if isinstance(proc.get("properties"), dict):
             proc["properties"].setdefault("expression", {"type": "string"})
             proc["properties"].setdefault("sources", {"type": "array", "items": {"type": "string"}})
+    # Schema gap: actions list `url` among their types but not its `url_path` (HA's url action reads it),
+    # so every action that declares `navigation_path` gets `url_path` too.
+    def add_url_path(x):
+        if isinstance(x, dict):
+            props = x.get("properties")
+            if isinstance(props, dict) and "navigation_path" in props:
+                props.setdefault("url_path", {"type": "string"})
+            for v in x.values():
+                add_url_path(v)
+        elif isinstance(x, list):
+            for v in x:
+                add_url_path(v)
+    add_url_path(schemas)
     return schemas
 
 

@@ -364,6 +364,28 @@ sections:
             - {entity: binary_sensor.water_leak, tag: Leak, states: {"on": [Wet, error, Moisture detected in the basement],
                                                                       "off": [Dry, ok, Basement sensor dry]}}
 
+      - key: network
+        label: Network
+        subtitle: Data flow
+        bar: [{title: Relay topology, colour: orange}]
+        content:
+          type: stack
+          items:
+            - type: topology                  # a row per link: rate towards the node, two lanes, rate back
+              unit: Mb/s
+              nodes:
+                - {label: WAN, colour: orange, down: sensor.wan_down, up: sensor.wan_up, status: binary_sensor.internet,
+                   info: sensor.wan_latency, info_unit: ms}
+                - {label: AP · Hall, colour: peach, level: 1, down: sensor.ap_hall_down, up: sensor.ap_hall_up,
+                   status: sensor.ap_hall_state, ok: [connected], info: sensor.ap_hall_clients, info_unit: CL}
+                - {label: Switch, colour: almond, level: 1, down: sensor.switch_down, up: sensor.switch_up}
+                - {label: Desk PC, colour: bone, level: 2, down: sensor.desk_pc_down, up: sensor.desk_pc_up}
+                - {label: NAS, colour: butterscotch, level: 1, down: sensor.nas_down, up: sensor.nas_up}
+            - type: section
+              title: Downlink trace
+              colour: lilac
+              content: {type: history, entity: sensor.wan_down, buttons: [violet, lilac, peri], filler: lilac,
+                        ticks: [1, 10, 100], unit: Mb/s}
   # ── Calendar and media ───────────────────────────────────────────────────────
   - key: calendar
     label: Calendar
