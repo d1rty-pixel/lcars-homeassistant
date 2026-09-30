@@ -404,7 +404,7 @@ sources:
   - {entity: sensor.ble_notification, tag: BLE, burst: true, default: [null, info, Frames received]}
 ```
 
-`hours`, `refresh_s`, `flap_s`, `burst_s`, `max_lines`.
+`hours`, `refresh_s`, `flap_s`, `burst_s`, `max_lines`, `dates` (`past`: the date only on lines before today, default; `always`).
 
 ### tank
 

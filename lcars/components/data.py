@@ -434,15 +434,17 @@ class Schedule(Component):
 class Log(Component):
     """A device log from HA's logbook (lcars-log.js): newest first, one line per event (time, tag, text, a
     detail, a reference code), coloured by level. sources: [{entity, tag, states: {state: [text, level,
-    detail]}, default, details, burst}] (see lcars-log.js); levels: {level: colour}."""
+    detail]}, default, details, burst}] (see lcars-log.js); levels: {level: colour}; dates: `past` (the
+    date only on lines before today) or `always`."""
     fields = {"sources": REQUIRED, "levels": None, "hours": 24, "refresh_s": 60, "flap_s": 60, "burst_s": 60,
-              "max_lines": 40}
+              "max_lines": 40, "dates": "past"}
 
     def render(self, ctx):
         levels = colour_map(self.levels, f"{self.where}.levels") or {
             "info": PERI, "ok": ICE, "warn": SUNFLOWER, "flap": BUTTERSCOTCH, "error": RED, "ble": GRAY}
         return {"type": "custom:lcars-log", "sources": self.sources, "hours": self.hours, "refresh_s": self.refresh_s,
                 "flap_s": self.flap_s, "burst_s": self.burst_s, "max_lines": self.max_lines, "levels": levels,
+                **({"dates": "always"} if self.dates == "always" else {}),
                 "colours": {"time": rgba(PERI, 0.55), "bright": BRIGHT},
                 "cascade_ms": 3 * CASCADE_MS, "stagger_ms": 90, "font": FONT, "font_size": 15}
 

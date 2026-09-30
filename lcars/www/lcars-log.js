@@ -21,6 +21,7 @@
 //   type: custom:lcars-log
 //   sources: [{entity, tag, states, default, burst, details}]
 //   hours: 24, refresh_s: 60, flap_s: 60, burst_s: 60, max_lines: 40
+//   dates: "always"                  # the date on every line (default: only on lines before today)
 //   levels: {info: "#9999FF", ok: ..., warn: ..., flap: ..., error: ..., ble: ...}
 //   colours: {time, bright}          # time column; the colour the waterfall brightens to
 //   cascade_ms: 5400, stagger_ms: 90
@@ -60,7 +61,9 @@ class LcarsLog extends HTMLElement {
     try {
       const start = new Date(Date.now() - (c.hours || 24) * 3600e3).toISOString();
       const ids = c.sources.map((s) => s.entity).join(",");
-      const entries = await this._hass.callApi("GET", `logbook/${encodeURIComponent(start)}?entity=${ids}`);
+      // without end_time HA's logbook returns only the first day after start
+      const end = encodeURIComponent(new Date().toISOString());
+      const entries = await this._hass.callApi("GET", `logbook/${encodeURIComponent(start)}?entity=${ids}&end_time=${end}`);
       this._fetchedAt = Date.now();
       this._render(this._events(entries || []));
     } catch (e) {
@@ -159,7 +162,7 @@ class LcarsLog extends HTMLElement {
     const rows = lines.map((l, i) => {
       const d = new Date(l.t);
       const hms = d.toLocaleTimeString("en-GB", {hour: "2-digit", minute: "2-digit", second: "2-digit"});
-      const day = d.toDateString() === today ? "" :
+      const day = d.toDateString() === today && c.dates !== "always" ? "" :
         `<em>${d.toLocaleDateString("en-GB", {day: "2-digit", month: "2-digit"})}</em>`;
       const colour = c.levels[l.level] || c.levels.info;
       const fresh = !first && !this._seen.has(key(l));
