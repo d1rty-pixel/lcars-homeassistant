@@ -23,6 +23,7 @@ each card takes is documented at the top of its file, so they work in any dashbo
 | `lcars-schedule` | `schedule` | a day's schedule of phases over 24 h (also registered as `lcars-phases`) |
 | `lcars-transporter` | `sliders` | vertical sliders for number, input_number and light entities |
 | `lcars-log` | `log` | a device log from HA's logbook |
+| `lcars-list` | `list` | the entries of a list attribute, one line each (parcels, tasks) |
 | `lcars-tank` | `tank` | a fill level as a stack of segments |
 | `lcars-flow` | `matrix` | cards in columns that wrap into rows by their own width, each row with a label column |
 | `lcars-player`, `lcars-library` | `player`, `library` | a media player and its library |

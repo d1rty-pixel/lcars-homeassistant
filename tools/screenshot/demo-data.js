@@ -112,6 +112,16 @@ window.__lcarsDemoData = (nowMs) => {
     "scene.movie": {state: "scening", attributes: {}},
 
     "sensor.waste_next": {state: "Paper", attributes: {date: ymd(at(1, 7))}},
+    "sensor.parcels": {state: "3", attributes: {parcels: [
+      {id: "p1", carrier: "courier", kind: "out_for_delivery", title: "Replicator filter cartridge", status: "13:45–16:45",
+       updated: iso(nowMs - 2.5 * 3600e3)},
+      {id: "p2", carrier: "post", kind: "shipped", title: "Deck plating samples", status: "Arrives tomorrow",
+       updated: iso(nowMs - 20 * 3600e3)},
+      {id: "p3", carrier: "courier", kind: "ordered", title: "Isolinear chips ×4", status: "Arrives Friday",
+       updated: iso(nowMs - 30 * 3600e3)},
+      {id: "p4", carrier: "post", kind: "delivered", title: "Tea, Earl Grey", status: "Left at front door",
+       updated: iso(nowMs - 26 * 3600e3)},
+    ]}},
     ...Object.fromEntries(Object.entries(waste).map(([id, days]) => [id, wasteSensor(days)])),
 
     "media_player.living_room": {state: "playing", attributes: {

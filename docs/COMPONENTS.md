@@ -9,7 +9,7 @@ layout: [rows](#rows) [stack](#stack) [columns](#columns) [section](#section) [f
 [split](#split) [pair](#pair) [chain](#chain) [matrix](#matrix) [grid](#grid) [card](#card)
 [blank](#blank) · data: [value](#value) [bar](#bar) [pills](#pills) [timeline](#timeline) [week](#week)
 [month](#month) [forecast](#forecast) [radar](#radar) [history](#history) [chart](#chart) [topology](#topology)
-[sliders](#sliders) [schedule](#schedule) [log](#log) [tank](#tank) [player](#player)
+[sliders](#sliders) [schedule](#schedule) [log](#log) [list](#list) [tank](#tank) [player](#player)
 [library](#library) · [header](#header)
 
 The look follows the design rules in [DESIGN.md](DESIGN.md): one label column per page, titles in
@@ -433,6 +433,29 @@ sources:
 ```
 
 `hours`, `refresh_s`, `flap_s`, `burst_s`, `max_lines`, `dates` (`past`: the date only on lines before today, default; `always`).
+
+### list
+
+The entries of an entity attribute that holds a list of objects (`lcars-list.js`), e.g. parcels on their
+way or open tasks: one line each in the attribute's order (time, tag, text, detail, like the log's), as
+many whole lines as fit, coloured by one field's value. A changed line flashes once.
+
+```yaml
+type: list
+entity: sensor.parcels
+attribute: parcels                 # [{id, carrier, kind, title, status, updated}, ...]
+id: id                             # the field telling entries apart (default: the position)
+time: updated                      # an ISO time: HH:MM today, else the date
+tag: carrier
+text: kind
+detail: [title, status]            # joined with " · ", empty ones left out
+labels: {out_for_delivery: Out for delivery, dhl: DHL}   # values shown as mapped (any field)
+colour: kind
+colours: {out_for_delivery: sunflower, delivered: ice, default: peri}
+empty: No parcels
+```
+
+`max_lines` (40). Below 560 px width the tag column is left out.
 
 ### tank
 

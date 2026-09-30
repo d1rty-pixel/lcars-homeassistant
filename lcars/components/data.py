@@ -449,6 +449,36 @@ class Log(Component):
                 "cascade_ms": 3 * CASCADE_MS, "stagger_ms": 90, "font": FONT, "font_size": 15}
 
 
+@component("list")
+class List(Component):
+    """The entries of an entity attribute holding a list of objects (lcars-list.js), one line each: time, tag,
+    text, detail, coloured by a field's value. entity, attribute; text (the main field), tag, time (an ISO
+    time field), detail (a field or a list of fields); id (the field telling entries apart); labels: {value:
+    shown text}; colour (the field that picks the colour) and colours: {value: colour, default: colour};
+    empty (the text without entries); max_lines."""
+    fields = {"entity": REQUIRED, "attribute": REQUIRED, "text": REQUIRED, "tag": None, "time": None, "detail": None,
+              "id": None, "labels": None, "colour": None, "colours": None, "empty": "No entries", "max_lines": 40}
+
+    def parse(self):
+        if self.detail is not None and not isinstance(self.detail, (str, list)):
+            raise ConfigError(f"{self.where}.detail: a field or a list of fields")
+        self.colour_values = {"default": PERI, **(colour_map(self.colours, f"{self.where}.colours") or {})}
+
+    def render(self, ctx):
+        card = {"type": "custom:lcars-list", "entity": self.entity, "attribute": self.attribute, "text": self.text,
+                "colours": self.colour_values, "empty": self.empty, "max_lines": self.max_lines,
+                "colours_ui": {"time": rgba(PERI, 0.55), "bright": BRIGHT},
+                "cascade_ms": 3 * CASCADE_MS, "stagger_ms": 90, "font": FONT, "font_size": 15}
+        for f in ("tag", "time", "detail", "colour"):
+            if getattr(self, f) is not None:
+                card[f] = getattr(self, f)
+        if self.id is not None:
+            card["id"] = self.id
+        if self.labels:
+            card["labels"] = {str(k): str(v) for k, v in self.labels.items()}
+        return card
+
+
 @component("tank")
 class Tank(Component):
     """A fill level (a tank, a bottle, a battery) as a vertical stack of segments with a scale and a pointer

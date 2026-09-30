@@ -363,6 +363,24 @@ sections:
                                                              "off": [Stopped, warn, Air exchange offline]}}
             - {entity: binary_sensor.water_leak, tag: Leak, states: {"on": [Wet, error, Moisture detected in the basement],
                                                                       "off": [Dry, ok, Basement sensor dry]}}
+      - key: parcels
+        label: Parcels
+        subtitle: Parcel tracking
+        bar: [{title: Parcels in transit, colour: orange}]
+        content:
+          type: list                          # a line per entry of a list attribute
+          pillar: {colours: [peach, bone], side: left, filler: lilac, width: label}
+          entity: sensor.parcels
+          attribute: parcels
+          id: id
+          time: updated
+          tag: carrier
+          text: kind
+          detail: [title, status]
+          labels: {ordered: Ordered, shipped: Shipped, out_for_delivery: Out for delivery, delivered: Delivered}
+          colour: kind
+          colours: {out_for_delivery: sunflower, shipped: peri, delivered: ice, default: gray}
+          empty: No parcels
 
       - key: network
         label: Network
