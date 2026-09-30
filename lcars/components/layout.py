@@ -235,11 +235,14 @@ class Stack(_Sized):
         heights = [self._fixed(k, ctx) for k in kids]
         names = [f"i{i}" for i in range(len(kids))]
         cards = [at(k.card(ctx.at(key=ctx.key)), n) for k, n in zip(kids, names)]
+        if not kids:
+            return grid('"."', "1fr", "1fr", [], gap="0")
         rows = [h or "1fr" for h in heights]
+        card = grid(stack_areas(names), "1fr", " ".join(rows), cards, gap=f"{self._gap()} 0")
         if all(heights):
-            names.append(".")
-            rows.append("1fr")
-        return grid(stack_areas(names), "1fr", " ".join(rows), cards, gap=f"{self._gap()} 0")
+            # the rest stays black below; outside, so no gap before it takes from a child that may shrink
+            return grid('"s" "."', "1fr", f"{self.height(ctx)} 1fr", [at(card, "s")], gap="0")
+        return card
 
     @staticmethod
     def _fixed(comp, ctx):
@@ -252,14 +255,14 @@ class Stack(_Sized):
         hs = [self._fixed(k, ctx) for k in kids]
         if not hs or not all(hs):
             return None
-        return "calc(" + " + ".join(hs + [self._gap()] * (len(hs) - 1)) + ")"
+        return sizes.total(hs + [self._gap()] * (len(hs) - 1))
 
     def min_height(self, ctx):
         kids = [k for k in self.kids if k.visible(ctx)]
         parts = [self._fixed(k, ctx) or k.min_height(ctx) for k in kids]
         if not any(k.min_height(ctx) for k in kids) or not all(parts):
             return None
-        return "calc(" + " + ".join(parts + [self._gap()] * (len(parts) - 1)) + ")"
+        return sizes.total(parts + [self._gap()] * (len(parts) - 1), shrink=False)
 
     def edge(self, side, ctx):
         kids = [k for k in self.kids if k.visible(ctx)]
@@ -329,11 +332,11 @@ class Section(_Sized):
 
     def height(self, ctx):
         h = item_height(self.body, ctx)
-        return f"calc({Len.of(PANEL_T + DATA_GAP)} + {h})" if h and h != "1fr" else None
+        return sizes.total([Len.of(PANEL_T + DATA_GAP), h]) if h and h != "1fr" else None
 
     def min_height(self, ctx):
         m = self.body.min_height(ctx)
-        return f"calc({Len.of(PANEL_T)} + {m})" if m else None
+        return sizes.total([Len.of(PANEL_T), m], shrink=False) if m else None
 
     def edge(self, side, ctx):
         return ctx.label_w if side == self.side else None
@@ -391,10 +394,10 @@ class Frame(_Sized):
         if not h or h == "1fr":
             return None
         if ctx.flat:                    # a flat section bar and the gap under it
-            return f"calc({Len.of(PANEL_T + DATA_GAP)} + {h})"
+            return sizes.total([Len.of(PANEL_T + DATA_GAP), h])
         # the top shoulder and the gap down to the first piece of pillar; the bottom shoulder
         ends = (PANEL_CORNER + PANEL_GAP if self.top else 0) + (PANEL_CORNER if self.bottom else 0)
-        return f"calc({Len.of(ends)} + {h})"
+        return sizes.total([Len.of(ends), h])
 
     def edge(self, side, ctx):
         return self.pillar_width(ctx) or PANEL_PILLAR if side == self.side else None
@@ -447,7 +450,7 @@ class Split(_Sized):
         b = item_height(self.bottom_c, inner) or self.bottom_c.min_height(inner)
         if not (self.top_c.min_height(inner) or self.bottom_c.min_height(inner)) or not (t and b):
             return None
-        return f"calc({t} + {Len.of(PANEL_GAP + PANEL_CORNER + FRAME_GAP)} + {b})"
+        return sizes.total([t, Len.of(PANEL_GAP + PANEL_CORNER + FRAME_GAP), b], shrink=False)
 
     def edge(self, side, ctx):
         return edge(self.top_c, side, ctx)

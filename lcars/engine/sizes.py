@@ -188,6 +188,23 @@ def chart_height(n):
     return f"minmax(0, calc({Len.of(2 * PANEL_CORNER)} + {TL_HEAD} + {n} * {TL_ROW} + {TL_AXIS} + {Len.of((n + 2) * TL_GAP)}))"
 
 
+SHRINKS = "minmax(0, "
+
+
+def total(parts, shrink=True):
+    """The sum of heights as one CSS value. A part that may shrink (minmax(0, X), e.g. chart_height) can't
+    go into calc(), which would make the whole value invalid: its X is added, and with `shrink` the sum
+    may shrink too (a grid track); without it (for a minimum) it counts in full."""
+    flex = False
+    out = []
+    for p in map(str, parts):
+        if p.startswith(SHRINKS) and p.endswith(")"):
+            p, flex = p[len(SHRINKS):-1], True
+        out.append(p)
+    s = f"calc({' + '.join(out)})"
+    return f"{SHRINKS}{s})" if flex and shrink else s
+
+
 # Advance widths of Antonio Regular (em) for what titles use, read from the font (Google Fonts, v22); titles
 # are uppercase, so lowercase letters count as capitals. Anything else counts as 0.42 em.
 ANTONIO_EM = {
