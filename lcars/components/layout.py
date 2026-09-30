@@ -458,7 +458,8 @@ class Pair(_Sized):
     """Two frames side by side that face outwards (docs/DESIGN.md): pillars on the outer edges, their top
     bars meeting in the middle as one line. Between them a spine: a column of numbered blocks without a
     function, one per data row (`spine`: their colours, in turn; `rows`: how many, default the larger
-    frame's row count). The spine hangs from a piece of the shared line (`link` colour).
+    frame's row count). The spine hangs from a piece of the shared line (`link` colour), which reaches down
+    through the frames' inner curves to the first block.
 
     top: {left, right, colour, spine} puts a row of two parts above the frames (e.g. two label columns),
     closed below by thin bars with shoulders on both sides; the spine then runs through both.
@@ -504,7 +505,8 @@ class Pair(_Sized):
         top = PANEL_CORNER + PANEL_GAP if shoulders else PANEL_T + DATA_GAP
         height = f"calc({Len.of(top)} + {n} * {DATA_ROW} + {Len.of(n * DATA_GAP + 8)})"
         blocks = [self.spine_c[i % len(self.spine_c)] for i in range(n)]
-        column = grid('"b" "." ' + " ".join(f'"d{i}"' for i in range(n)) + ' "."', "1fr",
+        # the link reaches down through the frames' inner curves, so the blocks hang from it
+        column = grid('"b" "b" ' + " ".join(f'"d{i}"' for i in range(n)) + ' "."', "1fr",
                       f"{Len.of(PANEL_T)} {Len.of(top - PANEL_T - DATA_GAP)} " + " ".join([DATA_ROW] * n) + " 1fr",
                       [at(block(self.link_c), "b")] + [at(block(c, None, ctx.code("spine", str(i))), f"d{i}")
                                                       for i, c in enumerate(blocks)], gap=f"{Len.of(DATA_GAP)} 0")
