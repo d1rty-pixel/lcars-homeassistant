@@ -190,12 +190,13 @@ class Link:
 class BarPiece:
     """A piece of the mid bar over one or more of the view's columns: title, colour, side (where the title
     sits), span (columns it covers), buttons (a component in the bar, e.g. a radar's or a player's
-    controls; buttons_max: their widest in px)."""
+    controls; buttons_max: their widest in px), drop (a plain piece that reaches down through the frame's
+    inner curve to the content, e.g. for a spine that hangs from it)."""
 
     def __init__(self, node, where):
         if isinstance(node, str):
             node = {"title": node}
-        unknown = set(node) - {"title", "colour", "side", "span", "buttons", "buttons_max"}
+        unknown = set(node) - {"title", "colour", "side", "span", "buttons", "buttons_max", "drop"}
         if unknown:
             raise ConfigError(f"{where}: unknown field(s) {', '.join(sorted(unknown))}")
         self.title = node.get("title", "")
@@ -204,6 +205,9 @@ class BarPiece:
         self.span = int(node.get("span", 1))
         self.buttons = build(node["buttons"], f"{where}.buttons") if node.get("buttons") else None
         self.buttons_max = node.get("buttons_max")
+        self.drop = bool(node.get("drop", False))
+        if self.drop and (self.title or self.buttons):
+            raise ConfigError(f"{where}.drop: only a plain piece (no title, no buttons) can drop")
 
 
 class Right:

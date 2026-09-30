@@ -225,10 +225,18 @@ def top_bars(columns, pieces, right_w=None):
                 [at(card, n) for n, (_, card) in zip(names, pieces)], gap=f"0 {Len.of(g)}")
 
 
+def at_top(card, mid_t):
+    """A mid bar piece in the bar's thickness at the top of its cell: the bars' row also covers the frame's
+    inner curve below the bar, which only a dropping piece fills."""
+    return grid('"x" "."', "1fr", f"{Len.of(mid_t)} 1fr", [at(card, "x")], gap="0")
+
+
 def mid_bar(view, ctx):
     """The mid bar's pieces from the view's `bar` entries: a titled bar per piece (with its buttons),
     aligned with the view's columns."""
     pieces = []
+    drops = any(p.drop for p in view.bar)
+    top = (lambda c: at_top(c, view.mid_t)) if drops else (lambda c: c)
     for p in view.bar:
         middle = None
         if p.buttons is not None:
@@ -239,13 +247,14 @@ def mid_bar(view, ctx):
                                [at(buttons, "c"), at(framed(block(p.colour)), "b")], gap="0 6px")
             middle = (buttons, "1fr")
         if not p.title and middle is None:       # a plain piece of bar (e.g. over a spine)
-            pieces.append((p.span, framed(block(p.colour))))
+            piece = framed(block(p.colour))
+            pieces.append((p.span, piece if p.drop else top(piece)))
             continue
         bar = titled_bar(p.title, p.colour, sizes.TOP_BAR_T, side=p.side, middle=middle)
         for c in bar["cards"]:
             if c["view_layout"]["grid-area"] != "m":      # the buttons aren't frame
                 framed(c)
-        pieces.append((p.span, bar))
+        pieces.append((p.span, top(bar)))
     return top_bars(view.columns, pieces, right_w=view.right.width if view.right else None)
 
 
@@ -296,10 +305,13 @@ def frame(site, section, view, content, ctx, need=None):
             [at(block(c), n) for c, n in ((PEACH, "a"), (ROSE, "b"), (BLUEY, "c"), (ORANGE, "d"))], gap="0 6px"))
         h = mid_t + INNER_CURVE
         mcards = [at(framed(elbow("header-left", PEACH, bar_height=mid_t, outer_curve=h)), "e"), at(bars, "b")]
-        areas, mwidths = '"e b" "e ."', f"{ELBOW_W} 1fr"
+        # the bars' row covers the inner curve too (a piece with `drop` reaches down through it)
+        drops = view.bar and any(p.drop for p in view.bar)
+        b2 = "b" if drops else "."
+        areas, mwidths = f'"e b" "e {b2}"', f"{ELBOW_W} 1fr"
         if right:
             mcards.append(at(framed(frame_elbow("header-right", right.colour, right.width, mid_t, h)), "r"))
-            areas, mwidths = '"e b r" "e . r"', f"{ELBOW_W} 1fr {right.width + ELBOW_EXT}"
+            areas, mwidths = f'"e b r" "e {b2} r"', f"{ELBOW_W} 1fr {right.width + ELBOW_EXT}"
         mid = grid(areas, mwidths, f"{Len.of(mid_t)} 1fr", mcards, gap="0 6px")
     side = framed(sidebar(site, section, view))
 

@@ -191,7 +191,8 @@ bar:
 ```
 
 `buttons_max: 330` keeps the buttons at most that wide (the bar runs on behind them). A piece without a
-title and buttons is a plain piece of bar (e.g. over a spine column).
+title and buttons is a plain piece of bar (e.g. over a spine column); with `drop: true` it reaches down
+through the frame's inner curve to the content, so a spine below hangs from it.
 
 ### Closed on the right (`right`)
 
